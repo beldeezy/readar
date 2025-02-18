@@ -9,12 +9,11 @@
   <style>
     /* Global Reset and Base Styles */
     html, body {
-      height: 100%;
       margin: 0;
       padding: 0;
       font-family: 'Poppins', sans-serif;
-      overflow-x: hidden;
       background: #054745; /* Darker green background */
+      overflow-x: hidden; /* Only hide horizontal overflow to allow vertical scrolling */
     }
     /* Main content container above the background */
     .container {
@@ -23,6 +22,7 @@
       margin: 0 auto;
       position: relative;
       z-index: 2; /* Content overlays the background */
+      padding-bottom: 50px; /* Extra padding for mobile scrolling */
     }
     /* Radar Background */
     .radar-background {
@@ -224,30 +224,23 @@
       vertical-align: middle;
       margin-right: 8px;
     }
-
+    
     /* Responsive Styles */
     @media (max-width: 768px) {
-      /* Adjust container width for smaller screens */
       .container {
         width: 95%;
         max-width: 100%;
+        padding-bottom: 20px;
       }
-      /* Scale down the radar element */
       .radar {
         width: 200px;
         height: 200px;
       }
-      /* Adjust bullseye circles proportionally */
       .bullseye .circle.circle1 { width: 67px; height: 67px; }
       .bullseye .circle.circle2 { width: 134px; height: 134px; }
       .bullseye .circle.circle3 { width: 200px; height: 200px; }
-      /* Adjust hero typography */
-      .hero h2 {
-        font-size: 2rem;
-      }
-      .hero p {
-        font-size: 1rem;
-      }
+      .hero h2 { font-size: 2rem; }
+      .hero p { font-size: 1rem; }
     }
   </style>
 </head>
@@ -316,4 +309,17 @@
       </nav>
     </header>
     
-  
+    <!-- Hero Section -->
+    <section class="hero">
+      <h2>Helping entrepreneurs find the right book to read next.</h2>
+      <p>Curated book recommendations based on your reading history, interests, and goals.</p>
+      <button class="google-signin-btn">
+        <span class="btn-layer">
+          <img src="google-logo.img" alt="Google Icon" class="google-icon">
+          Sign in with Google
+        </span>
+      </button>
+    </section>
+  </div>
+</body>
+</html>
