@@ -13,7 +13,8 @@
       padding: 0;
       font-family: 'Poppins', sans-serif;
       background: #054745; /* Darker green background */
-      overflow-x: hidden; /* Only hide horizontal overflow to allow vertical scrolling */
+      overflow-x: hidden; /* Hide horizontal overflow */
+      overflow-y: auto;  /* Enable vertical scrolling */
     }
     /* Main content container above the background */
     .container {
@@ -22,7 +23,8 @@
       margin: 0 auto;
       position: relative;
       z-index: 2; /* Content overlays the background */
-      padding-bottom: 50px; /* Extra padding for mobile scrolling */
+      min-height: 100vh; /* Ensure container covers full viewport height */
+      padding: 20px 0;
     }
     /* Radar Background */
     .radar-background {
@@ -165,7 +167,7 @@
     }
     /* Hero Section Styles */
     .hero {
-      padding: 100px 0;
+      padding: 100px 20px;
       text-align: center;
       color: white;
     }
@@ -230,7 +232,7 @@
       .container {
         width: 95%;
         max-width: 100%;
-        padding-bottom: 20px;
+        padding: 20px;
       }
       .radar {
         width: 200px;
