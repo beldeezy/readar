@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Readar - keep seeking</title>
+  <!-- Google Fonts (Poppins) -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    /* Global Reset and Base Styles */
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      font-family: 'Poppins', sans-serif;
+      overflow: hidden;
+      background: #054745; /* Darker green background */
+    }
+    /* Main content container above the background */
+    .container {
+      width: 90%;
+      max-width: 1200px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 2; /* Content overlays the background */
+    }
+    /* Radar Background */
+    .radar-background {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #054745;
+      overflow: hidden;
+      z-index: 0;
+    }
+    /* Classic Radar Element */
+    .radar {
+      position: absolute;
+      width: 300px;
+      height: 300px;
+      border: 2px solid rgba(83,255,201,0.7);
+      border-radius: 50%;
+      opacity: 0;
+      animation: radarAppear 15.9s infinite;
+    }
+    @keyframes radarAppear {
+      0% { opacity: 0; transform: scale(0.8); }
+      20% { opacity: 1; transform: scale(1); }
+      80% { opacity: 1; transform: scale(1); }
+      100% { opacity: 0; transform: scale(1.1); }
+    }
+    /* Radar Sweep: a conic-gradient wedge rotating from the center */
+    .sweep {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: conic-gradient(from 0deg, #53ffc9 0deg, #53ffc9 30deg, rgba(83,255,201,0.5) 45deg, transparent 90deg, transparent 360deg);
+      opacity: 0.7;
+      animation: sweepRotate 13.2s linear infinite;
+    }
+    @keyframes sweepRotate {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(-360deg); }
+    }
+    /* Crosshair inside each radar */
+    .crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 100%;
+      height: 100%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+    .vertical-line, .horizontal-line {
+      position: absolute;
+      background: rgba(255,255,255,0.2);
+    }
+    .vertical-line {
+      width: 1px;
+      height: 100%;
+      left: 50%;
+      top: 0;
+    }
+    .horizontal-line {
+      height: 1px;
+      width: 100%;
+      top: 50%;
+      left: 0;
+    }
+    /* Bullseye: 3 concentric circles centered within each radar */
+    .bullseye {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+    .bullseye .circle {
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .circle.circle1 { width: 100px; height: 100px; }
+    .circle.circle2 { width: 200px; height: 200px; }
+    .circle.circle3 { width: 300px; height: 300px; }
+    
+    /* Blip: remains hidden until the front edge of the sweep passes its position */
+    .blip {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      background: #53ffc9;
+      border-radius: 50%;
+      opacity: 0;
+      animation: blipAnim 13.2s infinite;
+    }
+    @keyframes blipAnim {
+      0% { opacity: 0; transform: scale(0.5 ); }
+      48% { opacity: 0; transform: scale(0.5); } /* Hidden until just before the front edge passes */
+      52% { opacity: 1; transform: scale(1); } /* Blip appears as the front edge passes */
+      60% { opacity: 0; transform: scale(1); }
+      100% { opacity: 0; }
+    }
+    /* Blip Positions: Order of the radar sweep - top left, bottom left, top right */
+    .blip1 { top: 20%; left: 20%; animation-delay: 3.33s; }
+    .blip2 { top: 80%; left: 20%; animation-delay: 7.25s; }
+    .blip3 { top: 20%; left: 80%; animation-delay: 11.3s; }
+    
+    /* Header Styles */
+    header {
+      padding: 20px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .logo-container {
+      display: flex;
+      align-items: center;
+    }
+    .logo-container h1 {
+      font-family: 'DIN Alternate', sans-serif;
+      font-size: 2rem;
+      color: white;
+      margin-left: 10px;
+    }
+    .logo-img { max-height: 50px; }
+    nav ul {
+      list-style: none;
+      display: flex;
+    }
+    nav ul li { margin-left: 20px; }
+    nav ul li a {
+      text-decoration: none;
+      font-size: 1rem;
+      color: white;
+    }
+    /* Hero Section Styles */
+    .hero {
+      padding: 100px 0;
+      text-align: center;
+      color: white;
+    }
+    .hero h2 {
+      font-size: 2.5rem;
+      margin-bottom: 20px;
+    }
+    .hero p {
+      font-size: 1.2rem;
+      margin-bottom: 30px;
+    }
+    /* Google Sign-In Button (Pushable two-layer effect) */
+    .google-signin-btn {
+      position: relative;
+      display: inline-block;
+      border: none;
+      padding: 0;
+      background: transparent;
+      cursor: pointer;
+    }
+    .google-signin-btn::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #000000;
+      border: 1px solid #000000;
+      border-radius: 12px;
+      transform: translate(3px, 3px);
+      z-index: 1;
+      transition: transform 0.2s ease, opacity 0.2s ease;
+    }
+    .google-signin-btn .btn-layer {
+      display: block;
+      padding: 12px 42px;
+      font-size: 1.25rem;
+      background: #53ffc9;
+      color: #000000;
+      border: 3px solid #000000;
+      border-radius: 12px;
+      position: relative;
+      z-index: 2;
+      transition: transform 0.2s ease, opacity 0.2s ease;
+    }
+    .google-signin-btn:hover .btn-layer {
+      transform: translate(3px, 3px);
+    }
+    .google-signin-btn:active .btn-layer {
+      opacity: 0;
+    }
+    .google-icon {
+      width: 20px;
+      height: 20px;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Radar Background with Multiple Unique Radars -->
+  <div class="radar-background">
+    <!-- Radar 1: Unique Position -->
+    <div class="radar" style="top: 12%; left: 18%; animation-delay: 0s;">
+      <div class="sweep"></div>
+      <div class="crosshair">
+        <div class="vertical-line"></div>
+        <div class="horizontal-line"></div>
+      </div>
+      <div class="bullseye">
+        <div class="circle circle1"></div>
+        <div class="circle circle2"></div>
+        <div class="circle circle3"></div>
+      </div>
+      <div class="blip blip1"></div>
+      <div class="blip blip2"></div>
+    </div>
+    <!-- Radar 2: Unique Position -->
+    <div class="radar" style="top: 48%; left: 70%; animation-delay: 4s;">
+      <div class="sweep" style="animation-delay: 1.15s;"></div>
+      <div class="crosshair">
+        <div class="vertical-line"></div>
+        <div class="horizontal-line"></div>
+      </div>
+      <div class="bullseye">
+        <div class="circle circle1"></div>
+        <div class="circle circle2"></div>
+        <div class="circle circle3"></div>
+      </div>
+      <div class="blip blip2"></div>
+      <div class="blip blip3"></div>
+    </div>
+    <!-- Radar 3: Unique Position -->
+    <div class="radar" style="top: 68%; left: 32%; animation-delay: 8.05s;">
+      <div class="sweep" style="animation-delay: 2.3s;"></div>
+      <div class="crosshair">
+        <div class="vertical-line"></div>
+        <div class="horizontal-line"></div>
+      </div>
+      <div class="bullseye">
+        <div class="circle circle1"></div>
+        <div class="circle circle2"></div>
+        <div class="circle circle3"></div>
+      </div>
+      <div class="blip blip1"></div>
+      <div class="blip blip3"></div>
+    </div>
+  </div>
+  
+  <!-- Main Content -->
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="logo-container">
+        <img src="readar-logo.img" alt="Readar Logo" class="logo-img" />
+        <h1>readar</h1>
+      </div>
+      <nav>
+        <ul>
+          <li><a href="#">Sign In</a></li>
+        </ul>
+      </nav>
+    </header>
+    
+    <!-- Hero Section -->
+    <section class="hero">
+      <h2>Helping entrepreneurs find the right book to read next.</h2>
+      <p>Curated book recommendations based on your reading history, interests, and goals.</p>
+      <button class="google-signin-btn">
+        <span class="btn-layer">
+          <img src="google-logo.img" alt="Google Icon" class="google-icon">
+          Sign in with Google
+        </span>
+      </button>
+    </section>
+  </div>
+</body>
+</html>

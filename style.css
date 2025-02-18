@@ -1,0 +1,113 @@
+/* Reset & Base Styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  body {
+    font-family: 'Poppins', sans-serif;
+    background: #f9f9f9;
+    color: #054745;
+    line-height: 1.6;
+  }
+  .container {
+    width: 90%;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  
+  /* Header */
+  header {
+    padding: 20px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .logo-container {
+    display: flex;
+    align-items: center;
+  }
+  .logo-container h1 {
+    /* For your logo, use DIN Alternate Bold – here we simulate it with a sans-serif fallback */
+    font-family: 'DIN Alternate', sans-serif;
+    font-size: 2rem;
+    color: #054745;
+  }
+  .logo-img {
+    max-height: 50px; /* Adjust as needed */
+    margin-right: 10px;
+  }
+  nav ul {
+    list-style: none;
+    display: flex;
+  }
+  nav ul li {
+    margin-left: 20px;
+  }
+  nav ul li a {
+    text-decoration: none;
+    font-size: 1rem;
+    color: #054745;
+  }
+  
+  /* Hero Section */
+  .hero {
+    position: relative;
+    height: 80vh;
+    background: linear-gradient(135deg, #53FFC9, #2CB3BE, #0FA0A2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: white;
+  }
+  .hero::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(5, 71, 69, 0.6);
+    z-index: 1;
+  }
+  .hero-content {
+    position: relative;
+    z-index: 2;
+    padding: 20px;
+  }
+  .hero-content h2 {
+    font-size: 2.5rem;
+    margin-bottom: 20px;
+    line-height: 1.2;
+  }
+  .hero-content p {
+    font-size: 1.2rem;
+    margin-bottom: 30px;
+  }
+  .btn {
+    padding: 12px 30px;
+    text-decoration: none;
+    border-radius: 25px;
+    transition: background 0.3s ease;
+    font-weight: bold;
+    display: inline-block;
+  }
+  .primary-btn {
+    background: #53FFC9;
+    color: #054745;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  .primary-btn:hover {
+    background: #2CB3BE;
+  }
+  
+  /* Footer */
+  footer {
+    background: #DBE9EF;
+    padding: 20px 0;
+    text-align: center;
+    font-size: 0.9rem;
+    color: #054745;
+  }
+  
