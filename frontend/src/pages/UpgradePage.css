@@ -1,0 +1,116 @@
+.readar-upgrade-page {
+  padding: 3rem 0;
+  min-height: calc(100vh - 80px);
+  background-color: var(--readar-bg);
+}
+
+.readar-upgrade-title {
+  font-size: var(--readar-font-size-3xl);
+  font-weight: 700;
+  color: var(--readar-text);
+  margin-bottom: 3rem;
+  text-align: center;
+}
+
+.readar-pricing-card {
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 3rem;
+  text-align: center;
+  border: 2px solid var(--readar-primary);
+}
+
+.readar-pricing-title {
+  font-size: var(--readar-font-size-2xl);
+  font-weight: 600;
+  color: var(--readar-text);
+  margin-bottom: 2rem;
+}
+
+.readar-features-list {
+  list-style: none;
+  text-align: left;
+  margin-bottom: 2.5rem;
+  padding: 0;
+}
+
+.readar-features-list li {
+  padding: 0.75rem 0;
+  color: var(--readar-text);
+  font-size: var(--readar-font-size-lg);
+  font-weight: 500;
+  border-bottom: 2px solid var(--readar-border);
+}
+
+.readar-features-list li:last-child {
+  border-bottom: none;
+}
+
+.readar-price {
+  margin-bottom: 2.5rem;
+  padding: 1.5rem;
+  background-color: var(--readar-bg-soft);
+  border: 2px solid var(--readar-border);
+  border-radius: var(--readar-radius);
+}
+
+.readar-price-amount {
+  font-size: var(--readar-font-size-4xl);
+  font-weight: 700;
+  color: var(--readar-primary);
+}
+
+.readar-price-period {
+  font-size: var(--readar-font-size-lg);
+  color: var(--readar-muted);
+  margin-left: 0.5rem;
+}
+
+.readar-upgrade-button {
+  width: 100%;
+}
+
+.readar-upgrade-error {
+  background-color: rgba(236, 183, 103, 0.1);
+  border: 2px solid var(--readar-warm);
+  color: var(--readar-warm);
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  font-weight: 500;
+}
+
+.readar-premium-card {
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 3rem;
+  text-align: center;
+  background-color: var(--readar-surface-soft);
+  border: 2px solid var(--readar-primary);
+}
+
+.readar-premium-badge {
+  margin-bottom: 1.5rem;
+}
+
+.readar-premium-title {
+  font-size: var(--readar-font-size-3xl);
+  font-weight: 700;
+  color: var(--readar-primary);
+  margin-bottom: 1rem;
+}
+
+.readar-premium-text {
+  font-size: var(--readar-font-size-lg);
+  color: var(--readar-text);
+}
+
+@media (max-width: 768px) {
+  .readar-upgrade-title {
+    font-size: var(--readar-font-size-2xl);
+  }
+  
+  .readar-pricing-card {
+    padding: 2rem 1.5rem;
+  }
+}
+

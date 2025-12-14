@@ -1,0 +1,69 @@
+.radar-cluster {
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Desktop layout: multiple radars around edges */
+.radar-cluster--desktop {
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.radar-cluster-item {
+  position: absolute;
+}
+
+.radar-cluster-item--top-left {
+  top: 5%;
+  left: 3%;
+}
+
+.radar-cluster-item--top-right {
+  top: 8%;
+  right: 4%;
+}
+
+.radar-cluster-item--bottom-left {
+  bottom: 10%;
+  left: 5%;
+}
+
+.radar-cluster-item--bottom-right {
+  bottom: 8%;
+  right: 6%;
+}
+
+/* Mobile layout: single radar below content */
+.radar-cluster--mobile {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  margin-top: 3rem;
+  padding: 0 2rem;
+  z-index: 0;
+}
+
+/* Ensure radars don't interfere with hero content */
+@media (max-width: 768px) {
+  .radar-cluster--desktop {
+    display: none;
+  }
+  
+  .radar-cluster--mobile {
+    margin-top: 2.5rem;
+  }
+}
+
+@media (min-width: 769px) {
+  .radar-cluster--mobile {
+    display: none;
+  }
+}
+

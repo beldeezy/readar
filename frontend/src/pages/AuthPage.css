@@ -1,0 +1,83 @@
+.readar-auth-page {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: calc(100vh - 80px);
+  padding: 2rem;
+  background-color: var(--readar-bg);
+}
+
+.readar-auth-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 2.5rem;
+}
+
+.readar-auth-title {
+  font-size: var(--readar-font-size-2xl);
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 2rem;
+  color: var(--readar-text);
+}
+
+.readar-auth-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+  border-bottom: 2px solid var(--readar-border);
+  padding-bottom: 0;
+}
+
+.readar-auth-tab {
+  flex: 1;
+  padding: 0.75rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: var(--readar-font-size-base);
+  font-weight: 500;
+  color: var(--readar-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: all 0.2s ease;
+  font-family: var(--readar-font);
+}
+
+.readar-auth-tab:hover {
+  color: var(--readar-text);
+}
+
+.readar-auth-tab--active {
+  color: var(--readar-primary);
+  border-bottom-color: var(--readar-primary);
+  font-weight: 600;
+}
+
+.readar-auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.readar-auth-error {
+  background-color: rgba(236, 183, 103, 0.1);
+  color: var(--readar-warm);
+  padding: 0.75rem 1rem;
+  border-radius: var(--readar-radius);
+  font-size: var(--readar-font-size-sm);
+  border: 2px solid var(--readar-warm);
+  font-weight: 500;
+}
+
+.readar-auth-submit {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+@media (max-width: 480px) {
+  .readar-auth-card {
+    padding: 2rem 1.5rem;
+  }
+}
+

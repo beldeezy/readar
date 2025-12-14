@@ -1,0 +1,137 @@
+.reading-history-upload-step {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  min-height: 450px;
+}
+
+.reading-history-upload-step h2 {
+  font-size: var(--rd-font-size-2xl);
+  font-weight: 600;
+  color: var(--rd-text);
+  margin-bottom: 0.5rem;
+}
+
+.reading-history-upload-step p {
+  font-size: var(--rd-font-size-sm);
+  color: var(--rd-muted);
+  margin-top: 0.5rem;
+}
+
+.reading-history-upload-container {
+  border-radius: var(--rd-radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: var(--rd-surface);
+  padding: 1rem;
+}
+
+.reading-history-upload-container p {
+  margin-bottom: 0.75rem;
+  font-size: var(--rd-font-size-sm);
+  color: var(--rd-text);
+}
+
+.reading-history-upload-container ol {
+  margin-bottom: 1rem;
+  list-style: decimal;
+  padding-left: 1.25rem;
+  font-size: var(--rd-font-size-sm);
+  color: var(--rd-muted);
+  line-height: 1.75;
+}
+
+.reading-history-upload-container ol li {
+  margin-bottom: 0.25rem;
+}
+
+.reading-history-upload-container ol a {
+  color: var(--rd-accent);
+  text-decoration: underline;
+}
+
+.reading-history-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--rd-radius-lg);
+  border: 2px dashed rgba(255, 255, 255, 0.2);
+  padding: 2.5rem 1rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.reading-history-dropzone:hover {
+  border-color: var(--rd-accent);
+}
+
+.reading-history-dropzone p {
+  font-size: var(--rd-font-size-sm);
+  color: var(--rd-text);
+  margin: 0;
+}
+
+.reading-history-dropzone p:last-child {
+  font-size: var(--rd-font-size-xs);
+  color: var(--rd-muted);
+  margin-top: 0.25rem;
+}
+
+.reading-history-message {
+  margin-top: 0.75rem;
+  font-size: var(--rd-font-size-xs);
+  color: var(--rd-accent);
+}
+
+.reading-history-error {
+  margin-top: 0.75rem;
+  font-size: var(--rd-font-size-xs);
+  color: var(--readar-warm);
+}
+
+.reading-history-actions {
+  margin-top: auto;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.reading-history-actions-right {
+  margin-left: auto;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.reading-history-button {
+  border-radius: var(--rd-radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 0.5rem 0.75rem;
+  font-size: var(--rd-font-size-sm);
+  color: var(--rd-text);
+  background-color: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.reading-history-button:hover {
+  background-color: var(--rd-surface);
+}
+
+.reading-history-button-primary {
+  border: 1px solid var(--rd-accent);
+  background-color: var(--rd-accent-soft);
+  color: var(--rd-text);
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+}
+
+.reading-history-button-primary:hover {
+  background-color: rgba(53, 255, 201, 0.2);
+}
+
+.reading-history-button-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+

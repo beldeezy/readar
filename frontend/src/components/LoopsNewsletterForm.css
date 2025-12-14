@@ -1,0 +1,112 @@
+.loops-newsletter {
+  width: 100%;
+}
+
+/* form row */
+.loops-form {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 520px;  /* match newsletter max width */
+}
+
+.loops-input {
+  flex: 1;
+  height: 50px;
+  border-radius: 10px;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(249,250,251,0.95);
+  padding: 0 14px;
+  font-size: 15px;
+  font-family: var(--rd-font);
+}
+
+.loops-input::placeholder {
+  color: rgba(148, 163, 184, 0.75);
+}
+
+.loops-input:focus {
+  outline: none;
+  border-color: rgba(255,255,255,0.3);
+}
+
+/* small CTA button */
+.loops-cta {
+  height: 50px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 2px solid rgba(0,0,0,0.9);
+  background: #53ffc9;
+  color: #000;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: var(--rd-font);
+  font-size: 15px;
+  white-space: nowrap;
+
+  box-shadow: 0 6px 0 rgba(0,0,0,0.55);
+  transform: translateY(0);
+  transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+}
+
+.loops-cta:hover:not(:disabled) {
+  filter: brightness(1.03);
+}
+
+.loops-cta:active:not(:disabled) {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 rgba(0,0,0,0.35);
+}
+
+.loops-cta:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* mobile stack */
+@media (max-width: 640px) {
+  .loops-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .loops-cta {
+    width: 100%;
+  }
+}
+
+.loops-newsletter-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.loops-newsletter-success {
+  color: rgba(249,250,251,0.95);
+  font-size: 16px;
+  text-align: left;
+}
+
+.loops-newsletter-error {
+  color: rgb(185, 28, 28);
+  font-size: 16px;
+  text-align: left;
+}
+
+.loops-newsletter-back {
+  background: transparent;
+  border: none;
+  color: rgba(148, 163, 184, 0.75);
+  font-size: 14px;
+  cursor: pointer;
+  font-family: var(--rd-font);
+  padding: 0;
+}
+
+.loops-newsletter-back:hover {
+  text-decoration: underline;
+  color: rgba(148, 163, 184, 0.9);
+}
+

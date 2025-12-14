@@ -1,0 +1,49 @@
+.readar-badge {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+  border-radius: var(--readar-radius-sm);
+  font-family: var(--readar-font);
+  border: 2px solid transparent;
+}
+
+.readar-badge--sm {
+  padding: 0.25rem 0.5rem;
+  font-size: var(--readar-font-size-xs);
+}
+
+.readar-badge--md {
+  padding: 0.375rem 0.75rem;
+  font-size: var(--readar-font-size-sm);
+}
+
+.readar-badge--primary {
+  background-color: var(--readar-primary);
+  color: var(--readar-bg);
+  border-color: var(--readar-primary);
+}
+
+.readar-badge--secondary {
+  background-color: var(--readar-primary-dark);
+  color: var(--readar-text);
+  border-color: var(--readar-primary-dark);
+}
+
+.readar-badge--warm {
+  background-color: var(--readar-warm);
+  color: var(--readar-bg);
+  border-color: var(--readar-warm);
+}
+
+.readar-badge--purple {
+  background-color: var(--readar-accent-purple);
+  color: var(--readar-text);
+  border-color: var(--readar-accent-purple);
+}
+
+.readar-badge--dark {
+  background-color: var(--readar-surface-soft);
+  color: var(--readar-text);
+  border-color: var(--readar-border);
+}
+

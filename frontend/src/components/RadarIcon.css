@@ -1,0 +1,39 @@
+.radar-icon {
+  display: block;
+  pointer-events: none;
+  user-select: none;
+}
+
+.radar-shadow {
+  opacity: 1;
+}
+
+.radar-core {
+  transform-origin: center;
+}
+
+/* No CSS animation; rotation handled via <animateTransform> */
+.radar-sweep {
+  /* purely for styling if needed */
+}
+
+@keyframes radarSweep {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+.radar-ring-outer {
+  opacity: 0.9;
+}
+
+.radar-ring-inner {
+  opacity: 0.5;
+}
+
+.radar-crosshair {
+  opacity: 0.4;
+}

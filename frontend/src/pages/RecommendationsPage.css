@@ -1,0 +1,61 @@
+.readar-recommendations-page {
+  padding: 3rem 0;
+  min-height: calc(100vh - 80px);
+  background-color: var(--rd-bg);
+}
+
+.readar-recommendations-header {
+  margin-bottom: 3rem;
+  text-align: center;
+}
+
+.readar-recommendations-title {
+  font-size: var(--rd-font-size-3xl);
+  font-weight: 700;
+  color: var(--rd-text);
+  margin-bottom: 0.75rem;
+}
+
+.readar-recommendations-subtitle {
+  font-size: var(--rd-font-size-lg);
+  color: var(--rd-muted);
+}
+
+.readar-recommendations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 2rem;
+}
+
+.readar-loading,
+.readar-empty-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--rd-muted);
+  font-size: var(--rd-font-size-lg);
+}
+
+.readar-error-card {
+  background-color: rgba(236, 183, 103, 0.1);
+  border: 2px solid var(--readar-warm);
+  color: var(--readar-warm);
+  padding: 2rem;
+  text-align: center;
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .readar-recommendations-page {
+    padding: 2rem 0;
+  }
+  
+  .readar-recommendations-title {
+    font-size: var(--rd-font-size-2xl);
+  }
+  
+  .readar-recommendations-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+}
+
