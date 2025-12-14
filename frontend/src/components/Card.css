@@ -1,0 +1,26 @@
+.readar-card {
+  background-color: var(--rd-surface);
+  border-radius: var(--rd-radius-lg);
+  padding: 1.5rem;
+  transition: all 0.2s ease;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.readar-card--default {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.readar-card--elevated {
+  border-color: rgba(255, 255, 255, 0.15);
+  background-color: var(--rd-surface);
+}
+
+.readar-card--flat {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.readar-card:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  background-color: var(--rd-surface);
+}
+

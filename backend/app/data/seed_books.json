@@ -1,0 +1,104 @@
+[
+  {
+    "title": "The Lean Startup",
+    "subtitle": "How Today's Entrepreneurs Use Continuous Innovation to Create Radically Successful Businesses",
+    "author_name": "Eric Ries",
+    "categories": ["entrepreneurship", "startups"],
+    "business_stage_tags": ["idea", "pre-revenue"],
+    "functional_tags": ["product", "validation", "experiments"],
+    "theme_tags": ["lean", "build-measure-learn", "MVP"],
+    "published_year": 2011
+  },
+  {
+    "title": "Zero to One",
+    "subtitle": "Notes on Startups, or How to Build the Future",
+    "author_name": "Peter Thiel",
+    "categories": ["entrepreneurship", "strategy"],
+    "business_stage_tags": ["pre-revenue", "early-revenue"],
+    "functional_tags": ["product", "differentiation", "moats"],
+    "theme_tags": ["monopoly", "innovation", "contrarian"],
+    "published_year": 2014
+  },
+  {
+    "title": "Rework",
+    "subtitle": "Change the Way You Work Forever",
+    "author_name": "Jason Fried & David Heinemeier Hansson",
+    "categories": ["entrepreneurship", "operations"],
+    "business_stage_tags": ["idea", "pre-revenue", "early-revenue"],
+    "functional_tags": ["product", "operations", "mindset"],
+    "theme_tags": ["simplicity", "bootstrapping", "focus"],
+    "published_year": 2010
+  },
+  {
+    "title": "The E-Myth Revisited",
+    "subtitle": "Why Most Small Businesses Don't Work and What to Do About It",
+    "author_name": "Michael E. Gerber",
+    "categories": ["operations", "small business"],
+    "business_stage_tags": ["early-revenue", "scaling"],
+    "functional_tags": ["systems", "operations", "process"],
+    "theme_tags": ["working on the business", "franchise-thinking"],
+    "published_year": 1995
+  },
+  {
+    "title": "The Hard Thing About Hard Things",
+    "subtitle": "Building a Business When There Are No Easy Answers",
+    "author_name": "Ben Horowitz",
+    "categories": ["leadership", "startups"],
+    "business_stage_tags": ["early-revenue", "scaling"],
+    "functional_tags": ["leadership", "management"],
+    "theme_tags": ["wartime CEO", "tough decisions"],
+    "published_year": 2014
+  },
+  {
+    "title": "Traction",
+    "subtitle": "How Any Startup Can Achieve Explosive Customer Growth",
+    "author_name": "Gabriel Weinberg & Justin Mares",
+    "categories": ["marketing", "growth"],
+    "business_stage_tags": ["pre-revenue", "early-revenue"],
+    "functional_tags": ["marketing", "acquisition", "channels"],
+    "theme_tags": ["bullseye framework", "traction channels"],
+    "published_year": 2014
+  },
+  {
+    "title": "Purple Cow",
+    "subtitle": "Transform Your Business by Being Remarkable",
+    "author_name": "Seth Godin",
+    "categories": ["marketing", "brand"],
+    "business_stage_tags": ["idea", "pre-revenue", "early-revenue"],
+    "functional_tags": ["brand", "marketing", "positioning"],
+    "theme_tags": ["remarkability", "differentiation"],
+    "published_year": 2003
+  },
+  {
+    "title": "Inspired",
+    "subtitle": "How to Create Tech Products Customers Love",
+    "author_name": "Marty Cagan",
+    "categories": ["product", "technology"],
+    "business_stage_tags": ["pre-revenue", "early-revenue", "scaling"],
+    "functional_tags": ["product", "discovery", "roadmapping"],
+    "theme_tags": ["product management", "customer discovery"],
+    "published_year": 2017
+  },
+  {
+    "title": "The Personal MBA",
+    "subtitle": "Master the Art of Business",
+    "author_name": "Josh Kaufman",
+    "categories": ["business fundamentals"],
+    "business_stage_tags": ["idea", "pre-revenue", "early-revenue"],
+    "functional_tags": ["strategy", "marketing", "finance"],
+    "theme_tags": ["mental models", "fundamentals"],
+    "published_year": 2010
+  },
+  {
+    "title": "Atomic Habits",
+    "subtitle": "An Easy & Proven Way to Build Good Habits & Break Bad Ones",
+    "author_name": "James Clear",
+    "categories": ["productivity", "self-improvement"],
+    "business_stage_tags": ["idea", "pre-revenue", "early-revenue", "scaling"],
+    "functional_tags": ["habits", "productivity"],
+    "theme_tags": ["systems", "compound gains"],
+    "published_year": 2018
+  }
+]
+
+

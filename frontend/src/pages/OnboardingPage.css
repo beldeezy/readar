@@ -1,0 +1,171 @@
+.readar-onboarding-page {
+  padding: 3rem 0;
+  min-height: calc(100vh - 80px);
+  background-color: var(--rd-bg);
+}
+
+.readar-onboarding-card {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 3rem;
+}
+
+.readar-progress-bar {
+  height: 6px;
+  background-color: var(--rd-surface);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--rd-radius-pill);
+  margin-bottom: 2.5rem;
+  overflow: hidden;
+}
+
+.readar-progress {
+  height: 100%;
+  background-color: var(--rd-accent);
+  border-radius: var(--rd-radius-pill);
+  transition: width 0.3s ease;
+}
+
+.readar-onboarding-title {
+  font-size: var(--rd-font-size-3xl);
+  font-weight: 700;
+  color: var(--rd-text);
+  margin-bottom: 2.5rem;
+  text-align: center;
+}
+
+.readar-onboarding-error {
+  background-color: rgba(236, 183, 103, 0.1);
+  color: var(--readar-warm);
+  padding: 1rem;
+  border-radius: var(--rd-radius-lg);
+  margin-bottom: 2rem;
+  border: 2px solid var(--readar-warm);
+  font-weight: 500;
+}
+
+.readar-step-content {
+  min-height: 450px;
+}
+
+.readar-step-title {
+  font-size: var(--rd-font-size-2xl);
+  font-weight: 600;
+  color: var(--rd-text);
+  margin-bottom: 2rem;
+}
+
+.readar-input-group {
+  margin-bottom: 1.5rem;
+}
+
+.readar-select,
+.readar-textarea {
+  font-family: var(--rd-font);
+  font-size: var(--rd-font-size-base);
+  padding: 0.75rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--rd-radius-lg);
+  background-color: var(--rd-surface);
+  color: var(--rd-text);
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.readar-textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.readar-select:focus,
+.readar-textarea:focus {
+  outline: none;
+  border-color: var(--rd-accent);
+  background-color: var(--rd-surface);
+}
+
+.readar-checkbox-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 1rem;
+}
+
+.readar-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: var(--rd-radius-lg);
+  transition: background-color 0.2s ease;
+}
+
+.readar-checkbox-label:hover {
+  background-color: var(--rd-surface);
+}
+
+.readar-checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--rd-accent);
+}
+
+.readar-radio-group {
+  display: flex;
+  gap: 2rem;
+  margin-top: 0.5rem;
+}
+
+.readar-radio-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  font-size: var(--rd-font-size-base);
+  color: var(--rd-text);
+}
+
+.readar-radio-label input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--rd-accent);
+}
+
+.readar-step-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@media (max-width: 768px) {
+  .readar-onboarding-card {
+    padding: 2rem 1.5rem;
+  }
+  
+  .readar-onboarding-title {
+    font-size: var(--rd-font-size-2xl);
+  }
+  
+  .readar-step-title {
+    font-size: var(--rd-font-size-xl);
+  }
+  
+  .readar-checkbox-group {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 0.75rem;
+  }
+  
+  .readar-step-actions {
+    flex-direction: column;
+  }
+  
+  .readar-step-actions > * {
+    width: 100%;
+  }
+}
+

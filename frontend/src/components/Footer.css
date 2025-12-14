@@ -1,0 +1,58 @@
+.site-footer {
+  background: #000;
+  padding: 72px 24px;
+}
+
+.footer-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* KEY: keep the newsletter block left-anchored and constrained */
+.footer-newsletter {
+  max-width: 520px;          /* prevents crossing midpoint on typical widths */
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Headline: smaller than Gumroad, still bold */
+.footer-newsletter-headline {
+  font-size: clamp(28px, 3.2vw, 40px);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  color: rgba(249, 250, 251, 0.95);
+  margin: 0;
+}
+
+.footer-newsletter-subtitle {
+  font-size: 15px;
+  line-height: 1.5;
+  color: rgba(148, 163, 184, 0.85);
+  margin: 0;
+  max-width: 48ch;
+}
+
+.footer-newsletter-em {
+  color: rgba(249, 250, 251, 0.9);
+  font-weight: 600;
+}
+
+/* Give the form breathing room */
+.footer-newsletter-form {
+  margin-top: 10px;
+  max-width: 520px;
+}
+
+@media (max-width: 640px) {
+  .site-footer {
+    padding: 60px 20px;
+  }
+  
+  .footer-newsletter {
+    max-width: 100%;
+  }
+}
+

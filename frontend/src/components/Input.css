@@ -1,0 +1,39 @@
+.readar-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.readar-input-label {
+  font-size: var(--rd-font-size-sm);
+  font-weight: 600;
+  color: var(--rd-text);
+}
+
+.readar-input {
+  font-family: var(--rd-font);
+  font-size: var(--rd-font-size-base);
+  padding: 0.75rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--rd-radius-lg);
+  background-color: var(--rd-surface);
+  color: var(--rd-text);
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.readar-input:focus {
+  outline: none;
+  border-color: var(--rd-accent);
+  background-color: var(--rd-surface);
+}
+
+.readar-input--error {
+  border-color: var(--readar-warm);
+}
+
+.readar-input-error {
+  font-size: var(--readar-font-size-sm);
+  color: var(--readar-warm);
+}
+

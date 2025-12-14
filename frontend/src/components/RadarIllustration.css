@@ -1,0 +1,63 @@
+.radar-illustration {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.radar-svg {
+  width: 100%;
+  height: 100%;
+  opacity: 0.4;
+}
+
+/* Radar sweep animation - slow, smooth rotation */
+.radar-sweep {
+  transform-origin: 400px 300px;
+  animation: radarSweep 8s linear infinite;
+}
+
+@keyframes radarSweep {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Subtle book animation - gentle floating */
+.radar-books {
+  animation: bookFloat 6s ease-in-out infinite;
+}
+
+@keyframes bookFloat {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+/* Responsive: simplify on smaller screens */
+@media (max-width: 768px) {
+  .radar-svg {
+    opacity: 0.25;
+  }
+  
+  .radar-books {
+    opacity: 0.5;
+  }
+}
+
+@media (max-width: 480px) {
+  .radar-illustration {
+    display: none; /* Hide on very small screens to keep focus on copy */
+  }
+}
+
