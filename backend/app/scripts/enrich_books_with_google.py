@@ -13,7 +13,9 @@ from app import models
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-GOOGLE_BOOKS_API_KEY = os.getenv("GOOGLE_BOOKS_API_KEY", "REMOVED_GOOGLE_API_KEY")
+GOOGLE_BOOKS_API_KEY = os.getenv("GOOGLE_BOOKS_API_KEY")
+if not GOOGLE_BOOKS_API_KEY:
+    raise RuntimeError("Missing GOOGLE_BOOKS_API_KEY. Add it to backend/.env")
 GOOGLE_BOOKS_BASE_URL = "https://www.googleapis.com/books/v1/volumes"
 
 
