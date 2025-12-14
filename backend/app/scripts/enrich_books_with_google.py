@@ -13,7 +13,11 @@ from app import models
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
+<<<<<<< HEAD
 GOOGLE_BOOKS_API_KEY = os.getenv("GOOGLE_BOOKS_API_KEY", "AIzaSyDnuYoyCOkF9Y0L7JC0YUMRdsibJQfZa8E")
+=======
+GOOGLE_BOOKS_API_KEY = os.getenv("GOOGLE_BOOKS_API_KEY", "REDACTED_GOOGLE_API_KEY")
+>>>>>>> 780f9355 (Initial commit: Readar v1 baseline)
 GOOGLE_BOOKS_BASE_URL = "https://www.googleapis.com/books/v1/volumes"
 
 
