@@ -13,12 +13,13 @@ from app import models
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-<<<<<<< HEAD
-GOOGLE_BOOKS_API_KEY = os.getenv("GOOGLE_BOOKS_API_KEY", "AIzaSyDnuYoyCOkF9Y0L7JC0YUMRdsibJQfZa8E")
-=======
-GOOGLE_BOOKS_API_KEY = os.getenv("GOOGLE_BOOKS_API_KEY", "REDACTED_GOOGLE_API_KEY")
->>>>>>> 780f9355 (Initial commit: Readar v1 baseline)
+
+GOOGLE_BOOKS_API_KEY = os.getenv("GOOGLE_BOOKS_API_KEY")
+if not GOOGLE_BOOKS_API_KEY:
+    raise RuntimeError("Missing GOOGLE_BOOKS_API_KEY. Add it to backend/.env")
+
 GOOGLE_BOOKS_BASE_URL = "https://www.googleapis.com/books/v1/volumes"
+
 
 
 def _build_query(title: str, author: str) -> Dict[str, Any]:
