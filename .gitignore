@@ -65,3 +65,8 @@ dist/
 build/
 *.tsbuildinfo
 
+
+# Env files
+.env
+.env.*
+!.env.example
