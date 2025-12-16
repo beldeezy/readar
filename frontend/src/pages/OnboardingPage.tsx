@@ -422,6 +422,8 @@ export default function OnboardingPage() {
             onBack={() => setStep(step - 1)}
             onSkip={handleSkipAndNavigate}
             onNext={handleSubmitAndNavigate}
+            onSkip={handleSubmit}
+            onNext={handleSubmit}
           />
         )}
 

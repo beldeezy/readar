@@ -73,6 +73,24 @@ export const ReadingHistoryUploadStep: React.FC<Props> = ({
     // Skip immediately without any API calls
     // onSkip just navigates to the next step
     onSkip?.();
+      await importGoodreadsCsv();
+      await onNext?.(); // This should call handleSubmit
+    } catch (e) {
+      console.error(e);
+      setError(e instanceof Error ? e.message : "Failed to continue.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleSkip = async () => {
+    setError(null);
+    try {
+      await onSkip?.(); // This should call handleSubmit
+    } catch (e) {
+      console.error(e);
+      setError("Failed to continue.");
+    }
   };
 
   return (

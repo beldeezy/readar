@@ -39,6 +39,10 @@ DEFAULT_FILES = [
     BASE_DIR / "data" / "books_seed.json",
 ]
 
+]
+
+LEGACY_FILE = BASE_DIR / "data" / "seed_books.json"
+
 
 def _coerce_difficulty(raw):
     """
@@ -144,6 +148,16 @@ def _collect_books(files: list[Path]) -> list[dict]:
         all_books_raw.extend(books)
 
     if not all_books_raw:
+    Load and concatenate books from all provided files.
+    Later files can overwrite earlier ones via the update logic.
+    """
+    all_books: list[dict] = []
+
+    for path in files:
+        books = _load_books_from_file(path)
+        all_books.extend(books)
+
+    if not all_books:
         raise FileNotFoundError(
             "No books loaded. Checked files:\n"
             + "\n".join(str(p) for p in files)
@@ -177,6 +191,8 @@ def _collect_books(files: list[Path]) -> list[dict]:
     print(f"[seed_books] After deduplication: {len(deduplicated)} unique books")
     
     return deduplicated
+    print(f"[seed_books] Total raw book records loaded: {len(all_books)}")
+    return all_books
 
 
 def seed_books(files: list[Path]):
@@ -203,6 +219,11 @@ def seed_books(files: list[Path]):
                 .filter(
                     sa.func.lower(models.Book.title) == title.lower(),
                     sa.func.lower(models.Book.author_name) == author_name.lower(),
+            existing = (
+                db.query(models.Book)
+                .filter(
+                    models.Book.title == title,
+                    models.Book.author_name == author_name,
                 )
                 .one_or_none()
             )
@@ -236,6 +257,7 @@ def seed_books(files: list[Path]):
             core_frameworks = b.get("core_frameworks") if isinstance(b.get("core_frameworks"), list) else None
             anti_patterns = b.get("anti_patterns") if isinstance(b.get("anti_patterns"), list) else None
             outcomes = b.get("outcomes") if isinstance(b.get("outcomes"), list) else None
+            difficulty = _coerce_difficulty(b.get("difficulty"))
 
             if existing:
                 # Idempotent update: keep existing id, refresh fields from JSON
@@ -328,10 +350,14 @@ def main():
         files = [Path(f).resolve() for f in args.files]
     else:
         # Default behavior: use all canon files that exist
+        # Default behavior: use main canon + services if they exist,
+        # otherwise fall back to legacy seed_books.json if needed.
         files = []
         for p in DEFAULT_FILES:
             if p.exists():
                 files.append(p)
+        if not files and LEGACY_FILE.exists():
+            files.append(LEGACY_FILE)
 
     if not files:
         raise FileNotFoundError(

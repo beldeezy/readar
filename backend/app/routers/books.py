@@ -4,6 +4,8 @@ from sqlalchemy import or_, and_, asc, desc
 from typing import Optional, List, Any
 from uuid import UUID
 import logging
+from sqlalchemy import or_, and_
+from typing import Optional
 from app.database import get_db
 from app.models import Book
 from app.schemas.book import BookResponse, BookCreate
@@ -25,6 +27,15 @@ def get_books(
     category: Optional[str] = Query(None, description="Filter by category"),
     stage: Optional[str] = Query(None, description="Filter by business stage tag"),
     limit: int = Query(100, ge=1, le=5000),
+router = APIRouter(prefix="/books", tags=["books"])
+
+
+@router.get("", response_model=list[BookResponse])
+def get_books(
+    search: Optional[str] = Query(None, description="Search in title, author, or description"),
+    category: Optional[str] = Query(None, description="Filter by category"),
+    stage: Optional[str] = Query(None, description="Filter by business stage tag"),
+    limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db)
 ):
@@ -145,6 +156,26 @@ def get_books(
             status_code=500,
             detail="Failed to fetch books"
         )
+    query = db.query(Book)
+    
+    if search:
+        search_term = f"%{search.lower()}%"
+        query = query.filter(
+            or_(
+                Book.title.ilike(search_term),
+                Book.author_name.ilike(search_term),
+                Book.description.ilike(search_term)
+            )
+        )
+    
+    if category:
+        query = query.filter(Book.categories.contains([category]))
+    
+    if stage:
+        query = query.filter(Book.business_stage_tags.contains([stage]))
+    
+    books = query.offset(offset).limit(limit).all()
+    return books
 
 
 @router.get("/{book_id}", response_model=BookResponse)
@@ -191,6 +222,13 @@ def get_book(book_id: str, db: Session = Depends(get_db)):
             status_code=500,
             detail=f"Failed to fetch book: {repr(e)}"
         )
+    book = db.query(Book).filter(Book.id == book_id).first()
+    if not book:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Book not found",
+        )
+    return book
 
 
 @router.post("/seed/debug", status_code=status.HTTP_201_CREATED)

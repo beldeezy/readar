@@ -530,6 +530,102 @@
       "independence"
     ],
     "difficulty": "light"
+    "categories": ["product", "psychology", "design"],
+    "business_stage_tags": ["pre-revenue", "early-revenue"],
+    "functional_tags": ["product", "design"],
+    "theme_tags": ["user-engagement", "habits", "retention"],
+    "difficulty": "medium"
+  },
+  {
+    "title": "The E-Myth Revisited",
+    "subtitle": "Why Most Small Businesses Don't Work and What to Do About It",
+    "author_name": "Michael E. Gerber",
+    "description": "E-Myth \u2018e-,\u02c8mith 1: the entrepreneurial myth: the myth that most people who start small businesses are entrepreneurs 2: the fatal assumption that an individual who understands the technical work of a business can successfully run a business that does that technical work.",
+    "page_count": 288,
+    "published_year": 1995,
+    "categories": ["business", "systems", "management"],
+    "business_stage_tags": ["early-revenue", "scaling"],
+    "functional_tags": ["management", "operations"],
+    "theme_tags": ["systems", "scaling", "delegation"],
+    "difficulty": "medium"
+  },
+  {
+    "title": "Built to Sell",
+    "subtitle": "Creating a Business That Can Thrive Without You",
+    "author_name": "John Warrillow",
+    "description": "Most business owners started their company because they wanted more freedom—to work on their own schedule, make the key decisions, and reap the rewards of their own hard work. But according to John Warrillow, most owners have instead built a job for themselves.",
+    "page_count": 192,
+    "published_year": 2011,
+    "categories": ["business", "scaling", "exit"],
+    "business_stage_tags": ["scaling"],
+    "functional_tags": ["strategy", "operations"],
+    "theme_tags": ["scalability", "systems", "value-creation"],
+    "difficulty": "light"
+  },
+  {
+    "title": "The $100 Startup",
+    "subtitle": "Reinvent the Way You Make a Living, Do What You Love, and Create a New Future",
+    "author_name": "Chris Guillebeau",
+    "description": "In The $100 Startup, Chris Guillebeau shows you how to lead of life of adventure, meaning and purpose—and earn a good living. Still in his early thirties, Chris is on the verge of completing a tour of every country on earth—he's already visited more than 175 nations—and yet he's never held a 'real job' or earned a regular paycheck.",
+    "page_count": 304,
+    "published_year": 2012,
+    "categories": ["lifestyle-business", "entrepreneurship", "bootstrapping"],
+    "business_stage_tags": ["idea", "pre-revenue"],
+    "functional_tags": ["strategy", "marketing"],
+    "theme_tags": ["bootstrapping", "lifestyle", "independence"],
+    "difficulty": "light"
+  },
+  {
+    "title": "The Art of the Start 2.0",
+    "subtitle": "The Time-Tested, Battle-Hardened Guide for Anyone Starting Anything",
+    "author_name": "Guy Kawasaki",
+    "description": "The Art of the Start 2.0 will show you how to overcome the challenges that stop many entrepreneurs, whether you're dreaming of starting the next Google or a not-for-profit that's going to change the world.",
+    "page_count": 336,
+    "published_year": 2015,
+    "categories": ["startup", "entrepreneurship", "fundraising"],
+    "business_stage_tags": ["idea", "pre-revenue", "early-revenue"],
+    "functional_tags": ["strategy", "fundraising"],
+    "theme_tags": ["pitching", "networking", "execution"],
+    "difficulty": "medium"
+  },
+  {
+    "title": "Blitzscaling",
+    "subtitle": "The Lightning-Fast Path to Building Massively Valuable Companies",
+    "author_name": "Reid Hoffman",
+    "description": "Blitzscaling is a specific set of practices for igniting and managing dizzying growth; an accelerated path to the stage in a startup's life-cycle where the most value is created. It prioritizes speed over efficiency in an environment of uncertainty, and allows a company to go from 'startup' to 'scale-up' at a furious pace that captures the market.",
+    "page_count": 336,
+    "published_year": 2018,
+    "categories": ["scaling", "growth", "strategy"],
+    "business_stage_tags": ["scaling"],
+    "functional_tags": ["strategy", "growth"],
+    "theme_tags": ["scaling", "growth", "speed"],
+    "difficulty": "deep"
+  },
+  {
+    "title": "The Innovator's Dilemma",
+    "subtitle": "When New Technologies Cause Great Firms to Fail",
+    "author_name": "Clayton M. Christensen",
+    "description": "The Innovator's Dilemma demonstrates why outstanding companies that did everything right were still able to lose their market leadership—and even fail—as new, unexpected competitors rose and took over the market.",
+    "page_count": 288,
+    "published_year": 1997,
+    "categories": ["strategy", "innovation", "disruption"],
+    "business_stage_tags": ["idea", "pre-revenue"],
+    "functional_tags": ["strategy"],
+    "theme_tags": ["disruption", "innovation", "competition"],
+    "difficulty": "deep"
+  },
+  {
+    "title": "Good to Great",
+    "subtitle": "Why Some Companies Make the Leap...And Others Don't",
+    "author_name": "Jim Collins",
+    "description": "The findings of the Good to Great study will surprise many readers and shed light on virtually every area of management strategy and practice. The findings include: Level 5 Leaders: The research team was shocked to discover the type of leadership required to achieve greatness.",
+    "page_count": 320,
+    "published_year": 2001,
+    "categories": ["leadership", "management", "strategy"],
+    "business_stage_tags": ["scaling"],
+    "functional_tags": ["leadership", "management"],
+    "theme_tags": ["excellence", "discipline", "focus"],
+    "difficulty": "deep"
   },
   {
     "title": "The 4-Hour Workweek",
@@ -611,6 +707,36 @@
       "networking",
       "execution"
     ],
+    "categories": ["lifestyle-business", "productivity", "automation"],
+    "business_stage_tags": ["early-revenue", "scaling"],
+    "functional_tags": ["operations", "productivity"],
+    "theme_tags": ["automation", "delegation", "efficiency"],
+    "difficulty": "light"
+  },
+  {
+    "title": "Influence",
+    "subtitle": "The Psychology of Persuasion",
+    "author_name": "Robert B. Cialdini",
+    "description": "Influence, the classic book on persuasion, explains the psychology of why people say 'yes'—and how to apply these understandings. Dr. Robert Cialdini is the seminal expert in the rapidly expanding field of influence and persuasion.",
+    "page_count": 320,
+    "published_year": 1984,
+    "categories": ["psychology", "sales", "marketing"],
+    "business_stage_tags": ["pre-revenue", "early-revenue"],
+    "functional_tags": ["sales", "marketing"],
+    "theme_tags": ["persuasion", "psychology", "influence"],
+    "difficulty": "medium"
+  },
+  {
+    "title": "Made to Stick",
+    "subtitle": "Why Some Ideas Survive and Others Die",
+    "author_name": "Chip Heath & Dan Heath",
+    "description": "Urban legends, conspiracy theories, and bogus public-health scares circulate effortlessly. Meanwhile, people with important ideas—businessmen, educators, politicians, journalists, and others—struggle to make their ideas 'stick.' Why do some ideas thrive while others die? And how do we improve the chances of worthy ideas?",
+    "page_count": 304,
+    "published_year": 2007,
+    "categories": ["marketing", "communication", "storytelling"],
+    "business_stage_tags": ["pre-revenue", "early-revenue"],
+    "functional_tags": ["marketing", "communication"],
+    "theme_tags": ["storytelling", "communication", "messaging"],
     "difficulty": "medium"
   },
   {
@@ -827,6 +953,88 @@
       "customer-interviews",
       "feedback"
     ],
+    "categories": ["design", "product", "ux"],
+    "business_stage_tags": ["pre-revenue", "early-revenue"],
+    "functional_tags": ["product", "design"],
+    "theme_tags": ["usability", "user-experience", "design-thinking"],
+    "difficulty": "medium"
+  },
+  {
+    "title": "Sprint",
+    "subtitle": "How to Solve Big Problems and Test New Ideas in Just Five Days",
+    "author_name": "Jake Knapp",
+    "description": "From three partners at Google Ventures, a unique five-day process for solving tough problems, proven at more than a hundred companies. The sprint is a five-day process for answering critical business questions through design, prototyping, and testing ideas with customers.",
+    "page_count": 288,
+    "published_year": 2016,
+    "categories": ["product", "design", "innovation"],
+    "business_stage_tags": ["idea", "pre-revenue"],
+    "functional_tags": ["product", "design"],
+    "theme_tags": ["validation", "prototyping", "speed"],
+    "difficulty": "light"
+  },
+  {
+    "title": "Thinking, Fast and Slow",
+    "subtitle": null,
+    "author_name": "Daniel Kahneman",
+    "description": "In the international bestseller, Thinking, Fast and Slow, Daniel Kahneman, the renowned psychologist and winner of the Nobel Prize in Economics, takes us on a groundbreaking tour of the mind and explains the two systems that drive the way we think.",
+    "page_count": 499,
+    "published_year": 2011,
+    "categories": ["psychology", "decision-making", "cognitive-science"],
+    "business_stage_tags": ["early-revenue", "scaling"],
+    "functional_tags": ["strategy", "leadership"],
+    "theme_tags": ["decision-making", "cognitive-biases", "thinking"],
+    "difficulty": "deep"
+  },
+  {
+    "title": "Atomic Habits",
+    "subtitle": "An Easy & Proven Way to Build Good Habits & Break Bad Ones",
+    "author_name": "James Clear",
+    "description": "Tiny Changes That Make Remarkable Results. No matter your goals, Atomic Habits offers a proven framework for improving—every day. James Clear, one of the world's leading experts on habit formation, reveals practical strategies that will teach you exactly how to form good habits, break bad ones, and master the tiny behaviors that lead to remarkable results.",
+    "page_count": 320,
+    "published_year": 2018,
+    "categories": ["productivity", "self-improvement", "habits"],
+    "business_stage_tags": ["idea", "pre-revenue", "early-revenue", "scaling"],
+    "functional_tags": ["productivity"],
+    "theme_tags": ["habits", "consistency", "improvement"],
+    "difficulty": "light"
+  },
+  {
+    "title": "Deep Work",
+    "subtitle": "Rules for Focused Success in a Distracted World",
+    "author_name": "Cal Newport",
+    "description": "Deep work is the ability to focus without distraction on a cognitively demanding task. It's a skill that allows you to quickly master complicated information and produce better results in less time. Deep work will make you better at what you do and provide the sense of true fulfillment that comes from craftsmanship.",
+    "page_count": 304,
+    "published_year": 2016,
+    "categories": ["productivity", "focus", "work"],
+    "business_stage_tags": ["idea", "pre-revenue", "early-revenue", "scaling"],
+    "functional_tags": ["productivity"],
+    "theme_tags": ["focus", "productivity", "execution"],
+    "difficulty": "medium"
+  },
+  {
+    "title": "The 7 Habits of Highly Effective People",
+    "subtitle": "Powerful Lessons in Personal Change",
+    "author_name": "Stephen R. Covey",
+    "description": "One of the most inspiring and impactful books ever written, The 7 Habits of Highly Effective People has captivated readers for 25 years. It has transformed the lives of Presidents and CEOs, educators and parents—millions of people of all ages and occupations.",
+    "page_count": 384,
+    "published_year": 1989,
+    "categories": ["leadership", "self-improvement", "productivity"],
+    "business_stage_tags": ["early-revenue", "scaling"],
+    "functional_tags": ["leadership", "productivity"],
+    "theme_tags": ["effectiveness", "principles", "leadership"],
+    "difficulty": "medium"
+  },
+  {
+    "title": "Start with Why",
+    "subtitle": "How Great Leaders Inspire Everyone to Take Action",
+    "author_name": "Simon Sinek",
+    "description": "Start with Why shows that the leaders who've had the greatest influence in the world all think, act, and communicate the same way—and it's the opposite of what everyone else does. Sinek calls this powerful idea The Golden Circle, and it provides a framework upon which organizations can be built, movements can be led, and people can be inspired.",
+    "page_count": 256,
+    "published_year": 2009,
+    "categories": ["leadership", "communication", "strategy"],
+    "business_stage_tags": ["idea", "pre-revenue", "early-revenue"],
+    "functional_tags": ["leadership", "communication"],
+    "theme_tags": ["purpose", "vision", "inspiration"],
     "difficulty": "light"
   },
   {
@@ -858,6 +1066,26 @@
     "difficulty": "light"
   },
   {
+    "categories": ["productivity", "focus", "goal-setting"],
+    "business_stage_tags": ["idea", "pre-revenue", "early-revenue", "scaling"],
+    "functional_tags": ["productivity"],
+    "theme_tags": ["focus", "prioritization", "execution"],
+    "difficulty": "light"
+  },
+  {
+    "title": "Measure What Matters",
+    "subtitle": "How Google, Bono, and the Gates Foundation Rock the World with OKRs",
+    "author_name": "John Doerr",
+    "description": "In the fall of 1999, John Doerr met with the founders of a startup called Google. Doerr introduced them to a proven approach to operating excellence: Objectives and Key Results. He'd first discovered OKRs in the 1970s as an engineer at Intel, where the legendary Andy Grove drove the best-run company Doerr had ever seen.",
+    "page_count": 320,
+    "published_year": 2018,
+    "categories": ["management", "goal-setting", "strategy"],
+    "business_stage_tags": ["early-revenue", "scaling"],
+    "functional_tags": ["management", "operations"],
+    "theme_tags": ["okrs", "goal-setting", "execution"],
+    "difficulty": "medium"
+  },
+  {
     "title": "The Personal MBA",
     "subtitle": "Master the Art of Business",
     "author_name": "Josh Kaufman",
@@ -884,6 +1112,39 @@
       "education"
     ],
     "difficulty": "medium"
+  },
+  {
+    "categories": ["business", "education", "strategy"],
+    "business_stage_tags": ["idea", "pre-revenue", "early-revenue"],
+    "functional_tags": ["strategy", "business-fundamentals"],
+    "theme_tags": ["business-fundamentals", "learning", "education"],
+    "difficulty": "medium"
+  },
+  {
+    "title": "The Founder's Dilemmas",
+    "subtitle": "Anticipating and Avoiding the Pitfalls That Can Sink a Startup",
+    "author_name": "Noam Wasserman",
+    "description": "When to launch, how to split equity, when to bring in a cofounder, how to hire, and more: The Founder's Dilemmas is the first book to examine the early decisions by entrepreneurs that can make or break a startup and its team.",
+    "page_count": 400,
+    "published_year": 2012,
+    "categories": ["startup", "team", "equity"],
+    "business_stage_tags": ["idea", "pre-revenue"],
+    "functional_tags": ["strategy", "team"],
+    "theme_tags": ["cofounders", "equity", "team-building"],
+    "difficulty": "deep"
+  },
+  {
+    "title": "Venture Deals",
+    "subtitle": "Be Smarter Than Your Lawyer and Venture Capitalist",
+    "author_name": "Brad Feld & Jason Mendelson",
+    "description": "As each new generation of entrepreneurs emerges, there is a renewed interest in how venture capital deals come together. Yet no book has ever taken you inside a VC deal negotiation—term sheet and all. Venture Deals puts you in the driver's seat.",
+    "page_count": 368,
+    "published_year": 2011,
+    "categories": ["fundraising", "venture-capital", "legal"],
+    "business_stage_tags": ["pre-revenue", "early-revenue"],
+    "functional_tags": ["fundraising"],
+    "theme_tags": ["fundraising", "venture-capital", "term-sheets"],
+    "difficulty": "deep"
   },
   {
     "title": "The Startup Owner's Manual",
@@ -1021,3 +1282,76 @@
     "difficulty": "medium"
   }
 ]
+    "categories": ["startup", "customer-development", "methodology"],
+    "business_stage_tags": ["idea", "pre-revenue"],
+    "functional_tags": ["product", "sales", "marketing"],
+    "theme_tags": ["customer-development", "validation", "methodology"],
+    "difficulty": "medium"
+  },
+  {
+    "title": "Blue Ocean Strategy",
+    "subtitle": "How to Create Uncontested Market Space and Make the Competition Irrelevant",
+    "author_name": "W. Chan Kim & Renée Mauborgne",
+    "description": "Blue Ocean Strategy presents a systematic approach to making the competition irrelevant and outlines principles and tools any organization can use to create and capture their own blue oceans.",
+    "page_count": 320,
+    "published_year": 2005,
+    "categories": ["strategy", "innovation", "competition"],
+    "business_stage_tags": ["idea", "pre-revenue"],
+    "functional_tags": ["strategy"],
+    "theme_tags": ["innovation", "differentiation", "market-creation"],
+    "difficulty": "deep"
+  },
+  {
+    "title": "Platform Revolution",
+    "subtitle": "How Networked Markets Are Transforming the Economy and How to Make Them Work for You",
+    "author_name": "Geoffrey G. Parker, Marshall W. Van Alstyne & Sangeet Paul Choudary",
+    "description": "Platform Revolution provides the first comprehensive guide to the platform economy, explaining how platforms work, why they're transforming business, and how to build and manage them.",
+    "page_count": 336,
+    "published_year": 2016,
+    "categories": ["strategy", "platforms", "network-effects"],
+    "business_stage_tags": ["idea", "pre-revenue", "early-revenue"],
+    "functional_tags": ["strategy", "product"],
+    "theme_tags": ["platforms", "network-effects", "marketplaces"],
+    "difficulty": "deep"
+  },
+  {
+    "title": "The Everything Store",
+    "subtitle": "Jeff Bezos and the Age of Amazon",
+    "author_name": "Brad Stone",
+    "description": "The definitive story of Amazon.com, one of the most successful companies in the world, and of its driven, brilliant founder, Jeff Bezos.",
+    "page_count": 384,
+    "published_year": 2013,
+    "categories": ["case-study", "scaling", "leadership"],
+    "business_stage_tags": ["scaling"],
+    "functional_tags": ["strategy", "leadership"],
+    "theme_tags": ["scaling", "customer-obsession", "long-term-thinking"],
+    "difficulty": "medium"
+  },
+  {
+    "title": "Shoe Dog",
+    "subtitle": "A Memoir by the Creator of Nike",
+    "author_name": "Phil Knight",
+    "description": "In this candid and riveting memoir, for the first time ever, Nike founder and board chairman Phil Knight shares the inside story of the company's early days as an adventurous startup and how its evolving brand image was shaped by Knight's own journey.",
+    "page_count": 400,
+    "published_year": 2016,
+    "categories": ["memoir", "startup", "brand"],
+    "business_stage_tags": ["idea", "pre-revenue", "early-revenue"],
+    "functional_tags": ["strategy", "brand"],
+    "theme_tags": ["perseverance", "brand-building", "entrepreneurship"],
+    "difficulty": "light"
+  },
+  {
+    "title": "Elon Musk",
+    "subtitle": "Tesla, SpaceX, and the Quest for a Fantastic Future",
+    "author_name": "Ashlee Vance",
+    "description": "In the spirit of Steve Jobs and Moneyball, Elon Musk is both an illuminating and authorized look at the extraordinary life of one of Silicon Valley's most exciting, unpredictable, and ambitious entrepreneurs.",
+    "page_count": 400,
+    "published_year": 2015,
+    "categories": ["biography", "innovation", "leadership"],
+    "business_stage_tags": ["scaling"],
+    "functional_tags": ["leadership", "strategy"],
+    "theme_tags": ["innovation", "vision", "execution"],
+    "difficulty": "medium"
+  }
+]
+

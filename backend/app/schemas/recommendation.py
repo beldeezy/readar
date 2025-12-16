@@ -32,6 +32,10 @@ class RecommendationItem(BaseModel):
     framework_match: Optional[float] = None
     outcome_match: Optional[float] = None
     score_factors: Optional[Dict[str, float]] = None  # Full score factors breakdown
+    why_this_book: Optional[str] = None
+    # Legacy field for backward compatibility
+    why_recommended: Optional[str] = None
+    why_signals: Optional[List[Dict[str, str]]] = None
 
 
 class RecommendationRequest(BaseModel):

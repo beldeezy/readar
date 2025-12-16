@@ -22,6 +22,9 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
+)
+from app.database import init_db
+
 app = FastAPI(debug=True)
 
 # DEV-ONLY CORS: wide open for localhost development
@@ -43,6 +46,14 @@ app.include_router(billing.router, prefix="/api")
 app.include_router(reading_history.router, prefix="/api")
 app.include_router(debug.router, prefix="/api")
 app.include_router(admin_debug.router, prefix="/admin")
+app.include_router(auth.router)
+app.include_router(onboarding.router)
+app.include_router(books.router)
+app.include_router(recommendations.router)
+app.include_router(user_books.router)
+app.include_router(billing.router)
+app.include_router(reading_history.router)
+app.include_router(debug.router)
 
 
 @app.on_event("startup")

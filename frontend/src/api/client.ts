@@ -147,6 +147,7 @@ class ApiClient {
     year_min?: number;
     year_max?: number;
     has_cover?: boolean;
+    search?: string;
     category?: string;
     stage?: string;
     limit?: number;

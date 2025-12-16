@@ -298,6 +298,8 @@ def get_generic_recommendations(
                 purchase_url=purchase_url,
                 why_this_book=why_this_book_text,
                 why_recommended=None,  # Deprecated
+                why_this_book=None,  # Generic recs don't have personalized why
+                why_recommended=None,  # Legacy field
                 why_signals=why_signals if why_signals else None,
             )
         )
@@ -850,6 +852,7 @@ def _score_from_stage_fit(
     book: Book,
     onboarding: Optional[OnboardingProfile] = None,
 ) -> Tuple[float, ScoreFactors]:
+) -> float:
     """
     Simple rule-based fit:
     - boost books whose tags match the user's business_stage, business_model, or areas_of_business.
@@ -860,6 +863,10 @@ def _score_from_stage_fit(
     """
     score = 0.0
     factors = ScoreFactors()
+    
+    Returns: score contribution from stage/model/challenge fit
+    """
+    score = 0.0
 
     business_stage = (user_ctx.get("business_stage") or "").lower()
     business_model = (user_ctx.get("business_model") or "").lower()
@@ -880,6 +887,7 @@ def _score_from_stage_fit(
         stage_score = 3.0
         score += stage_score
         factors.stage_fit = stage_score
+        score += 3.0
 
     # Revenue stage matching: boost if book's stage_tags match user's revenue stage
     if revenue_stage and book.business_stage_tags:
@@ -901,6 +909,10 @@ def _score_from_stage_fit(
         model_score = 2.0
         score += model_score
         factors.business_model_fit = model_score
+            score += 0.35
+
+    if business_model and business_model in theme_tags:
+        score += 2.0
 
     # If areas_of_business is an array, not string
     if isinstance(areas_of_business, (list, tuple)):
@@ -910,6 +922,7 @@ def _score_from_stage_fit(
                 area_score = 1.5
                 score += area_score
                 factors.areas_fit += area_score
+                score += 1.5
 
     # Very simple challenge-based boost
     if biggest_challenge:
@@ -918,6 +931,7 @@ def _score_from_stage_fit(
                 challenge_score = 1.5
                 score += challenge_score
                 factors.challenge_fit = challenge_score
+                score += 1.5
                 break
 
     all_tags = theme_tags + functional_tags
@@ -929,6 +943,7 @@ def _score_from_stage_fit(
             canon_score = 6.0
             score += canon_score
             factors.business_model_fit += canon_score
+            score += 6.0
         if "sales" in all_tags or "client_acquisition" in all_tags:
             score += 1.5
         if "service_delivery" in all_tags or "operations" in all_tags:
@@ -941,6 +956,7 @@ def _score_from_stage_fit(
             canon_score = 6.0
             score += canon_score
             factors.business_model_fit += canon_score
+            score += 6.0
         # PLG/growth emphasis
         if "plg" in all_tags or "growth" in all_tags or "client_acquisition" in all_tags:
             score += 1.5
@@ -964,6 +980,7 @@ def _score_from_stage_fit(
         score += W_OUTCOME * outcome_match
 
     return score, factors
+    return score
 
 
 def _calculate_preference_score(
@@ -1118,6 +1135,17 @@ def _calculate_stage_fit_score(
     
     if not onboarding:
         return score, reasons, factors
+) -> Tuple[float, List[str]]:
+    """
+    Calculate stage_fit_score from onboarding data.
+    
+    Returns: (score, reasons)
+    """
+    score = 0.0
+    reasons: List[str] = []
+    
+    if not onboarding:
+        return score, reasons
     
     # Business stage match
     if onboarding.business_stage:
@@ -1132,6 +1160,7 @@ def _calculate_stage_fit_score(
                 stage_score = WEIGHTS["STAGE_FIT_STRONG"]
                 score += stage_score
                 factors.stage_fit = stage_score
+                score += WEIGHTS["STAGE_FIT_STRONG"]
                 reasons.append("Strong match for your business stage.")
             else:
                 # Check for related stages (e.g., idea/pre-revenue are similar)
@@ -1146,6 +1175,7 @@ def _calculate_stage_fit_score(
                     stage_score = WEIGHTS["STAGE_FIT_MEDIUM"]
                     score += stage_score
                     factors.stage_fit = stage_score
+                    score += WEIGHTS["STAGE_FIT_MEDIUM"]
                     reasons.append("Good match for your business stage.")
     
     # Revenue stage matching: boost if book's stage_tags match user's revenue stage
@@ -1165,6 +1195,7 @@ def _calculate_stage_fit_score(
                 revenue_score = 0.35
                 score += revenue_score
                 factors.stage_fit += revenue_score
+                score += 0.35
                 # Optionally add a reason if we want to surface this
                 # reasons.append("Matches your revenue stage.")
     
@@ -1198,6 +1229,7 @@ def _calculate_stage_fit_score(
                 model_score = WEIGHTS["STAGE_FIT_STRONG"]
                 score += model_score
                 factors.business_model_fit = model_score
+                score += WEIGHTS["STAGE_FIT_STRONG"]
                 reasons.append("Matches your business model.")
     
     all_tags = set((book.theme_tags or []) + (book.functional_tags or []))
@@ -1210,6 +1242,7 @@ def _calculate_stage_fit_score(
             canon_score = 6.0
             score += canon_score
             factors.business_model_fit += canon_score
+            score += 6.0
             reasons.append("Part of the services canon - essential reading for service businesses.")
         if "sales" in all_tags_lower or "client_acquisition" in all_tags_lower:
             score += 1.5
@@ -1223,6 +1256,7 @@ def _calculate_stage_fit_score(
             canon_score = 6.0
             score += canon_score
             factors.business_model_fit += canon_score
+            score += 6.0
             reasons.append("Part of the SaaS canon - essential reading for SaaS founders.")
         # PLG/growth emphasis
         if "plg" in all_tags_lower or "growth" in all_tags_lower or "client_acquisition" in all_tags_lower:
@@ -1290,6 +1324,10 @@ def _calculate_stage_fit_score(
     score += W_OUTCOME * outcome_match
     
     return score, reasons, factors
+                score += WEIGHTS["STAGE_FIT_STRONG"]
+                reasons.append("Addresses your biggest challenge.")
+    
+    return score, reasons
 
 
 def get_personalized_recommendations(
@@ -1363,6 +1401,8 @@ def get_personalized_recommendations(
         stage_fit_score, score_factors = _score_from_stage_fit(user_ctx, book, onboarding)
         total_scores[book.id] += stage_fit_score
         book_score_factors[book.id] = score_factors
+        stage_fit_score = _score_from_stage_fit(user_ctx, book)
+        total_scores[book.id] += stage_fit_score
 
         # Collect reasons for why_this_book explanation
         reasons: List[str] = []
@@ -1478,6 +1518,9 @@ def get_personalized_recommendations(
         # Build why_this_book paragraph from score factors
         score_factors = book_score_factors.get(book_id, ScoreFactors())
         why_this_book_text = build_why_this_book(score_factors, onboarding, book)
+        # Build why_this_book explanation using enhanced helper
+        score_context = {"score": total_scores[book_id], "reasons": book_reasons.get(book_id, [])}
+        why_this_book = _build_why_this_book(onboarding, book, score_context)
         
         # Build why_signals (reason chips)
         why_signals = _build_why_signals(onboarding, book)
@@ -1532,6 +1575,9 @@ def get_personalized_recommendations(
                 why_recommended=None,  # Deprecated
                 why_signals=why_signals if why_signals else None,
                 **debug_fields,
+                why_this_book=why_this_book,
+                why_recommended=why_this_book,  # Legacy field for backward compatibility
+                why_signals=why_signals if why_signals else None,
             )
         )
 
@@ -1618,11 +1664,17 @@ def get_recommendations_for_user(
         Compute total score for a book.
         
         Returns: (total_score, why_recommended, should_filter_out, score_factors)
+    def compute_total_score(book: Book) -> Tuple[float, str, bool]:
+        """
+        Compute total score for a book.
+        
+        Returns: (total_score, why_recommended, should_filter_out)
         """
         # FILTERING: Check for hard filters first
         # 1. NOT_INTERESTED - hard filter
         if book.id in not_interested_book_ids:
             return 0.0, "You marked this as not interested.", True, ScoreFactors()
+            return 0.0, "You marked this as not interested.", True
         
         # 2. Already read (unless we want to allow re-reads)
         is_already_read = (
@@ -1633,6 +1685,7 @@ def get_recommendations_for_user(
         if is_already_read:
             # Filter out already-read books (can be changed to allow re-reads)
             return 0.0, "You've already read this book.", True, ScoreFactors()
+            return 0.0, "You've already read this book.", True
         
         # 3. READ_DISLIKED with high similarity to other disliked books
         if book.id in disliked_book_ids:
@@ -1641,6 +1694,7 @@ def get_recommendations_for_user(
             similar_count = sum(1 for db in other_disliked if _books_share_tags(book, db))
             if similar_count >= 2:  # Very similar to multiple disliked books
                 return 0.0, "Very similar to books you disliked.", True, ScoreFactors()
+                return 0.0, "Very similar to books you disliked.", True
         
         # SCORING: Calculate additive components
         preference_score, pref_reasons = _calculate_preference_score(
@@ -1652,6 +1706,7 @@ def get_recommendations_for_user(
         )
         
         stage_fit_score, stage_reasons, score_factors = _calculate_stage_fit_score(
+        stage_fit_score, stage_reasons = _calculate_stage_fit_score(
             book, onboarding
         )
         
@@ -1683,6 +1738,15 @@ def get_recommendations_for_user(
         if should_filter or score <= -5.0:  # Filter out negative scores below threshold
             continue
         candidates.append((book, score, why, factors))
+        return total_score, why, False
+    
+    # Score all books
+    candidates: List[Tuple[Book, float, str]] = []
+    for book in books:
+        score, why, should_filter = compute_total_score(book)
+        if should_filter or score <= -5.0:  # Filter out negative scores below threshold
+            continue
+        candidates.append((book, score, why))
     
     # Check if user has a service-like or SaaS-like business model
     is_service_like = False
@@ -1708,6 +1772,17 @@ def get_recommendations_for_user(
                 saas_candidates.append((book, score, why, factors))
             else:
                 general_candidates.append((book, score, why, factors))
+        services_candidates: List[Tuple[Book, float, str]] = []
+        saas_candidates: List[Tuple[Book, float, str]] = []
+        general_candidates: List[Tuple[Book, float, str]] = []
+        
+        for book, score, why in candidates:
+            if is_services_canon(book):
+                services_candidates.append((book, score, why))
+            elif is_saas_canon(book):
+                saas_candidates.append((book, score, why))
+            else:
+                general_candidates.append((book, score, why))
         
         target_niche = int(limit * 0.7)
         
@@ -1776,6 +1851,10 @@ def get_recommendations_for_user(
     for book, score, why, factors in top:
         # Build why_this_book paragraph from score factors
         why_this_book_text = build_why_this_book(factors, onboarding, book)
+    for book, score, why in top:
+        # Build why_this_book explanation using enhanced helper
+        score_context = {"score": score, "why_legacy": why}
+        why_this_book = _build_why_this_book(onboarding, book, score_context)
         
         # Build why_signals (reason chips)
         why_signals = _build_why_signals(onboarding, book)
@@ -1808,6 +1887,8 @@ def get_recommendations_for_user(
                 purchase_url=purchase_url,
                 why_this_book=why_this_book_text,
                 why_recommended=None,  # Deprecated
+                why_this_book=why_this_book,
+                why_recommended=why_this_book,  # Legacy field for backward compatibility
                 why_signals=why_signals if why_signals else None,
             )
         )

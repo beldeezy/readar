@@ -106,6 +106,8 @@ export interface RecommendationItem {
   purchase_url?: string;
   why_this_book: string; // Always present, single compelling paragraph explaining why recommended
   why_recommended?: string[]; // Deprecated: use why_this_book instead
+  why_this_book?: string;
+  why_recommended?: string; // Legacy field for backward compatibility
   why_signals?: Array<{ type: string; label: string }>;
 }
 
