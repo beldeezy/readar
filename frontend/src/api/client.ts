@@ -141,7 +141,12 @@ class ApiClient {
 
   // Book methods
   async getBooks(params?: {
-    search?: string;
+    q?: string;
+    sort?: string;
+    order?: string;
+    year_min?: number;
+    year_max?: number;
+    has_cover?: boolean;
     category?: string;
     stage?: string;
     limit?: number;

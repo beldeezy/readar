@@ -53,24 +53,26 @@ export const ReadingHistoryUploadStep: React.FC<Props> = ({
     setMessage(null);
 
     try {
+      // Try to upload CSV, but don't block on failure
       await importGoodreadsCsv();
-      await onNext?.(); // This should call handleSubmit
     } catch (e) {
       console.error(e);
-      setError(e instanceof Error ? e.message : "Failed to continue.");
+      // Show error but don't block progression
+      setError(e instanceof Error ? e.message : "Failed to upload CSV. You can continue anyway.");
     } finally {
       setIsUploading(false);
     }
+
+    // Always proceed to next step, even if upload failed
+    // onNext will attempt to save onboarding data but won't block navigation
+    onNext?.();
   };
 
-  const handleSkip = async () => {
+  const handleSkip = () => {
     setError(null);
-    try {
-      await onSkip?.(); // This should call handleSubmit
-    } catch (e) {
-      console.error(e);
-      setError("Failed to continue.");
-    }
+    // Skip immediately without any API calls
+    // onSkip just navigates to the next step
+    onSkip?.();
   };
 
   return (

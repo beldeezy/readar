@@ -140,6 +140,70 @@ export default function OnboardingPage() {
     }
   };
 
+  // Non-blocking version: attempts to save but navigates even if save fails
+  const handleSubmitAndNavigate = async () => {
+    console.log("handleSubmitAndNavigate start");
+    
+    if (!formData.full_name || !(formData as any).economic_sector || !formData.industry || !formData.business_models || formData.business_models.length === 0 || !formData.business_stage || !formData.challenges_and_blockers) {
+      // If required fields are missing, just navigate anyway (user can complete later)
+      navigate(`/recommendations/loading?userId=${encodeURIComponent(userId)}&limit=5`);
+      return;
+    }
+
+    // Attempt to save in background, but don't block navigation
+    const payload: OnboardingPayload = {
+      ...formData,
+      business_model: formData.business_models?.join(', ') || '',
+      biggest_challenge: formData.challenges_and_blockers || '',
+      blockers: formData.challenges_and_blockers || '',
+      book_preferences: formData.book_preferences || [],
+    } as OnboardingPayload;
+
+    // Try to save, but navigate regardless of success/failure
+    apiClient.saveOnboarding(payload, userId)
+      .then(() => {
+        console.log("saveOnboarding done (non-blocking)");
+      })
+      .catch((err: any) => {
+        console.error("Failed to save onboarding (non-blocking):", err);
+        // Show error but don't block - user can retry later
+        setError(err.message || 'Failed to save onboarding (you can continue anyway)');
+      });
+
+    // Navigate immediately without waiting for save
+    navigate(`/recommendations/loading?userId=${encodeURIComponent(userId)}&limit=5`);
+  };
+
+  // Skip handler: attempts to save in background but navigates immediately
+  const handleSkipAndNavigate = () => {
+    console.log("handleSkipAndNavigate - attempting save in background, navigating immediately");
+    
+    // Try to save onboarding data in background (user has filled out steps 1-4)
+    // but navigate immediately regardless of save success/failure
+    if (formData.full_name && (formData as any).economic_sector && formData.industry && formData.business_models && formData.business_models.length > 0 && formData.business_stage && formData.challenges_and_blockers) {
+      const payload: OnboardingPayload = {
+        ...formData,
+        business_model: formData.business_models?.join(', ') || '',
+        biggest_challenge: formData.challenges_and_blockers || '',
+        blockers: formData.challenges_and_blockers || '',
+        book_preferences: formData.book_preferences || [],
+      } as OnboardingPayload;
+
+      // Save in background, don't wait for result
+      apiClient.saveOnboarding(payload, userId)
+        .then(() => {
+          console.log("saveOnboarding done (skip, non-blocking)");
+        })
+        .catch((err: any) => {
+          console.error("Failed to save onboarding (skip, non-blocking):", err);
+          // Don't show error for skip - user chose to skip, so silent failure is fine
+        });
+    }
+
+    // Navigate immediately
+    navigate(`/recommendations/loading?userId=${encodeURIComponent(userId)}&limit=5`);
+  };
+
 
   return (
     <div className="readar-onboarding-page">
@@ -356,8 +420,8 @@ export default function OnboardingPage() {
           <ReadingHistoryUploadStep
             userId={userId}
             onBack={() => setStep(step - 1)}
-            onSkip={handleSubmit}
-            onNext={handleSubmit}
+            onSkip={handleSkipAndNavigate}
+            onNext={handleSubmitAndNavigate}
           />
         )}
 

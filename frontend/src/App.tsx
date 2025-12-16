@@ -9,6 +9,11 @@ import RecommendationsLoadingPage from './pages/RecommendationsLoadingPage';
 import BookDetailPage from './pages/BookDetailPage';
 import UpgradePage from './pages/UpgradePage';
 import ProfilePage from './pages/ProfilePage';
+import AdminLayout from './pages/admin/AdminLayout';
+import Books from './pages/admin/Books';
+import Users from './pages/admin/Users';
+import Engine from './pages/admin/Engine';
+import InsightReview from './pages/admin/InsightReview';
 import Header from './components/Header';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -88,6 +93,14 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route path="/admin" element={<AdminLayout />}>
+        <Route path="books" element={<Books />} />
+        <Route path="users" element={<Users />} />
+        <Route path="engine" element={<Engine />}>
+          <Route path="insight-review" element={<InsightReview />} />
+        </Route>
+        <Route index element={<Navigate to="/admin/books" replace />} />
+      </Route>
     </Routes>
   );
 }

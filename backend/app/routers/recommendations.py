@@ -20,6 +20,7 @@ router = APIRouter(tags=["recommendations"])
 def get_recommendations(
     user_id: UUID = Query(...),
     limit: int = Query(5, ge=1, le=5),
+    debug: bool = Query(False, description="Include debug fields in response"),
     db: Session = Depends(get_db),
 ):
     # Hard clamp to avoid any weirdness if this endpoint is reused elsewhere
@@ -50,6 +51,7 @@ def get_recommendations(
             db=db,
             user_id=user_id,
             limit=limit,
+            debug=debug,
         )
         return items
     except NotEnoughSignalError as e:
@@ -77,6 +79,7 @@ def get_recommendations(
 def get_recommendations_post(
     request: RecommendationRequest = RecommendationRequest(),
     user_id: UUID = Query(..., description="User ID to generate recommendations for"),
+    debug: bool = Query(False, description="Include debug fields in response"),
     db: Session = Depends(get_db)
 ):
     """
@@ -115,6 +118,7 @@ def get_recommendations_post(
             db=db,
             user_id=user_id,
             limit=effective_limit,
+            debug=debug,
         )
         return items
     except NotEnoughSignalError as e:

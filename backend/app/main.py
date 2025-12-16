@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
+import logging
 from app.core.config import settings
 from app.routers import (
     auth,
@@ -10,8 +12,15 @@ from app.routers import (
     billing,
     reading_history,
     debug,
+    admin_debug,
 )
 from app.database import init_db
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 
 app = FastAPI(debug=True)
 
@@ -25,14 +34,15 @@ app.add_middleware(
 )
 
 # Routers
-app.include_router(auth.router)
-app.include_router(onboarding.router)
-app.include_router(books.router)
-app.include_router(recommendations.router)
-app.include_router(user_books.router)
-app.include_router(billing.router)
-app.include_router(reading_history.router)
-app.include_router(debug.router)
+app.include_router(auth.router, prefix="/api")
+app.include_router(onboarding.router, prefix="/api")
+app.include_router(books.router, prefix="/api")
+app.include_router(recommendations.router, prefix="/api")
+app.include_router(user_books.router, prefix="/api")
+app.include_router(billing.router, prefix="/api")
+app.include_router(reading_history.router, prefix="/api")
+app.include_router(debug.router, prefix="/api")
+app.include_router(admin_debug.router, prefix="/admin")
 
 
 @app.on_event("startup")
@@ -43,3 +53,9 @@ def on_startup() -> None:
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+
+
+# Backwards-compatible redirect for /books -> /api/books
+@app.get("/books")
+def books_compat_redirect():
+    return RedirectResponse(url="/api/books")

@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, Integer, Text, Boolean, DateTime, ForeignKey, Enum as SQLEnum, JSON, ARRAY, Float
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 import uuid
 from datetime import datetime
@@ -107,6 +107,12 @@ class Book(Base):
     functional_tags = Column(ARRAY(String), nullable=True)
     theme_tags = Column(ARRAY(String), nullable=True)
     difficulty = Column(SQLEnum(BookDifficulty), nullable=True)
+    # Insight fields
+    promise = Column(Text, nullable=True)
+    best_for = Column(Text, nullable=True)
+    core_frameworks = Column(JSONB, nullable=True)
+    anti_patterns = Column(JSONB, nullable=True)
+    outcomes = Column(JSONB, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
