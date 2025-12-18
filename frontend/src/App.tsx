@@ -1,8 +1,8 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { AUTH_DISABLED } from './config/auth';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AuthProvider, useAuth } from './auth/AuthProvider';
 import LandingPage from './pages/LandingPage';
-import AuthPage from './pages/AuthPage';
+import LoginPage from './pages/LoginPage';
+import AuthCallbackPage from './pages/AuthCallbackPage';
 import OnboardingPage from './pages/OnboardingPage';
 import RecommendationsPage from './pages/RecommendationsPage';
 import RecommendationsLoadingPage from './pages/RecommendationsLoadingPage';
@@ -14,15 +14,17 @@ import Books from './pages/admin/Books';
 import Users from './pages/admin/Users';
 import Engine from './pages/admin/Engine';
 import InsightReview from './pages/admin/InsightReview';
+import EnvCheckPage from './pages/EnvCheckPage';
 import Header from './components/Header';
+import ScrollToTop from './components/ScrollToTop';
+import BackendHealthGate from './components/BackendHealthGate';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, onboardingComplete, onboardingChecked } = useAuth();
+  const location = useLocation();
   
-  // TEMP: Bypass auth check when AUTH_DISABLED is true
-  if (AUTH_DISABLED) {
-    return <>{children}</>;
-  }
+  // Debug log
+  console.log("[route] authed=", isAuthenticated, "onboarded=", onboardingComplete, "checked=", onboardingChecked, "path=", location.pathname);
   
   if (loading) {
     return (
@@ -37,9 +39,34 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
   
-  if (!isAuthenticated) {
-    return <Navigate to="/auth" replace />;
+  // Public routes that don't require authentication
+  const publicRoutes = ['/', '/onboarding', '/recommendations/loading', '/login', '/auth/callback'];
+  const isPublicRoute = publicRoutes.includes(location.pathname);
+  
+  // If it's a public route, allow access
+  if (isPublicRoute) {
+    // But if user is already onboarded and trying to access onboarding, redirect away
+    if (isAuthenticated && onboardingComplete === true && location.pathname.startsWith('/onboarding')) {
+      return <Navigate to="/recommendations" replace />;
+    }
+    return <>{children}</>;
   }
+  
+  // For protected routes:
+  // 1. If not logged in → /login
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  // 2. If logged in and onboarding not complete → force /onboarding
+  // (except if already on /onboarding to avoid redirect loop)
+  // Only force onboarding if we definitively checked and found it missing
+  if (onboardingChecked && onboardingComplete === false && location.pathname !== '/onboarding') {
+    return <Navigate to="/onboarding" replace />;
+  }
+  
+  // 3. If logged in and onboarding complete → allow access
+  // (onboardingComplete === true or null while checking)
   
   return <>{children}</>;
 }
@@ -48,14 +75,12 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
-      <Route path="/auth" element={<AuthPage />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/auth/callback" element={<AuthCallbackPage />} />
+      <Route path="/env" element={<EnvCheckPage />} />
       <Route
         path="/onboarding"
-        element={
-          <ProtectedRoute>
-            <OnboardingPage />
-          </ProtectedRoute>
-        }
+        element={<OnboardingPage />}
       />
       <Route
         path="/recommendations/loading"
@@ -109,6 +134,8 @@ function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <ScrollToTop />
+        <BackendHealthGate />
         <div className="readar-app">
           <Header />
           <main className="readar-main">

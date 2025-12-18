@@ -1544,6 +1544,246 @@ def get_personalized_recommendations(
     return recommendations
 
 
+def get_recommendations_from_payload(
+    db: Session,
+    payload: "OnboardingPayload",
+    limit: int = 10,
+    debug: bool = False,
+) -> List[RecommendationItem]:
+    """
+    Generate recommendations from onboarding payload without requiring a user_id.
+    This is used for preview recommendations before the user logs in.
+    
+    Uses only onboarding/profile-based scoring (no user interactions or reading history).
+    """
+    from app.schemas.onboarding import OnboardingPayload
+    
+    # Create a simple namespace object that mimics OnboardingProfile
+    # This allows us to reuse the existing scoring logic
+    class MockOnboardingProfile:
+        def __init__(self, payload: OnboardingPayload):
+            self.business_stage = payload.business_stage
+            self.business_model = payload.business_model
+            self.biggest_challenge = payload.biggest_challenge
+            self.areas_of_business = payload.areas_of_business
+            self.current_gross_revenue = payload.current_gross_revenue
+            self.vision_6_12_months = payload.vision_6_12_months
+            self.blockers = payload.blockers
+    
+    # Create mock onboarding profile from payload
+    onboarding = MockOnboardingProfile(payload)
+    
+    # Load candidate books
+    books: List[Book] = db.query(Book).all()
+    if not books:
+        raise NotEnoughSignalError("No books in catalog.")
+    
+    # Build user context from onboarding
+    user_ctx = _build_user_context(onboarding)
+    
+    total_scores: Dict[UUID, float] = defaultdict(float)
+    book_reasons: Dict[UUID, List[str]] = defaultdict(list)
+    book_score_factors: Dict[UUID, ScoreFactors] = {}
+    
+    # Extract book preferences to block books user marked as not_interested
+    blocked_book_ids: Set[UUID] = set()
+    if payload.book_preferences:
+        for pref in payload.book_preferences:
+            if pref.status == "not_interested":
+                # Try to find book by ID
+                try:
+                    from uuid import UUID as UUIDType
+                    book_id = UUIDType(pref.book_id)
+                    blocked_book_ids.add(book_id)
+                except (ValueError, TypeError):
+                    # If not a UUID, try to find by external_id
+                    book = db.query(Book).filter(Book.external_id == pref.book_id).first()
+                    if book:
+                        blocked_book_ids.add(book.id)
+    
+    for book in books:
+        if book.id in blocked_book_ids:
+            continue
+        
+        # Only use stage/model/challenge fit (no interactions or history)
+        stage_fit_score, score_factors = _score_from_stage_fit(user_ctx, book, onboarding)
+        total_scores[book.id] += stage_fit_score
+        book_score_factors[book.id] = score_factors
+        
+        # Collect reasons
+        reasons: List[str] = []
+        if stage_fit_score >= 3.0:
+            business_stage = user_ctx.get("business_stage")
+            if business_stage:
+                reasons.append(f"is a strong fit for your current stage ({business_stage})")
+        
+        theme_tags = book.theme_tags or []
+        functional_tags = book.functional_tags or []
+        all_tags = theme_tags + functional_tags
+        
+        if "services_canon" in all_tags:
+            reasons.append("was written specifically for service-based businesses")
+        if "saas_canon" in all_tags:
+            reasons.append("is tailored for SaaS and software founders")
+        
+        challenge = (user_ctx.get("biggest_challenge") or "").lower()
+        areas = [a.lower() for a in (user_ctx.get("areas_of_business") or [])]
+        
+        if "pricing" in functional_tags and ("price" in challenge or "pricing" in challenge):
+            reasons.append("directly addresses your pricing and profitability challenges")
+        if "marketing" in functional_tags and ("marketing" in areas or "leads" in challenge or "customer" in challenge):
+            reasons.append("focuses on practical marketing and lead generation for your situation")
+        if "operations" in functional_tags and ("operations" in areas or "systems" in challenge):
+            reasons.append("helps you build systems and operations so the business can run without you")
+        if "sales" in functional_tags and ("sales" in challenge or "client" in challenge):
+            reasons.append("provides proven strategies for client acquisition and sales")
+        
+        if reasons:
+            book_reasons[book.id] = reasons
+    
+    # Remove books with zero score if we have at least some positive scores
+    scored_items = [
+        (book_id, score)
+        for book_id, score in total_scores.items()
+    ]
+    
+    if not scored_items:
+        raise NotEnoughSignalError("No scored items for this payload.")
+    
+    # Check if business model is service-like or SaaS-like
+    is_service_like = False
+    is_saas_like = False
+    if onboarding.business_model:
+        business_model = onboarding.business_model.strip().lower()
+        is_service_like = business_model in SERVICE_LIKE_BUSINESS_MODELS
+        is_saas_like = business_model in SAAS_LIKE_BUSINESS_MODELS
+    
+    # Build mapping for quick lookup
+    books_by_id = {b.id: b for b in books}
+    
+    if not is_service_like and not is_saas_like:
+        # Non-service, non-SaaS behavior: sort by score only
+        scored_items.sort(key=lambda x: x[1], reverse=True)
+        top_ids = [book_id for (book_id, _) in scored_items[:limit]]
+    else:
+        # We are either service-like OR SaaS-like; split into niche vs general pools
+        services_pool: List[Tuple[UUID, float]] = []
+        saas_pool: List[Tuple[UUID, float]] = []
+        general_pool: List[Tuple[UUID, float]] = []
+        
+        for book_id, score in scored_items:
+            book = books_by_id.get(book_id)
+            if not book:
+                continue
+            if is_services_canon(book):
+                services_pool.append((book_id, score))
+            elif is_saas_canon(book):
+                saas_pool.append((book_id, score))
+            else:
+                general_pool.append((book_id, score))
+        
+        services_pool.sort(key=lambda pair: pair[1], reverse=True)
+        saas_pool.sort(key=lambda pair: pair[1], reverse=True)
+        general_pool.sort(key=lambda pair: pair[1], reverse=True)
+        
+        target_niche = int(limit * 0.7)
+        
+        if is_service_like:
+            niche_pool = services_pool
+        else:  # is_saas_like
+            niche_pool = saas_pool
+        
+        primary = niche_pool[:target_niche]
+        remaining_slots = limit - len(primary)
+        secondary = general_pool[:max(0, remaining_slots)]
+        
+        top_ids = [book_id for (book_id, _) in primary + secondary]
+        
+        # If catalog is small, fill any remaining slots with leftover books
+        if len(top_ids) < limit:
+            remaining = [
+                pair
+                for pair in (services_pool + saas_pool + general_pool)
+                if pair[0] not in top_ids
+            ]
+            remaining.sort(key=lambda pair: pair[1], reverse=True)
+            top_ids.extend([book_id for (book_id, _) in remaining[:limit - len(top_ids)]])
+    
+    recommendations: List[RecommendationItem] = []
+    for book_id in top_ids:
+        book = books_by_id.get(book_id)
+        if not book:
+            continue
+        
+        # Build why_this_book paragraph from score factors
+        score_factors = book_score_factors.get(book_id, ScoreFactors())
+        why_this_book_text = build_why_this_book(score_factors, onboarding, book)
+        
+        # Build why_signals (reason chips)
+        why_signals = _build_why_signals(onboarding, book)
+        
+        # Build purchase URL
+        purchase_url = _build_purchase_url(book)
+        
+        relevancy_score = round(total_scores[book_id], 2)
+        
+        # Include debug fields if debug mode is enabled
+        debug_fields = {}
+        if debug:
+            debug_fields = {
+                "promise_match": score_factors.promise_match,
+                "framework_match": score_factors.framework_match,
+                "outcome_match": score_factors.outcome_match,
+                "score_factors": {
+                    "challenge_fit": score_factors.challenge_fit,
+                    "stage_fit": score_factors.stage_fit,
+                    "business_model_fit": score_factors.business_model_fit,
+                    "areas_fit": score_factors.areas_fit,
+                    "promise_match": score_factors.promise_match,
+                    "framework_match": score_factors.framework_match,
+                    "outcome_match": score_factors.outcome_match,
+                    "total": relevancy_score,
+                },
+            }
+        
+        recommendations.append(
+            RecommendationItem(
+                book_id=str(book.id),
+                title=book.title,
+                subtitle=getattr(book, "subtitle", None),
+                author_name=getattr(book, "author_name", None),
+                score=relevancy_score,
+                relevancy_score=relevancy_score,
+                thumbnail_url=getattr(book, "thumbnail_url", None),
+                cover_image_url=getattr(book, "cover_image_url", None),
+                page_count=getattr(book, "page_count", None),
+                published_year=getattr(book, "published_year", None),
+                categories=book.categories,
+                language=getattr(book, "language", None),
+                isbn_10=getattr(book, "isbn_10", None),
+                isbn_13=getattr(book, "isbn_13", None),
+                average_rating=getattr(book, "average_rating", None),
+                ratings_count=getattr(book, "ratings_count", None),
+                theme_tags=book.theme_tags,
+                functional_tags=book.functional_tags,
+                business_stage_tags=book.business_stage_tags,
+                purchase_url=purchase_url,
+                why_this_book=why_this_book_text,
+                why_recommended=None,  # Deprecated
+                why_signals=why_signals if why_signals else None,
+                **debug_fields,
+            )
+        )
+    
+    if not recommendations:
+        raise NotEnoughSignalError("No recommendations after scoring/filtering.")
+    
+    # Ensure recommendations are sorted by relevancy_score descending
+    recommendations.sort(key=lambda x: x.relevancy_score, reverse=True)
+    
+    return recommendations
+
+
 def get_recommendations_for_user(
     user_id: UUID,
     db: Session,

@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import Input from '../../components/Input';
 import Button from '../../components/Button';
 import type { InsightReviewItem } from '../../api/types';
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+// Ensure API_BASE_URL includes /api prefix if not already present
+const envApiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = envApiBaseUrl.endsWith('/api') ? envApiBaseUrl : `${envApiBaseUrl}/api`;
 import './InsightReview.css';
 
 export default function InsightReview() {

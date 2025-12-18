@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../api/client';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../auth/AuthProvider';
 import Button from '../components/Button';
 import Card from '../components/Card';
 import Badge from '../components/Badge';

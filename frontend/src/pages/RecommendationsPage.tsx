@@ -4,32 +4,30 @@ import { apiClient, fetchRecommendations } from '../api/client';
 import type { RecommendationItem, BookPreferenceStatus } from '../api/types';
 import RecommendationCard from '../components/RecommendationCard';
 import Card from '../components/Card';
-import { useAuth } from '../contexts/AuthContext';
-import { DEV_TEST_USER_ID } from '../api/constants';
+import { useAuth } from '../auth/AuthProvider';
 import './RecommendationsPage.css';
 
-interface RecommendationsPageProps {
-  userId?: string;
-}
+const PREVIEW_RECS_KEY = 'readar_preview_recs';
 
-export default function RecommendationsPage({ userId: propUserId }: RecommendationsPageProps = {}) {
+export default function RecommendationsPage() {
   const [recommendations, setRecommendations] = useState<RecommendationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
-  const { user: authUser } = useAuth() ?? { user: null };
+  const { user: authUser } = useAuth();
   
-  // Use prop userId if provided, otherwise use auth context user, or fallback to dev test user
-  const userId = propUserId ?? authUser?.id ?? DEV_TEST_USER_ID;
+  if (!authUser) {
+    // This should not happen as ProtectedRoute should handle it, but just in case
+    navigate('/login');
+    return null;
+  }
 
   useEffect(() => {
-    if (!userId) {
-      setError('User ID is required');
-      setLoading(false);
-      return;
-    }
-
+    // Liveness check: verify backend is reachable
+    const rawBase = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+    const apiBaseUrl = rawBase.endsWith('/api') ? rawBase : `${rawBase}/api`;
+    
     // Check if we have prefetched recommendations from the loading page
     const prefetchedRecs = (location.state as any)?.prefetchedRecommendations as RecommendationItem[] | undefined;
     
@@ -40,21 +38,86 @@ export default function RecommendationsPage({ userId: propUserId }: Recommendati
       return;
     }
 
-    // Otherwise, fetch recommendations normally
+    // Otherwise, check backend health first, then fetch recommendations
     let cancelled = false;
 
-    async function loadRecommendations() {
+    async function checkHealthAndLoad() {
+      // First, check backend health
+      try {
+        const healthRes = await fetch(`${apiBaseUrl}/health`, {
+          method: 'GET',
+          credentials: 'include', // Include credentials for CORS
+        });
+        
+        if (!healthRes.ok) {
+          throw new Error(`Backend health check failed: ${healthRes.status} ${healthRes.statusText}`);
+        }
+        
+        const healthData = await healthRes.json();
+        console.log('[Backend Health] Backend is reachable:', healthData);
+      } catch (err: any) {
+        console.error('[Backend Health] Backend is unreachable:', err);
+        const errorMsg = err?.message || 'Unknown error';
+        
+        // If backend is down, try to fall back to preview recs from localStorage
+        const previewRecsStr = localStorage.getItem(PREVIEW_RECS_KEY);
+        if (previewRecsStr) {
+          try {
+            const previewRecs = JSON.parse(previewRecsStr);
+            if (!cancelled) {
+              setRecommendations(previewRecs);
+              setLoading(false);
+              // Clear preview recs after using them
+              localStorage.removeItem(PREVIEW_RECS_KEY);
+            }
+            return;
+          } catch (parseErr) {
+            console.error('Failed to parse preview recs:', parseErr);
+          }
+        }
+        
+        if (!cancelled) {
+          setError(
+            `Backend is offline (${errorMsg}). Please ensure FastAPI is running. ` +
+            `API_BASE_URL=${apiBaseUrl}. Check browser console for details.`
+          );
+          setLoading(false);
+        }
+        return; // Don't proceed with recommendations fetch if backend is down
+      }
+
+      // Backend is healthy, proceed with recommendations
+      if (cancelled) return;
+      
       setLoading(true);
       setError(null);
       
       try {
-        const recs = await fetchRecommendations({ userId, limit: 5 });
+        const recs = await fetchRecommendations({ limit: 5 });
         if (!cancelled) {
           setRecommendations(recs);
+          // Clear preview recs if we successfully fetched from backend
+          localStorage.removeItem(PREVIEW_RECS_KEY);
         }
       } catch (err: any) {
         if (!cancelled) {
           console.error("Failed to load recommendations", err);
+          
+          // Fall back to preview recs if backend errors
+          const previewRecsStr = localStorage.getItem(PREVIEW_RECS_KEY);
+          if (previewRecsStr) {
+            try {
+              const previewRecs = JSON.parse(previewRecsStr);
+              setRecommendations(previewRecs);
+              setLoading(false);
+              // Clear preview recs after using them
+              localStorage.removeItem(PREVIEW_RECS_KEY);
+              return;
+            } catch (parseErr) {
+              console.error('Failed to parse preview recs:', parseErr);
+            }
+          }
+          
           setError(err?.message || "Failed to fetch recommendations");
         }
       } finally {
@@ -64,12 +127,12 @@ export default function RecommendationsPage({ userId: propUserId }: Recommendati
       }
     }
 
-    loadRecommendations();
+    checkHealthAndLoad();
 
     return () => {
       cancelled = true;
     };
-  }, [userId, location.state]);
+  }, [location.state]);
 
   const handleBookAction = async (
     bookId: string,
@@ -78,10 +141,8 @@ export default function RecommendationsPage({ userId: propUserId }: Recommendati
     try {
       await apiClient.updateUserBook(bookId, status);
       // Optionally refresh recommendations or update UI
-      if (userId) {
-        const recs = await fetchRecommendations({ userId, limit: 5 });
-        setRecommendations(recs);
-      }
+      const recs = await fetchRecommendations({ limit: 5 });
+      setRecommendations(recs);
     } catch (err: any) {
       console.error('Failed to update book status:', err);
     }

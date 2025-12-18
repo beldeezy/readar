@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Header
+from fastapi import APIRouter, Depends, HTTPException, status, Header, Request
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import User
@@ -6,6 +6,7 @@ from app.schemas.user import UserCreate, UserLogin, UserResponse, Token
 from app.core.security import verify_password, get_password_hash, create_access_token, decode_access_token
 from datetime import timedelta
 from app.core.config import settings
+from app.core.supabase_auth import get_supabase_user
 from typing import Optional
 import uuid
 
@@ -168,19 +169,18 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-@router.get("/me", response_model=UserResponse)
-def get_current_user_info(current_user: User = Depends(get_current_user_dependency)):
+@router.get("/me")
+async def get_current_user_info(
+    user: dict = Depends(get_supabase_user),
+):
     """
-    Get current authenticated user information.
+    Get current authenticated user information from Supabase.
     
-    Requires valid JWT token in Authorization header.
-    Returns user id, email, subscription_status, and created_at.
+    Requires valid Supabase JWT token in Authorization header.
+    Returns user id and email from Supabase.
     """
-    # Convert UUID to string for JSON serialization
-    return UserResponse(
-        id=str(current_user.id),
-        email=current_user.email,
-        subscription_status=current_user.subscription_status,
-        created_at=current_user.created_at
-    )
+    return {
+        "id": user["id"],
+        "email": user["email"],
+    }
 

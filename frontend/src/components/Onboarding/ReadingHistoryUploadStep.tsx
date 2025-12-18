@@ -4,7 +4,6 @@ import Button from "../Button";
 import "./ReadingHistoryUploadStep.css";
 
 type Props = {
-  userId: string;
   onNext: () => void;
   onBack?: () => void;
   onSkip: () => void;
@@ -12,7 +11,6 @@ type Props = {
 };
 
 export const ReadingHistoryUploadStep: React.FC<Props> = ({
-  userId,
   onNext,
   onBack,
   onSkip,
@@ -40,7 +38,7 @@ export const ReadingHistoryUploadStep: React.FC<Props> = ({
       throw new Error("Choose a CSV file first.");
     }
 
-    const result = await apiClient.uploadReadingHistoryCsv({ userId, file });
+    const result = await apiClient.uploadReadingHistoryCsv({ file });
     setMessage(
       `Imported ${result.imported_count} books (skipped ${result.skipped_count}).`
     );

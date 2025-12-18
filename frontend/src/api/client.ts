@@ -11,9 +11,32 @@ import type {
   CheckoutSessionRequest,
   CheckoutSessionResponse,
 } from './types';
-import { AUTH_DISABLED, TEST_USER_ID } from '../config/auth';
+import { getAccessToken, clearAccessToken } from '../auth/auth';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+// Require VITE_API_BASE_URL and make it deterministic
+const envApiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+const API_BASE_URL = envApiBaseUrl.endsWith("/api") ? envApiBaseUrl : `${envApiBaseUrl}/api`;
+console.log("[API] baseURL =", API_BASE_URL);
+
+// Debug helper for error messages
+export function getApiBaseUrlDebug() {
+  return {
+    VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
+    API_BASE_URL,
+  };
+}
+
+// Helper to get auth header from stored token
+function getAuthHeader(): Record<string, string> | null {
+  const token = getAccessToken();
+  if (token) {
+    return { Authorization: `Bearer ${token}` };
+  }
+  return null;
+}
+
+// Prevent redirect storms on repeated 401s
+let redirectingToLogin = false;
 
 class ApiClient {
   private client: AxiosInstance;
@@ -24,122 +47,107 @@ class ApiClient {
       headers: {
         'Content-Type': 'application/json',
       },
+      withCredentials: true,
+      // Optional: avoid hanging forever
+      timeout: 15000,
     });
 
     // Add request interceptor to include auth token
     this.client.interceptors.request.use(
       (config) => {
-        // TEMP: Skip token when auth is disabled
-        if (AUTH_DISABLED) {
-          // Optionally add test user ID as header if backend needs it
-          // config.headers['X-Test-User-Id'] = TEST_USER_ID;
-          return config;
-        }
-
-        const token = localStorage.getItem('access_token');
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
+        const authHeader = getAuthHeader();
+        if (authHeader) {
+          config.headers.Authorization = authHeader.Authorization;
         }
         return config;
       },
-      (error) => {
-        return Promise.reject(error);
-      }
+      (error) => Promise.reject(error)
     );
 
     // Add response interceptor to handle errors
     this.client.interceptors.response.use(
       (response) => response,
       (error) => {
-        // TEMP: Skip 401 redirect when auth is disabled
-        if (AUTH_DISABLED) {
-          return Promise.reject(error);
+        // Network-layer errors (no response). This includes true network down
+        // and also browser-blocked responses (CORS / aborted / etc.)
+        if (
+          !error.response &&
+          (error.message?.includes('Network Error') ||
+            error.code === 'ERR_NETWORK' ||
+            error.code === 'ECONNREFUSED')
+        ) {
+          const debug = getApiBaseUrlDebug();
+          return Promise.reject(
+            new Error(
+              `Backend is unreachable. Confirm FastAPI is running and VITE_API_BASE_URL points to it (API_BASE_URL=${debug.API_BASE_URL}).`
+            )
+          );
         }
 
+        // If backend answered with 401, clear token + redirect once
         if (error.response?.status === 401) {
-          // Clear token
-          localStorage.removeItem('access_token');
-          // Only redirect if not already on auth page
-          if (window.location.pathname !== '/auth') {
-            window.location.href = '/auth';
+          clearAccessToken();
+
+          const path = window.location.pathname;
+          const isAuthPage = path === '/login' || path === '/auth' || path === '/auth/callback';
+
+          if (!isAuthPage && !redirectingToLogin) {
+            redirectingToLogin = true;
+            window.location.href = '/login';
           }
         }
+
         return Promise.reject(error);
       }
     );
   }
 
-  // Auth methods
-  async signup(email: string, password: string): Promise<{ access_token: string }> {
-    // TEMP: Skip real signup when auth is disabled
-    if (AUTH_DISABLED) {
-      return { access_token: 'test-token' };
-    }
-
-    const response = await this.client.post<Token>('/auth/signup', { email, password });
-    if (response.data.access_token) {
-      localStorage.setItem('access_token', response.data.access_token);
-    }
-    return { access_token: response.data.access_token };
-  }
-
-  async login(email: string, password: string): Promise<{ access_token: string }> {
-    // TEMP: Skip real login when auth is disabled
-    if (AUTH_DISABLED) {
-      return { access_token: 'test-token' };
-    }
-
-    const response = await this.client.post<Token>('/auth/login', { email, password });
-    if (response.data.access_token) {
-      localStorage.setItem('access_token', response.data.access_token);
-    }
-    return { access_token: response.data.access_token };
-  }
-
   async getCurrentUser(): Promise<User> {
-    // TEMP: Return test user when auth is disabled
-    if (AUTH_DISABLED) {
-      return {
-        id: TEST_USER_ID,
-        email: 'test@readar.com',
-        subscription_status: 'free',
-        created_at: new Date().toISOString(),
-      };
-    }
-
     const response = await this.client.get<User>('/auth/me');
     return response.data;
   }
 
-  logout(): void {
-    localStorage.removeItem('access_token');
-  }
-
-  // Onboarding methods
-  async saveOnboarding(payload: OnboardingPayload, userId: string): Promise<OnboardingProfile> {
-    try {
-      const response = await this.client.post<OnboardingProfile>('/onboarding', payload, {
-        params: { user_id: userId },
-      });
+  async saveOnboarding(payload: OnboardingPayload): Promise<OnboardingProfile> {
+    const attempt = async () => {
+      const response = await this.client.post<OnboardingProfile>("/onboarding", payload);
       return response.data;
+    };
+
+    try {
+      return await attempt();
     } catch (error: any) {
-      // Extract backend error message if available
-      if (error.response?.data?.detail) {
-        throw new Error(error.response.data.detail);
+      const status = error?.response?.status as number | undefined;
+
+      // Do NOT retry auth/permission/validation-style failures
+      if (status === 401 || status === 403 || status === 422) {
+        if (error.response?.data?.detail) throw new Error(error.response.data.detail);
+        throw new Error(error.message || "Failed to save onboarding");
       }
-      // Fall back to generic error message
-      throw new Error(error.message || 'Failed to save onboarding');
+
+      // Retry once for transient/server/network issues
+      const isNetwork = !error?.response;
+      const isTransient = status === 500 || status === 502 || status === 503 || status === 504;
+
+      if (isNetwork || isTransient) {
+        await new Promise((r) => setTimeout(r, 600)); // short backoff
+        try {
+          return await attempt();
+        } catch (error2: any) {
+          if (error2.response?.data?.detail) throw new Error(error2.response.data.detail);
+          throw new Error(error2.message || "Failed to save onboarding");
+        }
+      }
+
+      if (error.response?.data?.detail) throw new Error(error.response.data.detail);
+      throw new Error(error.message || "Failed to save onboarding");
     }
   }
 
-  async getOnboarding(userId: string): Promise<OnboardingProfile> {
-    const response = await this.client.get<OnboardingProfile>('/onboarding', {
-      params: { user_id: userId },
-    });
+  async getOnboarding(): Promise<OnboardingProfile> {
+    const response = await this.client.get<OnboardingProfile>('/onboarding');
     return response.data;
   }
 
-  // Book methods
   async getBooks(params?: {
     q?: string;
     sort?: string;
@@ -161,8 +169,6 @@ class ApiClient {
     return response.data;
   }
 
-  // Recommendation methods
-  // Note: getRecommendations is deprecated. Use fetchRecommendations instead.
   async getRecommendations(maxResults?: number): Promise<RecommendationItem[]> {
     const response = await this.client.post<RecommendationItem[]>('/recommendations', {
       max_results: maxResults,
@@ -170,7 +176,18 @@ class ApiClient {
     return response.data;
   }
 
-  // User-Book interaction methods
+  async getPreviewRecommendations(payload: OnboardingPayload): Promise<RecommendationItem[]> {
+    try {
+      const response = await this.client.post<RecommendationItem[]>('/recommendations/preview', payload);
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.data?.detail) {
+        throw new Error(error.response.data.detail);
+      }
+      throw new Error(error.message || 'Failed to get preview recommendations');
+    }
+  }
+
   async updateUserBook(
     bookId: string,
     status: BookPreferenceStatus,
@@ -191,7 +208,6 @@ class ApiClient {
     return response.data;
   }
 
-  // Billing methods
   async createCheckoutSession(
     priceId: string,
     successUrl: string,
@@ -208,9 +224,7 @@ class ApiClient {
     return response.data;
   }
 
-  // Reading history methods
   async uploadReadingHistoryCsv(params: {
-    userId: string;
     file: File;
   }): Promise<{ imported_count: number; skipped_count: number }> {
     const formData = new FormData();
@@ -218,7 +232,7 @@ class ApiClient {
 
     try {
       const response = await this.client.post<{ imported_count: number; skipped_count: number }>(
-        `/reading-history/upload-csv?user_id=${params.userId}`,
+        `/reading-history/upload-csv`,
         formData,
         {
           headers: {
@@ -228,11 +242,9 @@ class ApiClient {
       );
       return response.data;
     } catch (error: any) {
-      // Extract backend error message if available
       if (error.response?.data?.detail) {
         throw new Error(error.response.data.detail);
       }
-      // Fall back to generic error message
       throw new Error(error.message || 'Failed to upload reading history');
     }
   }
@@ -240,20 +252,26 @@ class ApiClient {
 
 export const apiClient = new ApiClient();
 
-// Standalone fetch-based recommendation helper
-// This is the preferred way to fetch recommendations, as it shows real error messages
 export async function fetchRecommendations(params: {
-  userId: string;
   limit?: number;
 }): Promise<RecommendationItem[]> {
-  const { userId, limit = 10 } = params;
-  const url = `${API_BASE_URL}/recommendations?user_id=${userId}&limit=${limit}`;
-
-  console.log("fetchRecommendations → url:", url, "userId:", userId);
+  const { limit = 5 } = params;
+  const safeLimit = Math.min(Math.max(limit, 1), 5);
+  const url = `${API_BASE_URL}/recommendations?limit=${safeLimit}`;
 
   try {
+    const authHeader = getAuthHeader();
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    if (authHeader) {
+      headers.Authorization = authHeader.Authorization;
+    }
+
     const res = await fetch(url, {
       method: "GET",
+      headers,
+      credentials: 'include',
     });
 
     if (!res.ok) {
@@ -264,7 +282,7 @@ export async function fetchRecommendations(params: {
           message = data.detail;
         }
       } catch {
-        // ignore JSON parse errors
+        // ignore
       }
       throw new Error(message);
     }
@@ -272,7 +290,15 @@ export async function fetchRecommendations(params: {
     return res.json();
   } catch (err: any) {
     console.error("Network error fetching recommendations", err);
+
+    const errorMessage = err?.message || "";
+    if ((errorMessage.includes("Failed to fetch") || err instanceof TypeError) && !(err as any).response) {
+      const debug = getApiBaseUrlDebug();
+      throw new Error(
+        `Backend is unreachable. Confirm FastAPI is running and VITE_API_BASE_URL points to it (API_BASE_URL=${debug.API_BASE_URL}).`
+      );
+    }
+
     throw new Error(err?.message || "Failed to fetch recommendations");
   }
 }
-

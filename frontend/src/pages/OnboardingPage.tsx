@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client';
+import { useAuth } from '../auth/AuthProvider';
 import type { OnboardingPayload, BookPreference, RevenueRange } from '../api/types';
 import Input from '../components/Input';
 import Button from '../components/Button';
@@ -8,8 +9,6 @@ import Card from '../components/Card';
 import MultiSelect from '../components/MultiSelect';
 import { BookCalibrationStep } from '../components/Onboarding/BookCalibrationStep';
 import { ReadingHistoryUploadStep } from '../components/Onboarding/ReadingHistoryUploadStep';
-import { useAuth } from '../contexts/AuthContext';
-import { DEV_TEST_USER_ID } from '../api/constants';
 import { ECONOMIC_SECTORS, INDUSTRIES, INDUSTRIES_BY_SECTOR, BUSINESS_MODELS, AREAS_OF_BUSINESS } from '../config/onboarding';
 import './OnboardingPage.css';
 
@@ -34,16 +33,14 @@ const REVENUE_OPTIONS: { value: RevenueRange; label: string }[] = [
   { value: "100m_plus", label: "$100m+" },
 ];
 
+const PENDING_ONBOARDING_KEY = 'readar_pending_onboarding';
+
 export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
-  const { user: authUser } = useAuth() ?? { user: null };
-  
-  // Use auth user ID if available, otherwise fallback to dev test user ID
-  const userId = authUser?.id ?? DEV_TEST_USER_ID;
-  console.log("Onboarding userId:", userId);
+  const { user: authUser, refreshOnboardingStatus } = useAuth();
 
   const [formData, setFormData] = useState<Partial<OnboardingPayload & { 
     business_models: string[];
@@ -56,6 +53,19 @@ export default function OnboardingPage() {
     challenges_and_blockers: '',
     book_preferences: [],
   });
+
+  // Load pending onboarding from localStorage on mount
+  useEffect(() => {
+    const pending = localStorage.getItem(PENDING_ONBOARDING_KEY);
+    if (pending) {
+      try {
+        const parsed = JSON.parse(pending);
+        setFormData(parsed);
+      } catch (e) {
+        console.error('Failed to parse pending onboarding:', e);
+      }
+    }
+  }, []);
 
   // Compute filtered industries based on selected sector
   const selectedSector = (formData as any).economic_sector || "";
@@ -101,9 +111,14 @@ export default function OnboardingPage() {
     setStep(step + 1);
   };
 
-  const handleUpdate = (patch: Partial<OnboardingPayload>) => {
+  const handleUpdate = useCallback((patch: Partial<OnboardingPayload>) => {
     setFormData((prev) => ({ ...prev, ...patch }));
-  };
+  }, []);
+  
+  // Stabilize the onChangePreferences callback to prevent infinite loops
+  const handlePreferencesChange = useCallback((prefs: BookPreference[]) => {
+    handleUpdate({ book_preferences: prefs });
+  }, [handleUpdate]);
 
   const handleSubmit = async () => {
     console.log("handleSubmit start");
@@ -128,10 +143,22 @@ export default function OnboardingPage() {
         book_preferences: formData.book_preferences || [],
       } as OnboardingPayload;
 
-      await apiClient.saveOnboarding(payload, userId);
-      console.log("saveOnboarding done, navigating to loading");
-      // Navigate to loading page
-      navigate(`/recommendations/loading?userId=${encodeURIComponent(userId)}&limit=5`);
+      // If authenticated, save to backend immediately
+      if (authUser) {
+        await apiClient.saveOnboarding(payload);
+        await refreshOnboardingStatus();
+
+        // IMPORTANT: prevent login loop
+        localStorage.removeItem(PENDING_ONBOARDING_KEY);
+        localStorage.removeItem('readar_preview_recs');
+
+        navigate(`/recommendations/loading?limit=5`);
+      } else {
+        // Not authenticated: save to localStorage and navigate to loading page
+        localStorage.setItem(PENDING_ONBOARDING_KEY, JSON.stringify(formData));
+        console.log("Saved onboarding to localStorage, navigating to loading page");
+        navigate(`/recommendations/loading?limit=5`);
+      }
     } catch (err: any) {
       // The API client now throws Error with backend detail message
       setError(err.message || 'Failed to save onboarding');
@@ -146,11 +173,11 @@ export default function OnboardingPage() {
     
     if (!formData.full_name || !(formData as any).economic_sector || !formData.industry || !formData.business_models || formData.business_models.length === 0 || !formData.business_stage || !formData.challenges_and_blockers) {
       // If required fields are missing, just navigate anyway (user can complete later)
-      navigate(`/recommendations/loading?userId=${encodeURIComponent(userId)}&limit=5`);
+      navigate(`/recommendations/loading?limit=5`);
       return;
     }
 
-    // Attempt to save in background, but don't block navigation
+    // Prepare payload
     const payload: OnboardingPayload = {
       ...formData,
       business_model: formData.business_models?.join(', ') || '',
@@ -159,26 +186,34 @@ export default function OnboardingPage() {
       book_preferences: formData.book_preferences || [],
     } as OnboardingPayload;
 
-    // Try to save, but navigate regardless of success/failure
-    apiClient.saveOnboarding(payload, userId)
-      .then(() => {
-        console.log("saveOnboarding done (non-blocking)");
-      })
-      .catch((err: any) => {
-        console.error("Failed to save onboarding (non-blocking):", err);
-        // Show error but don't block - user can retry later
-        setError(err.message || 'Failed to save onboarding (you can continue anyway)');
-      });
+    // Save to localStorage regardless of auth status
+    localStorage.setItem(PENDING_ONBOARDING_KEY, JSON.stringify(formData));
+
+    // If authenticated, also try to save to backend in background
+    if (authUser) {
+      apiClient.saveOnboarding(payload)
+        .then(() => {
+          console.log("saveOnboarding done (non-blocking)");
+          // Clear pending keys to prevent loop
+          localStorage.removeItem(PENDING_ONBOARDING_KEY);
+          localStorage.removeItem('readar_preview_recs');
+        })
+        .catch((err: any) => {
+          console.error("Failed to save onboarding (non-blocking):", err);
+          // Show error but don't block - user can retry later
+          setError(err.message || 'Failed to save onboarding (you can continue anyway)');
+        });
+    }
 
     // Navigate immediately without waiting for save
-    navigate(`/recommendations/loading?userId=${encodeURIComponent(userId)}&limit=5`);
+    navigate(`/recommendations/loading?limit=5`);
   };
 
   // Skip handler: attempts to save in background but navigates immediately
   const handleSkipAndNavigate = () => {
     console.log("handleSkipAndNavigate - attempting save in background, navigating immediately");
     
-    // Try to save onboarding data in background (user has filled out steps 1-4)
+    // Try to save onboarding data (user has filled out steps 1-4)
     // but navigate immediately regardless of save success/failure
     if (formData.full_name && (formData as any).economic_sector && formData.industry && formData.business_models && formData.business_models.length > 0 && formData.business_stage && formData.challenges_and_blockers) {
       const payload: OnboardingPayload = {
@@ -189,19 +224,27 @@ export default function OnboardingPage() {
         book_preferences: formData.book_preferences || [],
       } as OnboardingPayload;
 
-      // Save in background, don't wait for result
-      apiClient.saveOnboarding(payload, userId)
-        .then(() => {
-          console.log("saveOnboarding done (skip, non-blocking)");
-        })
-        .catch((err: any) => {
-          console.error("Failed to save onboarding (skip, non-blocking):", err);
-          // Don't show error for skip - user chose to skip, so silent failure is fine
-        });
+      // Save to localStorage
+      localStorage.setItem(PENDING_ONBOARDING_KEY, JSON.stringify(formData));
+
+      // If authenticated, also try to save to backend in background
+      if (authUser) {
+        apiClient.saveOnboarding(payload)
+          .then(() => {
+            console.log("saveOnboarding done (skip, non-blocking)");
+            // Clear pending keys to prevent loop
+            localStorage.removeItem(PENDING_ONBOARDING_KEY);
+            localStorage.removeItem('readar_preview_recs');
+          })
+          .catch((err: any) => {
+            console.error("Failed to save onboarding (skip, non-blocking):", err);
+            // Don't show error for skip - user chose to skip, so silent failure is fine
+          });
+      }
     }
 
     // Navigate immediately
-    navigate(`/recommendations/loading?userId=${encodeURIComponent(userId)}&limit=5`);
+    navigate(`/recommendations/loading?limit=5`);
   };
 
 
@@ -404,9 +447,7 @@ export default function OnboardingPage() {
         {step === 4 && (
           <BookCalibrationStep
             initialPreferences={formData.book_preferences as BookPreference[] | undefined}
-            onChangePreferences={(prefs) => {
-              handleUpdate({ book_preferences: prefs });
-            }}
+            onChangePreferences={handlePreferencesChange}
             onBack={() => setStep(step - 1)}
             onContinue={(prefs) => {
               handleUpdate({ book_preferences: prefs });
@@ -418,7 +459,6 @@ export default function OnboardingPage() {
         {/* Step 5: Reading History Upload */}
         {step === 5 && (
           <ReadingHistoryUploadStep
-            userId={userId}
             onBack={() => setStep(step - 1)}
             onSkip={handleSkipAndNavigate}
             onNext={handleSubmitAndNavigate}
