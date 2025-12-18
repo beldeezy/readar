@@ -82,7 +82,8 @@ export default function RecommendationCard({ book, onAction, isTopMatch = false 
                   color: 'var(--rd-muted)', 
                   fontSize: '0.875rem',
                   lineHeight: '1.5',
-                  margin: 0
+                  margin: 0,
+                  whiteSpace: isTopMatch ? 'pre-line' : 'normal'
                 }}>
                   {book.why_this_book}
                 </p>

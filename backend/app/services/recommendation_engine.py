@@ -262,7 +262,7 @@ def get_generic_recommendations(
 
     recommendations: List[RecommendationItem] = []
 
-    for book in books:
+    for idx, book in enumerate(books):
         # Build purchase URL (generic recs don't have onboarding, so why_this_book can be None)
         purchase_url = _build_purchase_url(book)
         
@@ -271,7 +271,8 @@ def get_generic_recommendations(
         
         # Build why_this_book for generic recs (no onboarding, so use empty factors)
         empty_factors = ScoreFactors()
-        why_this_book_text = build_why_this_book(empty_factors, None, book)
+        is_top = (idx == 0)
+        why_this_book_text = build_why_this_book(empty_factors, None, book, is_top=is_top)
         
         relevancy_score = 0.0  # generic recs, no personalized score
         recommendations.append(
@@ -440,108 +441,117 @@ def humanize(value: str) -> str:
     return value.replace("_", " ").strip()
 
 
-def build_why_this_book(factors: ScoreFactors, user_profile: Optional[OnboardingProfile], book: Book) -> str:
+def build_why_this_book(
+    factors: ScoreFactors, 
+    user_profile: Optional[OnboardingProfile], 
+    book: Book,
+    is_top: bool = False,
+    reasons: Optional[List[str]] = None
+) -> str:
     """
-    Build a single compelling paragraph explaining why a book is recommended.
+    Returns user-facing explanation copy.
     
-    Uses Hook → Bridge → Action structure:
-    - Hook: user bottleneck (from user profile + score factors)
-    - Bridge: book promise + optional framework (from book.promise and book.core_frameworks)
-    - Action: one concrete outcome (from book.outcomes)
+    - Top book: 1 lead sentence + bullets + action line (decision memo format)
+    - Others: short 1-2 lines
     
-    Falls back to factor-based copy when insight fields are missing.
-    Outputs one paragraph (2-4 sentences max).
-    No generic CTA.
+    Args:
+        factors: Score factors for the book
+        user_profile: User's onboarding profile (optional)
+        book: The book being recommended
+        is_top: Whether this is the top recommendation (index 0)
+        reasons: List of reason strings explaining why this book matches (optional)
     """
-    parts: List[str] = []
-    
-    # Check if book has insight fields
-    has_promise = book.promise and book.promise.strip()
-    has_frameworks = book.core_frameworks and isinstance(book.core_frameworks, list) and len(book.core_frameworks) > 0
-    has_outcomes = book.outcomes and isinstance(book.outcomes, list) and len(book.outcomes) > 0
-    has_insights = has_promise or has_frameworks or has_outcomes
-    
     if not user_profile:
         # Fallback for users without onboarding
+        has_promise = book.promise and book.promise.strip()
         if has_promise:
+            if is_top:
+                return f"This is your next read because it attacks the bottleneck you're facing right now.\n\n• {book.promise.strip()}\n\nStart by skimming the table of contents, then read the chapter that maps to your bottleneck first."
             return book.promise.strip()
+        if is_top:
+            return "This is your next read because it attacks the bottleneck you're facing right now.\n\n• A strong fit for where you are right now.\n\nStart by skimming the table of contents, then read the chapter that maps to your bottleneck first."
         return "This is a solid foundational pick to build clarity and execution momentum."
     
-    # Format business stage for display
-    business_stage = None
+    # Extract profile fields
+    stage = None
     if user_profile.business_stage:
-        business_stage = (
+        stage = (
             user_profile.business_stage.value 
             if hasattr(user_profile.business_stage, 'value') 
             else str(user_profile.business_stage)
         )
-        business_stage = humanize(business_stage).replace("-", " ").title()
+        stage = humanize(stage).replace("-", " ").title()
     
-    # HOOK: User bottleneck (from user profile + score factors)
-    hook_parts = []
+    model = (user_profile.business_model or "").strip()
+    challenge = (user_profile.biggest_challenge or "").strip()
     
-    if factors.challenge_fit > 0 and user_profile.biggest_challenge:
-        challenge_text = humanize(user_profile.biggest_challenge)
-        hook_parts.append(f"You're facing {challenge_text}")
+    # Normalize reasons (keep it small + readable)
+    clean_reasons: List[str] = []
+    if reasons:
+        clean_reasons = [r.strip() for r in reasons if isinstance(r, str) and r.strip()]
+        clean_reasons = clean_reasons[:3]
     
-    if factors.stage_fit > 0 and business_stage:
-        if hook_parts:
-            hook_parts.append(f"at the {business_stage} stage")
-        else:
-            hook_parts.append(f"You're at the {business_stage} stage")
-    
-    if hook_parts:
-        hook = " ".join(hook_parts) + "."
-        parts.append(hook)
-    elif factors.areas_fit > 0 and user_profile.areas_of_business:
-        areas = [humanize(a) for a in (user_profile.areas_of_business[:1] or [])]
-        if areas:
-            parts.append(f"You're focused on {areas[0]}.")
-    
-    # BRIDGE: Book promise + optional framework
-    if has_promise:
-        # Use promise as the bridge
-        promise_text = book.promise.strip()
-        if has_frameworks:
-            # Mention one framework by name (max 1 per description)
-            framework = book.core_frameworks[0]
-            # Combine promise and framework naturally
-            parts.append(f"{promise_text}, introducing the {framework} framework.")
-        else:
-            parts.append(promise_text + ".")
-    elif has_frameworks:
-        # If no promise, use framework as the bridge
-        framework = book.core_frameworks[0]
-        parts.append(f"This book introduces the {framework} framework.")
-    else:
-        # Fallback: factor-based bridge
-        if factors.business_model_fit > 0 and user_profile.business_model:
-            model_text = humanize(user_profile.business_model)
-            parts.append(f"It's especially relevant if you're building a {model_text}.")
-        elif factors.areas_fit > 0 and user_profile.areas_of_business:
-            areas = [humanize(a) for a in (user_profile.areas_of_business[:2] or [])]
+    # If no reasons provided, generate some from factors
+    if not clean_reasons:
+        if factors.challenge_fit > 0 and challenge:
+            challenge_text = humanize(challenge)
+            clean_reasons.append(f"Directly addresses your {challenge_text} challenge")
+        if factors.stage_fit > 0 and stage:
+            clean_reasons.append(f"Strong fit for your {stage} stage")
+        if factors.business_model_fit > 0 and model:
+            model_text = humanize(model)
+            clean_reasons.append(f"Matches your {model_text} business model")
+        if factors.areas_fit > 0 and user_profile.areas_of_business:
+            areas = [humanize(a) for a in (user_profile.areas_of_business[:1] or [])]
             if areas:
-                parts.append(f"It will sharpen your thinking in {', '.join(areas)}—the areas most likely to unlock momentum next.")
+                clean_reasons.append(f"Focuses on {areas[0]}")
     
-    # ACTION: One concrete outcome
-    if has_outcomes:
-        outcome = book.outcomes[0]  # Use one concrete outcome
-        parts.append(f"You'll walk away with {outcome.lower()}.")
-    elif not has_insights:
-        # Fallback: generic action only if no insights at all
-        if factors.stage_fit > 0 or factors.challenge_fit > 0:
-            parts.append("This should help you prioritize the right moves.")
+    # Limit to 3 reasons
+    clean_reasons = clean_reasons[:3]
     
-    # Final formatting: one paragraph (2-4 sentences)
-    result = " ".join(parts).strip()
+    if is_top:
+        # Decision memo format for top recommendation
+        lead = "This is your next read because it attacks the bottleneck you're facing right now."
+        
+        context_bits = []
+        if stage:
+            context_bits.append(f"Stage: {stage}")
+        if model:
+            context_bits.append(f"Model: {model}")
+        if challenge:
+            context_bits.append(f"Bottleneck: {challenge}")
+        
+        bullets = []
+        for r in clean_reasons:
+            # Ensure reason starts with capital and ends appropriately
+            reason_text = r.strip()
+            if not reason_text[0].isupper():
+                reason_text = reason_text[0].upper() + reason_text[1:]
+            bullets.append(f"• {reason_text}")
+        
+        # Action line
+        action = "Start by skimming the table of contents, then read the chapter that maps to your bottleneck first."
+        
+        parts = [lead]
+        if context_bits:
+            parts.append(" / ".join(context_bits))
+        if bullets:
+            parts.append("\n".join(bullets))
+        parts.append(action)
+        
+        return "\n".join(parts)
     
-    # If none of the factors hit (rare), provide a neutral reason
-    if not result:
-        if has_promise:
-            return book.promise.strip()
-        return "This is a solid foundational pick to build clarity and execution momentum."
+    # Non-top: short and clean (1-2 lines)
+    short = []
+    if clean_reasons:
+        short.append(clean_reasons[0])
+    elif challenge:
+        challenge_text = humanize(challenge)
+        short.append(f"Useful if you're stuck on: {challenge_text}")
+    else:
+        short.append("A strong fit for where you are right now.")
     
-    return result
+    return " ".join(short)
 
 
 def _build_why_signals(
@@ -1470,14 +1480,16 @@ def get_personalized_recommendations(
             top_ids.extend([book_id for (book_id, _) in remaining[:limit - len(top_ids)]])
 
     recommendations: List[RecommendationItem] = []
-    for book_id in top_ids:
+    for idx, book_id in enumerate(top_ids):
         book = books_by_id.get(book_id)
         if not book:
             continue
 
         # Build why_this_book paragraph from score factors
         score_factors = book_score_factors.get(book_id, ScoreFactors())
-        why_this_book_text = build_why_this_book(score_factors, onboarding, book)
+        reasons = book_reasons.get(book_id, [])
+        is_top = (idx == 0)
+        why_this_book_text = build_why_this_book(score_factors, onboarding, book, is_top=is_top, reasons=reasons)
         
         # Build why_signals (reason chips)
         why_signals = _build_why_signals(onboarding, book)
@@ -1710,14 +1722,16 @@ def get_recommendations_from_payload(
             top_ids.extend([book_id for (book_id, _) in remaining[:limit - len(top_ids)]])
     
     recommendations: List[RecommendationItem] = []
-    for book_id in top_ids:
+    for idx, book_id in enumerate(top_ids):
         book = books_by_id.get(book_id)
         if not book:
             continue
         
         # Build why_this_book paragraph from score factors
         score_factors = book_score_factors.get(book_id, ScoreFactors())
-        why_this_book_text = build_why_this_book(score_factors, onboarding, book)
+        reasons = book_reasons.get(book_id, [])
+        is_top = (idx == 0)
+        why_this_book_text = build_why_this_book(score_factors, onboarding, book, is_top=is_top, reasons=reasons)
         
         # Build why_signals (reason chips)
         why_signals = _build_why_signals(onboarding, book)
@@ -1853,16 +1867,16 @@ def get_recommendations_for_user(
         return []
     
     # Compute score for each book
-    def compute_total_score(book: Book) -> Tuple[float, str, bool, ScoreFactors]:
+    def compute_total_score(book: Book) -> Tuple[float, str, bool, ScoreFactors, List[str]]:
         """
         Compute total score for a book.
         
-        Returns: (total_score, why_recommended, should_filter_out, score_factors)
+        Returns: (total_score, why_recommended, should_filter_out, score_factors, reasons_list)
         """
         # FILTERING: Check for hard filters first
         # 1. NOT_INTERESTED - hard filter
         if book.id in not_interested_book_ids:
-            return 0.0, "You marked this as not interested.", True, ScoreFactors()
+            return 0.0, "You marked this as not interested.", True, ScoreFactors(), []
         
         # 2. Already read (unless we want to allow re-reads)
         is_already_read = (
@@ -1872,7 +1886,7 @@ def get_recommendations_for_user(
         )
         if is_already_read:
             # Filter out already-read books (can be changed to allow re-reads)
-            return 0.0, "You've already read this book.", True, ScoreFactors()
+            return 0.0, "You've already read this book.", True, ScoreFactors(), []
         
         # 3. READ_DISLIKED with high similarity to other disliked books
         if book.id in disliked_book_ids:
@@ -1880,7 +1894,7 @@ def get_recommendations_for_user(
             other_disliked = [b for b in books if b.id in disliked_book_ids and b.id != book.id]
             similar_count = sum(1 for db in other_disliked if _books_share_tags(book, db))
             if similar_count >= 2:  # Very similar to multiple disliked books
-                return 0.0, "Very similar to books you disliked.", True, ScoreFactors()
+                return 0.0, "Very similar to books you disliked.", True, ScoreFactors(), []
         
         # SCORING: Calculate additive components
         preference_score, pref_reasons = _calculate_preference_score(
@@ -1914,15 +1928,15 @@ def get_recommendations_for_user(
         
         why = " ".join(all_reasons[:3])  # Limit to top 3 reasons
         
-        return total_score, why, False, score_factors
+        return total_score, why, False, score_factors, all_reasons[:3]
     
     # Score all books
-    candidates: List[Tuple[Book, float, str, ScoreFactors]] = []
+    candidates: List[Tuple[Book, float, str, ScoreFactors, List[str]]] = []
     for book in books:
-        score, why, should_filter, factors = compute_total_score(book)
+        score, why, should_filter, factors, reasons = compute_total_score(book)
         if should_filter or score <= -5.0:  # Filter out negative scores below threshold
             continue
-        candidates.append((book, score, why, factors))
+        candidates.append((book, score, why, factors, reasons))
     
     # Check if user has a service-like or SaaS-like business model
     is_service_like = False
@@ -1937,17 +1951,17 @@ def get_recommendations_for_user(
     
     # For service-like or SaaS-like users, apply 70/30 split (niche canon / general)
     if (is_service_like or is_saas_like) and candidates:
-        services_candidates: List[Tuple[Book, float, str, ScoreFactors]] = []
-        saas_candidates: List[Tuple[Book, float, str, ScoreFactors]] = []
-        general_candidates: List[Tuple[Book, float, str, ScoreFactors]] = []
+        services_candidates: List[Tuple[Book, float, str, ScoreFactors, List[str]]] = []
+        saas_candidates: List[Tuple[Book, float, str, ScoreFactors, List[str]]] = []
+        general_candidates: List[Tuple[Book, float, str, ScoreFactors, List[str]]] = []
         
-        for book, score, why, factors in candidates:
+        for book, score, why, factors, reasons in candidates:
             if is_services_canon(book):
-                services_candidates.append((book, score, why, factors))
+                services_candidates.append((book, score, why, factors, reasons))
             elif is_saas_canon(book):
-                saas_candidates.append((book, score, why, factors))
+                saas_candidates.append((book, score, why, factors, reasons))
             else:
-                general_candidates.append((book, score, why, factors))
+                general_candidates.append((book, score, why, factors, reasons))
         
         target_niche = int(limit * 0.7)
         
@@ -2013,9 +2027,10 @@ def get_recommendations_for_user(
     
     # Build RecommendationItem objects
     items: List[RecommendationItem] = []
-    for book, score, why, factors in top:
+    for idx, (book, score, why, factors, reasons) in enumerate(top):
         # Build why_this_book paragraph from score factors
-        why_this_book_text = build_why_this_book(factors, onboarding, book)
+        is_top = (idx == 0)
+        why_this_book_text = build_why_this_book(factors, onboarding, book, is_top=is_top, reasons=reasons)
         
         # Build why_signals (reason chips)
         why_signals = _build_why_signals(onboarding, book)
