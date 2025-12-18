@@ -24,10 +24,14 @@ class RecommendationItem(BaseModel):
     functional_tags: Optional[List[str]] = None
     business_stage_tags: Optional[List[str]] = None
     purchase_url: Optional[str] = None
-    why_this_book: Optional[str] = None
-    # Legacy field for backward compatibility
-    why_recommended: Optional[str] = None
+    why_this_book: str  # Always present, single compelling paragraph explaining why recommended
+    why_recommended: Optional[List[str]] = None  # Deprecated: use why_this_book instead
     why_signals: Optional[List[Dict[str, str]]] = None
+    # Debug fields (only included when debug=true)
+    promise_match: Optional[float] = None
+    framework_match: Optional[float] = None
+    outcome_match: Optional[float] = None
+    score_factors: Optional[Dict[str, float]] = None  # Full score factors breakdown
 
 
 class RecommendationRequest(BaseModel):

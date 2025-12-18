@@ -2,8 +2,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from app.core.config import settings
 
-# Debug: Print the database URL to verify which database we're connecting to
-print("READAR DATABASE_URL =", settings.DATABASE_URL)
+# Debug: Print the database URL to verify which database we're connecting to (password masked)
+print("READAR DATABASE_URL =", settings.get_masked_database_url())
 
 # Create engine with connection pooling and pre-ping to verify connections
 engine = create_engine(
@@ -40,14 +40,16 @@ def init_db() -> None:
     if os.path.exists(alembic_versions_path) and os.listdir(alembic_versions_path):
         import warnings
         warnings.warn(
-            "Alembic migrations detected. init_db() will not add missing columns to existing tables. "
+            "Alembic migrations detected. Skipping Base.metadata.create_all(). "
             "Use 'alembic upgrade head' for schema changes.",
             UserWarning
         )
+        # Skip create_all() when Alembic is present - migrations are the source of truth
+        return
     
     # Import all models to ensure they're registered with Base.metadata
     from app import models  # noqa: F401
     
-    # Create all tables defined in models
+    # Create all tables defined in models (only if Alembic is not present)
     Base.metadata.create_all(bind=engine)
 

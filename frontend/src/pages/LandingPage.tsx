@@ -1,7 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { apiClient } from '../api/client';
-import { AUTH_DISABLED } from '../config/auth';
+import { useAuth } from '../auth/AuthProvider';
 import Button from '../components/Button';
 import RadarIcon from '../components/RadarIcon';
 import Footer from '../components/Footer';
@@ -12,24 +10,12 @@ export default function LandingPage() {
   const { user } = useAuth();
 
   const handleFindNextBook = async () => {
-    // TEMP: When auth is disabled, always check onboarding and navigate accordingly
-    if (AUTH_DISABLED) {
-      try {
-        await apiClient.getOnboarding();
-        navigate('/recommendations');
-      } catch (err: any) {
-        // If 404, onboarding doesn't exist, go to onboarding
-        navigate('/onboarding');
-      }
-      return;
-    }
-
     if (user) {
-      // If user is logged in, check if they've completed onboarding
-      navigate('/recommendations');
+      // If user is logged in, go to onboarding (which will redirect to recommendations if already complete)
+      navigate('/onboarding');
     } else {
-      // If not logged in, go to auth which will redirect to onboarding
-      navigate('/auth');
+      // If not logged in, go to login
+      navigate('/login');
     }
   };
 

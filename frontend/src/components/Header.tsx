@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../auth/AuthProvider';
 import Badge from './Badge';
 import Button from './Button';
 import readarLogo from '../assets/readar-logo.png';
@@ -37,7 +37,7 @@ export default function Header() {
               </Button>
             </>
           ) : (
-            <Link to="/auth">
+            <Link to="/login">
               <Button variant="primary" size="sm">Get Started</Button>
             </Link>
           )}

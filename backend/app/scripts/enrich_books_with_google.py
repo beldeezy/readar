@@ -16,6 +16,7 @@ logging.basicConfig(level=logging.INFO)
 GOOGLE_BOOKS_API_KEY = os.getenv("GOOGLE_BOOKS_API_KEY")
 if not GOOGLE_BOOKS_API_KEY:
     raise RuntimeError("Missing GOOGLE_BOOKS_API_KEY. Add it to backend/.env")
+
 GOOGLE_BOOKS_BASE_URL = "https://www.googleapis.com/books/v1/volumes"
 
 
@@ -205,8 +206,10 @@ def enrich_books(limit: Optional[int] = None, only_missing: bool = True) -> None
 
             if changed:
                 updated_count += 1
-                logger.info("  Updated: external_id=%s, page_count=%s, language=%s, isbn_10=%s, isbn_13=%s, average_rating=%s, ratings_count=%s",
-                           book.external_id, book.page_count, book.language, book.isbn_10, book.isbn_13, book.average_rating, book.ratings_count)
+                logger.info(
+                    "  Updated: external_id=%s, page_count=%s, language=%s, isbn_10=%s, isbn_13=%s, average_rating=%s, ratings_count=%s",
+                    book.external_id, book.page_count, book.language, book.isbn_10, book.isbn_13, book.average_rating, book.ratings_count
+                )
 
         db.commit()
         logger.info("Enrichment complete. Updated %d book(s).", updated_count)
@@ -236,4 +239,3 @@ if __name__ == "__main__":
 
     only_missing = not args.all
     enrich_books(limit=args.limit, only_missing=only_missing)
-

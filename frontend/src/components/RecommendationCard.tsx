@@ -73,13 +73,18 @@ export default function RecommendationCard({ book, onAction, isTopMatch = false 
             )}
 
             {/* Why this book section */}
-            {(book.why_this_book || book.why_recommended) && (
+            {book.why_this_book && (
               <div className="mt-3 text-sm" style={{ marginTop: '1rem' }}>
-                <p className="font-medium mb-1" style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
+                <p className="font-medium mb-1" style={{ fontWeight: 600, marginBottom: '0.25rem', fontSize: '0.875rem' }}>
                   Why this book:
                 </p>
-                <p className="text-muted-foreground" style={{ color: 'var(--rd-muted)' }}>
-                  {book.why_this_book || book.why_recommended}
+                <p className="text-muted-foreground" style={{ 
+                  color: 'var(--rd-muted)', 
+                  fontSize: '0.875rem',
+                  lineHeight: '1.5',
+                  margin: 0
+                }}>
+                  {book.why_this_book}
                 </p>
               </div>
             )}

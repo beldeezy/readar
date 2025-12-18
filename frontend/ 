@@ -1,0 +1,7 @@
+# Frontend
+VITE_API_BASE_URL=http://localhost:8000
+VITE_STRIPE_PRICE_ID=price_...
+
+# Supabase (for magic link authentication)
+VITE_SUPABASE_URL="https://YOUR_PROJECT_REF.supabase.co"
+VITE_SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_PUBLIC_KEY"

@@ -10,46 +10,41 @@ from app import models
 from app.services import recommendation_engine
 from app.services.recommendation_engine import NotEnoughSignalError
 from app.schemas.recommendation import RecommendationItem, RecommendationRequest
-from app.core.security import get_password_hash
+from app.schemas.onboarding import OnboardingPayload
+from app.core.auth import get_current_user
+from app.core.user_helpers import get_or_create_user_by_auth_id
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["recommendations"])
 
 @router.get("/recommendations", response_model=List[RecommendationItem])
-def get_recommendations(
-    user_id: UUID = Query(...),
+async def get_recommendations(
     limit: int = Query(5, ge=1, le=5),
+    debug: bool = Query(False, description="Include debug fields in response"),
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     # Hard clamp to avoid any weirdness if this endpoint is reused elsewhere
     if limit > 5:
         limit = 5
     
-    logger.info("Fetching recommendations for user %s", user_id)
-
-    # Ensure user exists (dev placeholder if missing)
-    user = db.query(models.User).filter(models.User.id == user_id).one_or_none()
-    if user is None:
-        logger.warning(
-            "User %s not found; creating placeholder user for recommendations.",
-            user_id,
-        )
-        placeholder_email = f"dev+{user_id}@readar.local"
-        placeholder_password_hash = get_password_hash("placeholder_password")
-        user = models.User(
-            id=user_id,
-            email=placeholder_email,
-            password_hash=placeholder_password_hash,
-        )
-        db.add(user)
-        db.flush()
+    # Get or create local user from Supabase auth_user_id
+    user = get_or_create_user_by_auth_id(
+        db=db,
+        auth_user_id=current_user["auth_user_id"],
+        email=current_user.get("email", ""),
+    )
+    user_id = user.id
+    
+    logger.info("Fetching recommendations for user %s (auth_user_id=%s)", user_id, current_user["auth_user_id"])
 
     try:
         items = recommendation_engine.get_personalized_recommendations(
             db=db,
             user_id=user_id,
             limit=limit,
+            debug=debug,
         )
         return items
     except NotEnoughSignalError as e:
@@ -74,39 +69,23 @@ def get_recommendations(
 
 
 @router.post("/recommendations", response_model=List[RecommendationItem])
-def get_recommendations_post(
+async def get_recommendations_post(
     request: RecommendationRequest = RecommendationRequest(),
-    user_id: UUID = Query(..., description="User ID to generate recommendations for"),
+    debug: bool = Query(False, description="Include debug fields in response"),
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Generate book recommendations for a user (POST endpoint for backward compatibility).
-    
-    Dev-friendly behavior:
-    - If the user does not exist yet, create a minimal placeholder User so the
-      recommendation engine and FKs don't explode.
+    Generate book recommendations for the authenticated user (POST endpoint for backward compatibility).
     """
-    # 1) Ensure a User row exists for this id
-    user = db.query(models.User).filter(models.User.id == user_id).one_or_none()
-    if user is None:
-        logger.warning(
-            "User %s not found; creating placeholder user for recommendations.",
-            user_id,
-        )
+    # Get or create local user from Supabase auth_user_id
+    user = get_or_create_user_by_auth_id(
+        db=db,
+        auth_user_id=current_user["auth_user_id"],
+        email=current_user.get("email", ""),
+    )
+    user_id = user.id
 
-        # Create placeholder user with required fields
-        placeholder_email = f"dev+{user_id}@readar.local"
-        placeholder_password_hash = get_password_hash("placeholder_password")
-
-        user = models.User(
-            id=user_id,
-            email=placeholder_email,
-            password_hash=placeholder_password_hash,
-        )
-        db.add(user)
-        db.flush()  # ensure the row exists
-
-    # 2) Call the recommendation engine with graceful fallback
     # Clamp max_results to 5
     effective_limit = min(request.max_results or 5, 5)
     
@@ -115,6 +94,7 @@ def get_recommendations_post(
             db=db,
             user_id=user_id,
             limit=effective_limit,
+            debug=debug,
         )
         return items
     except NotEnoughSignalError as e:
@@ -167,5 +147,56 @@ def get_recommendations_post(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get recommendations: {e}",
+        )
+
+
+@router.post("/recommendations/preview", response_model=List[RecommendationItem])
+async def get_preview_recommendations(
+    payload: OnboardingPayload,
+    limit: int = Query(5, ge=1, le=5),
+    debug: bool = Query(False, description="Include debug fields in response"),
+    db: Session = Depends(get_db),
+):
+    """
+    Generate preview recommendations from onboarding payload without requiring authentication.
+    This endpoint is used to show recommendations before the user logs in.
+    
+    Note: This does NOT create or mutate user rows. It only generates recommendations
+    based on the provided onboarding data.
+    """
+    # Hard clamp to avoid any weirdness
+    if limit > 5:
+        limit = 5
+    
+    logger.info("Generating preview recommendations (no auth required)")
+    
+    try:
+        items = recommendation_engine.get_recommendations_from_payload(
+            db=db,
+            payload=payload,
+            limit=limit,
+            debug=debug,
+        )
+        return items
+    except NotEnoughSignalError as e:
+        # Fall back to generic recommendations
+        logger.info(
+            "Preview recommendations failed, falling back to generic: %s",
+            str(e)
+        )
+        items = recommendation_engine.get_generic_recommendations(
+            db=db,
+            limit=limit,
+            business_stage=payload.business_stage.value if hasattr(payload.business_stage, 'value') else str(payload.business_stage),
+            business_model=payload.business_model,
+        )
+        return items
+    except Exception as e:
+        # Log full traceback to server console
+        logger.exception("Error while generating preview recommendations")
+        # Surface detail to the client
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get preview recommendations: {e}",
         )
 

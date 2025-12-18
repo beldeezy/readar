@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from uuid import UUID
 from app.database import get_db
 from app.models import User, OnboardingProfile, UserBookInteraction, Book, UserBookStatus
 from app.schemas.onboarding import OnboardingPayload, OnboardingProfileResponse
-from app.core.security import get_password_hash
+from app.core.auth import get_current_user
+from app.core.user_helpers import get_or_create_user_by_auth_id
 from datetime import datetime
 import uuid
 import logging
@@ -24,34 +25,21 @@ router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 
 
 @router.post("", response_model=OnboardingProfileResponse, status_code=status.HTTP_201_CREATED)
-def create_or_update_onboarding(
+async def create_or_update_onboarding(
     payload: OnboardingPayload,
-    user_id: UUID = Query(..., description="User ID for the onboarding profile"),
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Create or update onboarding profile for a user.
-    
-    TODO: tighten this once Google auth is fully wired.
-    For now, accepts user_id as query param for dev mode.
+    Create or update onboarding profile for the authenticated user.
     """
-    # Ensure user exists (dev-friendly behavior)
-    user = db.query(User).filter(User.id == user_id).one_or_none()
-    if user is None:
-        # Create a minimal placeholder user that satisfies all NOT NULL constraints
-        placeholder_email = f"dev+{user_id}@readar.local"
-        # Generate a placeholder password hash (required field)
-        placeholder_password_hash = get_password_hash(f"placeholder_{user_id}")
-        
-        user = User(
-            id=user_id,
-            email=placeholder_email,
-            password_hash=placeholder_password_hash,
-            # created_at, updated_at, and subscription_status have defaults, so we can omit them
-        )
-        db.add(user)
-        db.flush()  # Make sure user is persisted before using user_id in other inserts
-        logger.info(f"Auto-created placeholder user for user_id={user_id}, email={placeholder_email}")
+    # Get or create local user from Supabase auth_user_id
+    user = get_or_create_user_by_auth_id(
+        db=db,
+        auth_user_id=current_user["auth_user_id"],
+        email=current_user.get("email", ""),
+    )
+    user_id = user.id
     
     try:
         # Extract book_preferences before creating profile (since OnboardingProfile doesn't have this field)
@@ -147,18 +135,22 @@ def create_or_update_onboarding(
 
 
 @router.get("", response_model=OnboardingProfileResponse)
-def get_onboarding(
-    user_id: UUID = Query(..., description="User ID to get onboarding profile for"),
+async def get_onboarding(
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Get onboarding profile for a user.
-    
-    TODO: tighten this once Google auth is fully wired.
-    For now, accepts user_id as query param for dev mode.
+    Get onboarding profile for the authenticated user.
     """
+    # Get local user from Supabase auth_user_id
+    user = get_or_create_user_by_auth_id(
+        db=db,
+        auth_user_id=current_user["auth_user_id"],
+        email=current_user.get("email", ""),
+    )
+    
     profile = db.query(OnboardingProfile).filter(
-        OnboardingProfile.user_id == user_id
+        OnboardingProfile.user_id == user.id
     ).first()
     
     if not profile:

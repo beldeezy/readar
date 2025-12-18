@@ -73,6 +73,14 @@ export interface Book {
   functional_tags?: string[];
   theme_tags?: string[];
   difficulty?: "light" | "medium" | "deep";
+  // Insight fields
+  promise?: string;
+  best_for?: string;
+  core_frameworks?: string[];
+  anti_patterns?: string[];
+  outcomes?: string[];
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface RecommendationItem {
@@ -96,8 +104,8 @@ export interface RecommendationItem {
   functional_tags?: string[];
   business_stage_tags?: string[];
   purchase_url?: string;
-  why_this_book?: string;
-  why_recommended?: string; // Legacy field for backward compatibility
+  why_this_book: string; // Always present, single compelling paragraph explaining why recommended
+  why_recommended?: string[]; // Deprecated: use why_this_book instead
   why_signals?: Array<{ type: string; label: string }>;
 }
 
@@ -120,5 +128,15 @@ export interface CheckoutSessionRequest {
 
 export interface CheckoutSessionResponse {
   checkout_url: string;
+}
+
+export interface InsightReviewItem {
+  title: string;
+  challenge_fit: number;
+  stage_fit: number;
+  promise_match: number;
+  framework_match: number;
+  outcome_match: number;
+  total_score: number;
 }
 

@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import type { Book } from "@/api/types";
 import type { BookPreference } from "@/api/types";
 import type { BookStatus } from "../BookCard";
@@ -146,14 +146,8 @@ export function BookCalibrationStep({
         status: status as BookStatus,
       }));
 
-  // Sync preferences to parent when statusByBookId changes (but not on initial mount)
-  useEffect(() => {
-    if (onChangePreferences) {
-      const prefs = mapToPreferences(statusByBookId);
-      onChangePreferences(prefs);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusByBookId, onChangePreferences]);
+  // Removed useEffect that was causing infinite loop
+  // onChangePreferences is now only called on explicit user actions (handleStatusChange)
 
   function triggerNudge() {
     setShowNudge(true);
@@ -163,6 +157,13 @@ export function BookCalibrationStep({
   function handleStatusChange(bookId: string, status: BookStatus | "") {
     setStatusByBookId((prev) => {
       const next: StatusMap = { ...prev, [bookId]: status };
+      
+      // Notify parent immediately on user action (not in useEffect)
+      if (onChangePreferences) {
+        const prefs = mapToPreferences(next);
+        onChangePreferences(prefs);
+      }
+      
       return next;
     });
   }
