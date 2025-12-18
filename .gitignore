@@ -4,12 +4,16 @@
 !.env.example
 
 # Frontend env files
+frontend/.env
+frontend/.env.*
 frontend/.env.local
 frontend/.env.local.*
 
 # Backend env files
 backend/.env
 backend/.env.*
+backend/venv/
+backend/.venv/
 
 # Python
 __pycache__/
@@ -59,14 +63,9 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.vite/
 
 # Build outputs
 dist/
 build/
 *.tsbuildinfo
-
-
-# Env files
-.env
-.env.*
-!.env.example

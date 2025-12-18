@@ -1,0 +1,367 @@
+.readar-books-page {
+  width: 100%;
+}
+
+.readar-books-header {
+  margin-bottom: 2rem;
+}
+
+/* Loading Skeleton */
+.readar-books-loading-skeleton {
+  padding: 2rem;
+}
+
+.readar-skeleton-row {
+  height: 3rem;
+  background-color: var(--rd-surface);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* Error States */
+.readar-books-error-panel {
+  padding: 3rem;
+  text-align: center;
+  background-color: var(--rd-surface);
+  border: 2px solid #ff6b6b;
+  border-radius: 8px;
+  color: #ff6b6b;
+}
+
+.readar-books-error-panel h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.25rem;
+}
+
+.readar-books-error-panel p {
+  margin: 0 0 1.5rem 0;
+  color: var(--rd-text);
+}
+
+.readar-books-error-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background-color: rgba(255, 107, 107, 0.1);
+  border: 2px solid #ff6b6b;
+  border-radius: 8px;
+  color: #ff6b6b;
+}
+
+/* Empty State */
+.readar-books-empty {
+  padding: 4rem 2rem;
+  text-align: center;
+  background-color: var(--rd-surface);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+.readar-books-empty h3 {
+  margin: 0 0 0.5rem 0;
+  color: var(--rd-text);
+  font-size: 1.25rem;
+}
+
+.readar-books-empty p {
+  margin: 0 0 1.5rem 0;
+  color: var(--rd-muted);
+}
+
+/* Controls Panel */
+.readar-books-controls-panel {
+  margin-bottom: 1.5rem;
+  padding: 1.5rem;
+  background-color: var(--rd-surface);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+.readar-books-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+  margin-bottom: 1rem;
+}
+
+.readar-books-control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 120px;
+}
+
+.readar-books-control-label {
+  font-size: var(--rd-font-size-sm);
+  color: var(--rd-text);
+  font-weight: 500;
+}
+
+.readar-books-input,
+.readar-books-select {
+  padding: 0.5rem 0.75rem;
+  font-size: var(--rd-font-size-sm);
+  font-family: var(--rd-font);
+  color: var(--rd-text);
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  transition: border-color 120ms linear, background-color 120ms linear;
+}
+
+.readar-books-input:focus,
+.readar-books-select:focus {
+  outline: none;
+  border-color: var(--rd-accent);
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.readar-books-input--small {
+  width: 100px;
+}
+
+.readar-books-result-count {
+  color: var(--rd-muted);
+  font-size: var(--rd-font-size-sm);
+  font-weight: 500;
+}
+
+/* Table */
+.readar-books-table-container {
+  overflow-x: auto;
+  background: var(--rd-surface);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.readar-books-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--rd-font-size-sm);
+}
+
+.readar-books-table thead {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.readar-books-table th {
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--rd-text);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.readar-books-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.05);
+  color: var(--rd-text);
+}
+
+.readar-books-table tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.readar-books-row--incomplete {
+  background-color: rgba(255, 193, 7, 0.1);
+}
+
+.readar-books-row--incomplete:hover {
+  background-color: rgba(255, 193, 7, 0.15);
+}
+
+.readar-books-title-cell {
+  font-weight: 500;
+  max-width: 300px;
+  word-wrap: break-word;
+}
+
+.readar-books-missing-cell {
+  font-size: var(--rd-font-size-xs);
+  color: var(--rd-muted);
+  max-width: 200px;
+  word-wrap: break-word;
+}
+
+/* Pagination */
+.readar-books-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background-color: var(--rd-surface);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+.readar-books-pagination-info {
+  color: var(--rd-text);
+  font-size: var(--rd-font-size-sm);
+  font-weight: 500;
+}
+
+/* Insight status badges */
+.readar-insight-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: var(--rd-font-size-xs);
+  font-weight: 500;
+}
+
+.readar-insight-badge--complete {
+  background-color: rgba(76, 175, 80, 0.2);
+  color: #4caf50;
+}
+
+.readar-insight-badge--incomplete {
+  background-color: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+}
+
+.readar-insight-badge--warning {
+  background-color: rgba(255, 152, 0, 0.2);
+  color: #ff9800;
+}
+
+.readar-insight-badge--critical {
+  background-color: rgba(244, 67, 54, 0.2);
+  color: #f44336;
+}
+
+/* Difficulty badges */
+.readar-difficulty-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: var(--rd-font-size-xs);
+  font-weight: 500;
+  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--rd-text);
+}
+
+.readar-difficulty-badge--light {
+  background-color: rgba(139, 195, 74, 0.2);
+  color: #8bc34a;
+}
+
+.readar-difficulty-badge--medium {
+  background-color: rgba(255, 152, 0, 0.2);
+  color: #ff9800;
+}
+
+.readar-difficulty-badge--deep {
+  background-color: rgba(156, 39, 176, 0.2);
+  color: #9c27b0;
+}
+
+/* Diagnostics Panel (Dev Only) */
+.readar-books-diagnostics {
+  margin-top: 2rem;
+  padding: 1rem;
+  background-color: var(--rd-surface);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+.readar-books-diagnostics-toggle {
+  width: 100%;
+  padding: 0.5rem;
+  font-family: var(--rd-font);
+  font-size: var(--rd-font-size-sm);
+  font-weight: 600;
+  color: var(--rd-text);
+  background-color: transparent;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 120ms linear, background-color 120ms linear;
+}
+
+.readar-books-diagnostics-toggle:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.readar-books-diagnostics-content {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: rgba(0, 0, 0, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  font-size: var(--rd-font-size-xs);
+}
+
+.readar-books-diagnostics-item {
+  margin-bottom: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.readar-books-diagnostics-item:last-child {
+  margin-bottom: 0;
+}
+
+.readar-books-diagnostics-item strong {
+  color: var(--rd-text);
+  font-weight: 600;
+}
+
+.readar-books-diagnostics-item code {
+  padding: 0.25rem 0.5rem;
+  background-color: rgba(0, 0, 0, 0.3);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.85em;
+  color: var(--rd-accent);
+  word-break: break-all;
+}
+
+.readar-books-diagnostics-item span {
+  color: var(--rd-muted);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .readar-books-controls-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .readar-books-control-group {
+    min-width: 100%;
+  }
+
+  .readar-books-table {
+    font-size: var(--rd-font-size-xs);
+  }
+
+  .readar-books-table th,
+  .readar-books-table td {
+    padding: 0.5rem;
+  }
+
+  .readar-books-pagination {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}

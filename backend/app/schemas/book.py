@@ -20,6 +20,12 @@ class BookResponse(BaseModel):
     functional_tags: Optional[list[str]]
     theme_tags: Optional[list[str]]
     difficulty: Optional[BookDifficulty]
+    # Insight fields
+    promise: Optional[str] = None
+    best_for: Optional[str] = None
+    core_frameworks: Optional[list[str]] = None
+    anti_patterns: Optional[list[str]] = None
+    outcomes: Optional[list[str]] = None
     created_at: datetime
     updated_at: datetime
     

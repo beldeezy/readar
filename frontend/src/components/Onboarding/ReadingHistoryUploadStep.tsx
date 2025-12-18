@@ -4,7 +4,6 @@ import Button from "../Button";
 import "./ReadingHistoryUploadStep.css";
 
 type Props = {
-  userId: string;
   onNext: () => void;
   onBack?: () => void;
   onSkip: () => void;
@@ -12,7 +11,6 @@ type Props = {
 };
 
 export const ReadingHistoryUploadStep: React.FC<Props> = ({
-  userId,
   onNext,
   onBack,
   onSkip,
@@ -40,7 +38,7 @@ export const ReadingHistoryUploadStep: React.FC<Props> = ({
       throw new Error("Choose a CSV file first.");
     }
 
-    const result = await apiClient.uploadReadingHistoryCsv({ userId, file });
+    const result = await apiClient.uploadReadingHistoryCsv({ file });
     setMessage(
       `Imported ${result.imported_count} books (skipped ${result.skipped_count}).`
     );
@@ -53,24 +51,26 @@ export const ReadingHistoryUploadStep: React.FC<Props> = ({
     setMessage(null);
 
     try {
+      // Try to upload CSV, but don't block on failure
       await importGoodreadsCsv();
-      await onNext?.(); // This should call handleSubmit
     } catch (e) {
       console.error(e);
-      setError(e instanceof Error ? e.message : "Failed to continue.");
+      // Show error but don't block progression
+      setError(e instanceof Error ? e.message : "Failed to upload CSV. You can continue anyway.");
     } finally {
       setIsUploading(false);
     }
+
+    // Always proceed to next step, even if upload failed
+    // onNext will attempt to save onboarding data but won't block navigation
+    onNext?.();
   };
 
-  const handleSkip = async () => {
+  const handleSkip = () => {
     setError(null);
-    try {
-      await onSkip?.(); // This should call handleSubmit
-    } catch (e) {
-      console.error(e);
-      setError("Failed to continue.");
-    }
+    // Skip immediately without any API calls
+    // onSkip just navigates to the next step
+    onSkip?.();
   };
 
   return (

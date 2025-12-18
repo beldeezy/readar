@@ -25,6 +25,7 @@ from pathlib import Path
 from datetime import datetime
 
 from sqlalchemy.orm import Session
+import sqlalchemy as sa
 
 from app.database import SessionLocal
 from app import models
@@ -35,9 +36,8 @@ DEFAULT_FILES = [
     BASE_DIR / "data" / "readar_canon_v1.json",
     BASE_DIR / "data" / "readar_canon_services_v1.json",
     BASE_DIR / "data" / "readar_canon_saas_v1.json",
+    BASE_DIR / "data" / "books_seed.json",
 ]
-
-LEGACY_FILE = BASE_DIR / "data" / "seed_books.json"
 
 
 def _coerce_difficulty(raw):
@@ -45,17 +45,73 @@ def _coerce_difficulty(raw):
     Map JSON difficulty string -> BookDifficulty enum.
 
     Accepts case-insensitive 'light' | 'medium' | 'deep'.
+    Also handles 'intro' -> 'light' and 'intermediate' -> 'medium'.
     Returns None if not recognized / not provided.
     """
     if not raw:
         return None
 
     value = str(raw).strip().lower()
+    
+    # Map alternative difficulty labels
+    difficulty_map = {
+        "intro": "light",
+        "intermediate": "medium",
+        "advanced": "deep",
+    }
+    value = difficulty_map.get(value, value)
+    
     try:
         return models.BookDifficulty(value)
     except ValueError:
         # Unknown difficulty label – ignore instead of crashing
         return None
+
+
+def _get_difficulty(book_dict: dict):
+    """
+    Extract difficulty from book dict, handling both 'difficulty' and 'difficulty_level' keys.
+    """
+    return _coerce_difficulty(
+        book_dict.get("difficulty") or book_dict.get("difficulty_level")
+    )
+
+
+def _richness_score(book_dict: dict) -> int:
+    """
+    Calculate a richness score for a book record.
+    Higher score = more complete/richer data.
+    Used to prefer richer records when deduplicating.
+    """
+    score = 0
+    
+    # Description is valuable
+    if book_dict.get("description"):
+        score += 10
+    
+    # Insight fields are valuable
+    if book_dict.get("promise"):
+        score += 5
+    if book_dict.get("best_for"):
+        score += 5
+    if book_dict.get("core_frameworks"):
+        score += 3
+    if book_dict.get("anti_patterns"):
+        score += 3
+    if book_dict.get("outcomes"):
+        score += 3
+    
+    # Other metadata
+    if book_dict.get("subtitle"):
+        score += 2
+    if book_dict.get("page_count"):
+        score += 1
+    if book_dict.get("published_year"):
+        score += 1
+    if book_dict.get("thumbnail_url") or book_dict.get("cover_image_url"):
+        score += 1
+    
+    return score
 
 
 def _load_books_from_file(path: Path) -> list[dict]:
@@ -76,23 +132,51 @@ def _load_books_from_file(path: Path) -> list[dict]:
 
 def _collect_books(files: list[Path]) -> list[dict]:
     """
-    Load and concatenate books from all provided files.
-    Later files can overwrite earlier ones via the update logic.
+    Load books from all provided files and deduplicate.
+    
+    Deduplication key: (title.lower().strip(), author_name.lower().strip())
+    When duplicates exist, prefer the record with richer fields (higher richness score).
     """
-    all_books: list[dict] = []
+    all_books_raw: list[dict] = []
 
     for path in files:
         books = _load_books_from_file(path)
-        all_books.extend(books)
+        all_books_raw.extend(books)
 
-    if not all_books:
+    if not all_books_raw:
         raise FileNotFoundError(
             "No books loaded. Checked files:\n"
             + "\n".join(str(p) for p in files)
         )
 
-    print(f"[seed_books] Total raw book records loaded: {len(all_books)}")
-    return all_books
+    print(f"[seed_books] Total raw book records loaded: {len(all_books_raw)}")
+    
+    # Deduplicate by (title, author_name) - prefer richer records
+    books_by_key: dict[tuple[str, str], dict] = {}
+    
+    for book in all_books_raw:
+        title = (book.get("title") or "").strip()
+        author_name = (book.get("author_name") or "").strip()
+        
+        if not title or not author_name:
+            continue
+        
+        key = (title.lower().strip(), author_name.lower().strip())
+        
+        if key not in books_by_key:
+            books_by_key[key] = book
+        else:
+            # Compare richness scores - keep the richer one
+            existing_score = _richness_score(books_by_key[key])
+            new_score = _richness_score(book)
+            
+            if new_score > existing_score:
+                books_by_key[key] = book
+    
+    deduplicated = list(books_by_key.values())
+    print(f"[seed_books] After deduplication: {len(deduplicated)} unique books")
+    
+    return deduplicated
 
 
 def seed_books(files: list[Path]):
@@ -113,11 +197,12 @@ def seed_books(files: list[Path]):
                 skipped += 1
                 continue
 
+            # Use case-insensitive lookup for consistency with deduplication
             existing = (
                 db.query(models.Book)
                 .filter(
-                    models.Book.title == title,
-                    models.Book.author_name == author_name,
+                    sa.func.lower(models.Book.title) == title.lower(),
+                    sa.func.lower(models.Book.author_name) == author_name.lower(),
                 )
                 .one_or_none()
             )
@@ -141,7 +226,16 @@ def seed_books(files: list[Path]):
             page_count = b.get("page_count")
             published_year = b.get("published_year")
 
-            difficulty = _coerce_difficulty(b.get("difficulty"))
+            # Handle both 'difficulty' and 'difficulty_level' keys
+            difficulty = _get_difficulty(b)
+            
+            # New insight fields (use if present, else None)
+            promise = b.get("promise")
+            best_for = b.get("best_for")
+            # List fields: use if present and is list, else None
+            core_frameworks = b.get("core_frameworks") if isinstance(b.get("core_frameworks"), list) else None
+            anti_patterns = b.get("anti_patterns") if isinstance(b.get("anti_patterns"), list) else None
+            outcomes = b.get("outcomes") if isinstance(b.get("outcomes"), list) else None
 
             if existing:
                 # Idempotent update: keep existing id, refresh fields from JSON
@@ -156,6 +250,17 @@ def seed_books(files: list[Path]):
                 existing.functional_tags = functional_tags
                 existing.theme_tags = theme_tags
                 existing.difficulty = difficulty
+                # Update insight fields if present
+                if promise is not None:
+                    existing.promise = promise
+                if best_for is not None:
+                    existing.best_for = best_for
+                if core_frameworks is not None:
+                    existing.core_frameworks = core_frameworks
+                if anti_patterns is not None:
+                    existing.anti_patterns = anti_patterns
+                if outcomes is not None:
+                    existing.outcomes = outcomes
                 if hasattr(existing, "updated_at"):
                     existing.updated_at = datetime.utcnow()
 
@@ -177,6 +282,12 @@ def seed_books(files: list[Path]):
                 functional_tags=functional_tags,
                 theme_tags=theme_tags,
                 difficulty=difficulty,
+                # Insight fields
+                promise=promise,
+                best_for=best_for,
+                core_frameworks=core_frameworks,
+                anti_patterns=anti_patterns,
+                outcomes=outcomes,
             )
 
             if hasattr(models.Book, "created_at"):
@@ -216,14 +327,11 @@ def main():
         # Use only the files the user specified
         files = [Path(f).resolve() for f in args.files]
     else:
-        # Default behavior: use main canon + services if they exist,
-        # otherwise fall back to legacy seed_books.json if needed.
+        # Default behavior: use all canon files that exist
         files = []
         for p in DEFAULT_FILES:
             if p.exists():
                 files.append(p)
-        if not files and LEGACY_FILE.exists():
-            files.append(LEGACY_FILE)
 
     if not files:
         raise FileNotFoundError(

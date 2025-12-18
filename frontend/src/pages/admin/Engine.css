@@ -1,0 +1,65 @@
+.readar-engine-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.readar-engine-nav {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 1rem;
+}
+
+.readar-engine-nav-link {
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  text-decoration: none;
+  color: var(--rd-text);
+  transition: background-color 0.2s;
+}
+
+.readar-engine-nav-link:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.readar-engine-nav-link--active {
+  background-color: rgba(53, 255, 201, 0.15);
+  font-weight: 600;
+  color: var(--rd-accent);
+}
+
+.readar-engine-content {
+  flex: 1;
+}
+
+.readar-engine-quick-links {
+  margin-top: 2rem;
+}
+
+.readar-engine-quick-links h2 {
+  font-size: var(--rd-font-size-lg);
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: var(--rd-text);
+}
+
+.readar-engine-quick-links ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.readar-engine-quick-links li {
+  margin-bottom: 0.5rem;
+}
+
+.readar-engine-quick-links a {
+  color: var(--rd-accent);
+  text-decoration: none;
+}
+
+.readar-engine-quick-links a:hover {
+  text-decoration: underline;
+}
+

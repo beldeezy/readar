@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 import logging
 from collections import Counter, defaultdict
 from urllib.parse import quote_plus
+from dataclasses import dataclass
 from app.models import (
     User,
     OnboardingProfile,
@@ -16,6 +17,18 @@ from app.models import (
 from app.schemas.recommendation import RecommendationItem
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ScoreFactors:
+    """Tracks contributing factors for a book recommendation score."""
+    challenge_fit: float = 0.0
+    stage_fit: float = 0.0
+    business_model_fit: float = 0.0
+    areas_fit: float = 0.0
+    promise_match: float = 0.0
+    framework_match: float = 0.0
+    outcome_match: float = 0.0
 
 # Business models that should prioritize services canon books
 SERVICE_LIKE_BUSINESS_MODELS = {
@@ -73,6 +86,33 @@ def is_saas_canon(book: Book) -> bool:
     return "saas_canon" in tags
 
 
+def score_promise_match(book: Book, profile: OnboardingProfile) -> float:
+    """Score match between book promise and user's biggest challenge."""
+    if not book.promise or not profile.biggest_challenge:
+        return 0.0
+    if profile.biggest_challenge.lower() in book.promise.lower():
+        return 1.0
+    return 0.0
+
+
+def score_framework_match(book: Book, profile: OnboardingProfile) -> float:
+    """Score match between book frameworks and user's business model."""
+    if not book.core_frameworks or not profile.business_model:
+        return 0.0
+    if not isinstance(book.core_frameworks, list):
+        return 0.0
+    return 1.0 if any(profile.business_model.lower() in str(fw).lower() for fw in book.core_frameworks) else 0.0
+
+
+def score_outcome_match(book: Book, profile: OnboardingProfile) -> float:
+    """Score match between book outcomes and user's vision."""
+    if not book.outcomes or not profile.vision_6_12_months:
+        return 0.0
+    if not isinstance(book.outcomes, list):
+        return 0.0
+    return 1.0 if any(str(goal).lower() in profile.vision_6_12_months.lower() for goal in book.outcomes) else 0.0
+
+
 class NotEnoughSignalError(Exception):
     """Raised when we don't have enough user signal to compute personalized recommendations."""
     pass
@@ -103,6 +143,14 @@ WEIGHTS = {
     "CATEGORY_BOOST": 0.75,  # Average of 0.5-1.0 range
 }
 
+# Weight constants for insight-based scoring factors
+W_STAGE = 1.2
+W_CHALLENGE = 1.4
+W_AREAS = 1.0
+W_MODEL = 0.8
+W_PROMISE = 1.2
+W_FRAMEWORK = 0.6
+W_OUTCOME = 0.6
 
 # Signal threshold for determining if user has enough data
 SIGNAL_THRESHOLD = 10
@@ -221,6 +269,10 @@ def get_generic_recommendations(
         # Build why_signals (generic recs don't have onboarding, so signals will be limited)
         why_signals = _build_why_signals(None, book)
         
+        # Build why_this_book for generic recs (no onboarding, so use empty factors)
+        empty_factors = ScoreFactors()
+        why_this_book_text = build_why_this_book(empty_factors, None, book)
+        
         relevancy_score = 0.0  # generic recs, no personalized score
         recommendations.append(
             RecommendationItem(
@@ -244,8 +296,8 @@ def get_generic_recommendations(
                 functional_tags=book.functional_tags,
                 business_stage_tags=book.business_stage_tags,
                 purchase_url=purchase_url,
-                why_this_book=None,  # Generic recs don't have personalized why
-                why_recommended=None,  # Legacy field
+                why_this_book=why_this_book_text,
+                why_recommended=None,  # Deprecated
                 why_signals=why_signals if why_signals else None,
             )
         )
@@ -381,6 +433,115 @@ def _build_purchase_url(book: Book) -> str:
     search_query = f"{title} {author}".strip()
     search_query_encoded = quote_plus(search_query)
     return f"https://www.amazon.com/s?k={search_query_encoded}"
+
+
+def humanize(value: str) -> str:
+    """Replace underscores with spaces and clean up the string."""
+    return value.replace("_", " ").strip()
+
+
+def build_why_this_book(factors: ScoreFactors, user_profile: Optional[OnboardingProfile], book: Book) -> str:
+    """
+    Build a single compelling paragraph explaining why a book is recommended.
+    
+    Uses Hook → Bridge → Action structure:
+    - Hook: user bottleneck (from user profile + score factors)
+    - Bridge: book promise + optional framework (from book.promise and book.core_frameworks)
+    - Action: one concrete outcome (from book.outcomes)
+    
+    Falls back to factor-based copy when insight fields are missing.
+    Outputs one paragraph (2-4 sentences max).
+    No generic CTA.
+    """
+    parts: List[str] = []
+    
+    # Check if book has insight fields
+    has_promise = book.promise and book.promise.strip()
+    has_frameworks = book.core_frameworks and isinstance(book.core_frameworks, list) and len(book.core_frameworks) > 0
+    has_outcomes = book.outcomes and isinstance(book.outcomes, list) and len(book.outcomes) > 0
+    has_insights = has_promise or has_frameworks or has_outcomes
+    
+    if not user_profile:
+        # Fallback for users without onboarding
+        if has_promise:
+            return book.promise.strip()
+        return "This is a solid foundational pick to build clarity and execution momentum."
+    
+    # Format business stage for display
+    business_stage = None
+    if user_profile.business_stage:
+        business_stage = (
+            user_profile.business_stage.value 
+            if hasattr(user_profile.business_stage, 'value') 
+            else str(user_profile.business_stage)
+        )
+        business_stage = humanize(business_stage).replace("-", " ").title()
+    
+    # HOOK: User bottleneck (from user profile + score factors)
+    hook_parts = []
+    
+    if factors.challenge_fit > 0 and user_profile.biggest_challenge:
+        challenge_text = humanize(user_profile.biggest_challenge)
+        hook_parts.append(f"You're facing {challenge_text}")
+    
+    if factors.stage_fit > 0 and business_stage:
+        if hook_parts:
+            hook_parts.append(f"at the {business_stage} stage")
+        else:
+            hook_parts.append(f"You're at the {business_stage} stage")
+    
+    if hook_parts:
+        hook = " ".join(hook_parts) + "."
+        parts.append(hook)
+    elif factors.areas_fit > 0 and user_profile.areas_of_business:
+        areas = [humanize(a) for a in (user_profile.areas_of_business[:1] or [])]
+        if areas:
+            parts.append(f"You're focused on {areas[0]}.")
+    
+    # BRIDGE: Book promise + optional framework
+    if has_promise:
+        # Use promise as the bridge
+        promise_text = book.promise.strip()
+        if has_frameworks:
+            # Mention one framework by name (max 1 per description)
+            framework = book.core_frameworks[0]
+            # Combine promise and framework naturally
+            parts.append(f"{promise_text}, introducing the {framework} framework.")
+        else:
+            parts.append(promise_text + ".")
+    elif has_frameworks:
+        # If no promise, use framework as the bridge
+        framework = book.core_frameworks[0]
+        parts.append(f"This book introduces the {framework} framework.")
+    else:
+        # Fallback: factor-based bridge
+        if factors.business_model_fit > 0 and user_profile.business_model:
+            model_text = humanize(user_profile.business_model)
+            parts.append(f"It's especially relevant if you're building a {model_text}.")
+        elif factors.areas_fit > 0 and user_profile.areas_of_business:
+            areas = [humanize(a) for a in (user_profile.areas_of_business[:2] or [])]
+            if areas:
+                parts.append(f"It will sharpen your thinking in {', '.join(areas)}—the areas most likely to unlock momentum next.")
+    
+    # ACTION: One concrete outcome
+    if has_outcomes:
+        outcome = book.outcomes[0]  # Use one concrete outcome
+        parts.append(f"You'll walk away with {outcome.lower()}.")
+    elif not has_insights:
+        # Fallback: generic action only if no insights at all
+        if factors.stage_fit > 0 or factors.challenge_fit > 0:
+            parts.append("This should help you prioritize the right moves.")
+    
+    # Final formatting: one paragraph (2-4 sentences)
+    result = " ".join(parts).strip()
+    
+    # If none of the factors hit (rare), provide a neutral reason
+    if not result:
+        if has_promise:
+            return book.promise.strip()
+        return "This is a solid foundational pick to build clarity and execution momentum."
+    
+    return result
 
 
 def _build_why_signals(
@@ -687,15 +848,18 @@ def _build_user_context(onboarding: Optional[OnboardingProfile]) -> Dict[str, Op
 def _score_from_stage_fit(
     user_ctx: Dict[str, Optional[str]],
     book: Book,
-) -> float:
+    onboarding: Optional[OnboardingProfile] = None,
+) -> Tuple[float, ScoreFactors]:
     """
     Simple rule-based fit:
     - boost books whose tags match the user's business_stage, business_model, or areas_of_business.
     - prioritize services canon books for service-like business models.
+    - incorporate insight-based matches (promise, frameworks, outcomes).
     
-    Returns: score contribution from stage/model/challenge fit
+    Returns: (score contribution from stage/model/challenge fit, score factors)
     """
     score = 0.0
+    factors = ScoreFactors()
 
     business_stage = (user_ctx.get("business_stage") or "").lower()
     business_model = (user_ctx.get("business_model") or "").lower()
@@ -713,7 +877,9 @@ def _score_from_stage_fit(
     is_saas_like = business_model in SAAS_LIKE_BUSINESS_MODELS
 
     if business_stage and business_stage in book_stage_tags:
-        score += 3.0
+        stage_score = 3.0
+        score += stage_score
+        factors.stage_fit = stage_score
 
     # Revenue stage matching: boost if book's stage_tags match user's revenue stage
     if revenue_stage and book.business_stage_tags:
@@ -727,23 +893,31 @@ def _score_from_stage_fit(
         }
         matching_stages = revenue_to_book_stages.get(revenue_stage, [])
         if any(stage in book.business_stage_tags for stage in matching_stages):
-            score += 0.35
+            revenue_score = 0.35
+            score += revenue_score
+            factors.stage_fit += revenue_score
 
     if business_model and business_model in theme_tags:
-        score += 2.0
+        model_score = 2.0
+        score += model_score
+        factors.business_model_fit = model_score
 
     # If areas_of_business is an array, not string
     if isinstance(areas_of_business, (list, tuple)):
         for area in areas_of_business:
             a = str(area).lower()
             if a in functional_tags:
-                score += 1.5
+                area_score = 1.5
+                score += area_score
+                factors.areas_fit += area_score
 
     # Very simple challenge-based boost
     if biggest_challenge:
         for tag in theme_tags:
             if biggest_challenge in tag:
-                score += 1.5
+                challenge_score = 1.5
+                score += challenge_score
+                factors.challenge_fit = challenge_score
                 break
 
     all_tags = theme_tags + functional_tags
@@ -752,7 +926,9 @@ def _score_from_stage_fit(
     if is_service_like:
         if "services_canon" in all_tags:
             # Big boost so services canon dominates
-            score += 6.0
+            canon_score = 6.0
+            score += canon_score
+            factors.business_model_fit += canon_score
         if "sales" in all_tags or "client_acquisition" in all_tags:
             score += 1.5
         if "service_delivery" in all_tags or "operations" in all_tags:
@@ -762,7 +938,9 @@ def _score_from_stage_fit(
     if is_saas_like:
         if "saas_canon" in all_tags:
             # Big boost so SaaS canon dominates
-            score += 6.0
+            canon_score = 6.0
+            score += canon_score
+            factors.business_model_fit += canon_score
         # PLG/growth emphasis
         if "plg" in all_tags or "growth" in all_tags or "client_acquisition" in all_tags:
             score += 1.5
@@ -770,7 +948,22 @@ def _score_from_stage_fit(
         if "product" in all_tags or "metrics" in all_tags or "analytics" in all_tags:
             score += 1.0
 
-    return score
+    # Insight-based matching
+    if onboarding:
+        promise_match = score_promise_match(book, onboarding)
+        framework_match = score_framework_match(book, onboarding)
+        outcome_match = score_outcome_match(book, onboarding)
+        
+        factors.promise_match = promise_match
+        factors.framework_match = framework_match
+        factors.outcome_match = outcome_match
+        
+        # Apply weighted insight matches to score
+        score += W_PROMISE * promise_match
+        score += W_FRAMEWORK * framework_match
+        score += W_OUTCOME * outcome_match
+
+    return score, factors
 
 
 def _calculate_preference_score(
@@ -913,17 +1106,18 @@ def _calculate_category_boost(
 def _calculate_stage_fit_score(
     book: Book,
     onboarding: Optional[OnboardingProfile],
-) -> Tuple[float, List[str]]:
+) -> Tuple[float, List[str], ScoreFactors]:
     """
     Calculate stage_fit_score from onboarding data.
     
-    Returns: (score, reasons)
+    Returns: (score, reasons, score_factors)
     """
     score = 0.0
     reasons: List[str] = []
+    factors = ScoreFactors()
     
     if not onboarding:
-        return score, reasons
+        return score, reasons, factors
     
     # Business stage match
     if onboarding.business_stage:
@@ -935,7 +1129,9 @@ def _calculate_stage_fit_score(
         
         if book.business_stage_tags:
             if business_stage_str in book.business_stage_tags:
-                score += WEIGHTS["STAGE_FIT_STRONG"]
+                stage_score = WEIGHTS["STAGE_FIT_STRONG"]
+                score += stage_score
+                factors.stage_fit = stage_score
                 reasons.append("Strong match for your business stage.")
             else:
                 # Check for related stages (e.g., idea/pre-revenue are similar)
@@ -947,7 +1143,9 @@ def _calculate_stage_fit_score(
                 }
                 related = related_stages.get(business_stage_str, [])
                 if any(rel in book.business_stage_tags for rel in related):
-                    score += WEIGHTS["STAGE_FIT_MEDIUM"]
+                    stage_score = WEIGHTS["STAGE_FIT_MEDIUM"]
+                    score += stage_score
+                    factors.stage_fit = stage_score
                     reasons.append("Good match for your business stage.")
     
     # Revenue stage matching: boost if book's stage_tags match user's revenue stage
@@ -964,7 +1162,9 @@ def _calculate_stage_fit_score(
             }
             matching_stages = revenue_to_book_stages.get(user_revenue_stage, [])
             if any(stage in book.business_stage_tags for stage in matching_stages):
-                score += 0.35
+                revenue_score = 0.35
+                score += revenue_score
+                factors.stage_fit += revenue_score
                 # Optionally add a reason if we want to surface this
                 # reasons.append("Matches your revenue stage.")
     
@@ -995,7 +1195,9 @@ def _calculate_stage_fit_score(
         if relevant_tags:
             matches = [tag for tag in relevant_tags if any(tag in ft.lower() for ft in book_functional_tags)]
             if matches:
-                score += WEIGHTS["STAGE_FIT_STRONG"]
+                model_score = WEIGHTS["STAGE_FIT_STRONG"]
+                score += model_score
+                factors.business_model_fit = model_score
                 reasons.append("Matches your business model.")
     
     all_tags = set((book.theme_tags or []) + (book.functional_tags or []))
@@ -1005,7 +1207,9 @@ def _calculate_stage_fit_score(
     if is_service_like:
         if "services_canon" in all_tags_lower:
             # Big boost so services canon dominates
-            score += 6.0
+            canon_score = 6.0
+            score += canon_score
+            factors.business_model_fit += canon_score
             reasons.append("Part of the services canon - essential reading for service businesses.")
         if "sales" in all_tags_lower or "client_acquisition" in all_tags_lower:
             score += 1.5
@@ -1016,7 +1220,9 @@ def _calculate_stage_fit_score(
     if is_saas_like:
         if "saas_canon" in all_tags_lower:
             # Big boost so SaaS canon dominates
-            score += 6.0
+            canon_score = 6.0
+            score += canon_score
+            factors.business_model_fit += canon_score
             reasons.append("Part of the SaaS canon - essential reading for SaaS founders.")
         # PLG/growth emphasis
         if "plg" in all_tags_lower or "growth" in all_tags_lower or "client_acquisition" in all_tags_lower:
@@ -1053,16 +1259,44 @@ def _calculate_stage_fit_score(
         if matched_themes:
             theme_matches = [theme for theme in matched_themes if any(theme in tt.lower() for tt in book_theme_tags)]
             if theme_matches:
-                score += WEIGHTS["STAGE_FIT_STRONG"]
+                challenge_score = WEIGHTS["STAGE_FIT_STRONG"]
+                score += challenge_score
+                factors.challenge_fit = challenge_score
                 reasons.append("Addresses your biggest challenge.")
     
-    return score, reasons
+    # Areas of business match
+    if onboarding.areas_of_business:
+        areas_lower = [a.lower() if isinstance(a, str) else str(a).lower() for a in onboarding.areas_of_business]
+        book_functional_tags_lower = [ft.lower() for ft in (book.functional_tags or [])]
+        for area in areas_lower:
+            if any(area in ft or ft in area for ft in book_functional_tags_lower):
+                area_score = 1.5
+                score += area_score
+                factors.areas_fit += area_score
+                break  # Only count once
+    
+    # Insight-based matching
+    promise_match = score_promise_match(book, onboarding)
+    framework_match = score_framework_match(book, onboarding)
+    outcome_match = score_outcome_match(book, onboarding)
+    
+    factors.promise_match = promise_match
+    factors.framework_match = framework_match
+    factors.outcome_match = outcome_match
+    
+    # Apply weighted insight matches to score
+    score += W_PROMISE * promise_match
+    score += W_FRAMEWORK * framework_match
+    score += W_OUTCOME * outcome_match
+    
+    return score, reasons, factors
 
 
 def get_personalized_recommendations(
     db: Session,
     user_id: UUID,
     limit: int = 10,
+    debug: bool = False,
 ) -> List[RecommendationItem]:
     """
     Generate personalized recommendations using the new scoring helpers.
@@ -1110,6 +1344,7 @@ def get_personalized_recommendations(
 
     total_scores: Dict[UUID, float] = defaultdict(float)
     book_reasons: Dict[UUID, List[str]] = defaultdict(list)
+    book_score_factors: Dict[UUID, ScoreFactors] = {}
 
     for book in books:
         if book.id in blocked_book_ids:
@@ -1125,8 +1360,9 @@ def get_personalized_recommendations(
         total_scores[book.id] += history_scores.get(book.id, 0.0)
 
         # Stage / model / challenge fit
-        stage_fit_score = _score_from_stage_fit(user_ctx, book)
+        stage_fit_score, score_factors = _score_from_stage_fit(user_ctx, book, onboarding)
         total_scores[book.id] += stage_fit_score
+        book_score_factors[book.id] = score_factors
 
         # Collect reasons for why_this_book explanation
         reasons: List[str] = []
@@ -1239,9 +1475,9 @@ def get_personalized_recommendations(
         if not book:
             continue
 
-        # Build why_this_book explanation using enhanced helper
-        score_context = {"score": total_scores[book_id], "reasons": book_reasons.get(book_id, [])}
-        why_this_book = _build_why_this_book(onboarding, book, score_context)
+        # Build why_this_book paragraph from score factors
+        score_factors = book_score_factors.get(book_id, ScoreFactors())
+        why_this_book_text = build_why_this_book(score_factors, onboarding, book)
         
         # Build why_signals (reason chips)
         why_signals = _build_why_signals(onboarding, book)
@@ -1250,6 +1486,26 @@ def get_personalized_recommendations(
         purchase_url = _build_purchase_url(book)
 
         relevancy_score = round(total_scores[book_id], 2)
+        
+        # Include debug fields if debug mode is enabled
+        debug_fields = {}
+        if debug:
+            debug_fields = {
+                "promise_match": score_factors.promise_match,
+                "framework_match": score_factors.framework_match,
+                "outcome_match": score_factors.outcome_match,
+                "score_factors": {
+                    "challenge_fit": score_factors.challenge_fit,
+                    "stage_fit": score_factors.stage_fit,
+                    "business_model_fit": score_factors.business_model_fit,
+                    "areas_fit": score_factors.areas_fit,
+                    "promise_match": score_factors.promise_match,
+                    "framework_match": score_factors.framework_match,
+                    "outcome_match": score_factors.outcome_match,
+                    "total": relevancy_score,
+                },
+            }
+        
         recommendations.append(
             RecommendationItem(
                 book_id=str(book.id),
@@ -1272,9 +1528,10 @@ def get_personalized_recommendations(
                 functional_tags=book.functional_tags,
                 business_stage_tags=book.business_stage_tags,
                 purchase_url=purchase_url,
-                why_this_book=why_this_book,
-                why_recommended=why_this_book,  # Legacy field for backward compatibility
+                why_this_book=why_this_book_text,
+                why_recommended=None,  # Deprecated
                 why_signals=why_signals if why_signals else None,
+                **debug_fields,
             )
         )
 
@@ -1284,6 +1541,246 @@ def get_personalized_recommendations(
     # Ensure recommendations are sorted by relevancy_score descending
     recommendations.sort(key=lambda x: x.relevancy_score, reverse=True)
 
+    return recommendations
+
+
+def get_recommendations_from_payload(
+    db: Session,
+    payload: "OnboardingPayload",
+    limit: int = 10,
+    debug: bool = False,
+) -> List[RecommendationItem]:
+    """
+    Generate recommendations from onboarding payload without requiring a user_id.
+    This is used for preview recommendations before the user logs in.
+    
+    Uses only onboarding/profile-based scoring (no user interactions or reading history).
+    """
+    from app.schemas.onboarding import OnboardingPayload
+    
+    # Create a simple namespace object that mimics OnboardingProfile
+    # This allows us to reuse the existing scoring logic
+    class MockOnboardingProfile:
+        def __init__(self, payload: OnboardingPayload):
+            self.business_stage = payload.business_stage
+            self.business_model = payload.business_model
+            self.biggest_challenge = payload.biggest_challenge
+            self.areas_of_business = payload.areas_of_business
+            self.current_gross_revenue = payload.current_gross_revenue
+            self.vision_6_12_months = payload.vision_6_12_months
+            self.blockers = payload.blockers
+    
+    # Create mock onboarding profile from payload
+    onboarding = MockOnboardingProfile(payload)
+    
+    # Load candidate books
+    books: List[Book] = db.query(Book).all()
+    if not books:
+        raise NotEnoughSignalError("No books in catalog.")
+    
+    # Build user context from onboarding
+    user_ctx = _build_user_context(onboarding)
+    
+    total_scores: Dict[UUID, float] = defaultdict(float)
+    book_reasons: Dict[UUID, List[str]] = defaultdict(list)
+    book_score_factors: Dict[UUID, ScoreFactors] = {}
+    
+    # Extract book preferences to block books user marked as not_interested
+    blocked_book_ids: Set[UUID] = set()
+    if payload.book_preferences:
+        for pref in payload.book_preferences:
+            if pref.status == "not_interested":
+                # Try to find book by ID
+                try:
+                    from uuid import UUID as UUIDType
+                    book_id = UUIDType(pref.book_id)
+                    blocked_book_ids.add(book_id)
+                except (ValueError, TypeError):
+                    # If not a UUID, try to find by external_id
+                    book = db.query(Book).filter(Book.external_id == pref.book_id).first()
+                    if book:
+                        blocked_book_ids.add(book.id)
+    
+    for book in books:
+        if book.id in blocked_book_ids:
+            continue
+        
+        # Only use stage/model/challenge fit (no interactions or history)
+        stage_fit_score, score_factors = _score_from_stage_fit(user_ctx, book, onboarding)
+        total_scores[book.id] += stage_fit_score
+        book_score_factors[book.id] = score_factors
+        
+        # Collect reasons
+        reasons: List[str] = []
+        if stage_fit_score >= 3.0:
+            business_stage = user_ctx.get("business_stage")
+            if business_stage:
+                reasons.append(f"is a strong fit for your current stage ({business_stage})")
+        
+        theme_tags = book.theme_tags or []
+        functional_tags = book.functional_tags or []
+        all_tags = theme_tags + functional_tags
+        
+        if "services_canon" in all_tags:
+            reasons.append("was written specifically for service-based businesses")
+        if "saas_canon" in all_tags:
+            reasons.append("is tailored for SaaS and software founders")
+        
+        challenge = (user_ctx.get("biggest_challenge") or "").lower()
+        areas = [a.lower() for a in (user_ctx.get("areas_of_business") or [])]
+        
+        if "pricing" in functional_tags and ("price" in challenge or "pricing" in challenge):
+            reasons.append("directly addresses your pricing and profitability challenges")
+        if "marketing" in functional_tags and ("marketing" in areas or "leads" in challenge or "customer" in challenge):
+            reasons.append("focuses on practical marketing and lead generation for your situation")
+        if "operations" in functional_tags and ("operations" in areas or "systems" in challenge):
+            reasons.append("helps you build systems and operations so the business can run without you")
+        if "sales" in functional_tags and ("sales" in challenge or "client" in challenge):
+            reasons.append("provides proven strategies for client acquisition and sales")
+        
+        if reasons:
+            book_reasons[book.id] = reasons
+    
+    # Remove books with zero score if we have at least some positive scores
+    scored_items = [
+        (book_id, score)
+        for book_id, score in total_scores.items()
+    ]
+    
+    if not scored_items:
+        raise NotEnoughSignalError("No scored items for this payload.")
+    
+    # Check if business model is service-like or SaaS-like
+    is_service_like = False
+    is_saas_like = False
+    if onboarding.business_model:
+        business_model = onboarding.business_model.strip().lower()
+        is_service_like = business_model in SERVICE_LIKE_BUSINESS_MODELS
+        is_saas_like = business_model in SAAS_LIKE_BUSINESS_MODELS
+    
+    # Build mapping for quick lookup
+    books_by_id = {b.id: b for b in books}
+    
+    if not is_service_like and not is_saas_like:
+        # Non-service, non-SaaS behavior: sort by score only
+        scored_items.sort(key=lambda x: x[1], reverse=True)
+        top_ids = [book_id for (book_id, _) in scored_items[:limit]]
+    else:
+        # We are either service-like OR SaaS-like; split into niche vs general pools
+        services_pool: List[Tuple[UUID, float]] = []
+        saas_pool: List[Tuple[UUID, float]] = []
+        general_pool: List[Tuple[UUID, float]] = []
+        
+        for book_id, score in scored_items:
+            book = books_by_id.get(book_id)
+            if not book:
+                continue
+            if is_services_canon(book):
+                services_pool.append((book_id, score))
+            elif is_saas_canon(book):
+                saas_pool.append((book_id, score))
+            else:
+                general_pool.append((book_id, score))
+        
+        services_pool.sort(key=lambda pair: pair[1], reverse=True)
+        saas_pool.sort(key=lambda pair: pair[1], reverse=True)
+        general_pool.sort(key=lambda pair: pair[1], reverse=True)
+        
+        target_niche = int(limit * 0.7)
+        
+        if is_service_like:
+            niche_pool = services_pool
+        else:  # is_saas_like
+            niche_pool = saas_pool
+        
+        primary = niche_pool[:target_niche]
+        remaining_slots = limit - len(primary)
+        secondary = general_pool[:max(0, remaining_slots)]
+        
+        top_ids = [book_id for (book_id, _) in primary + secondary]
+        
+        # If catalog is small, fill any remaining slots with leftover books
+        if len(top_ids) < limit:
+            remaining = [
+                pair
+                for pair in (services_pool + saas_pool + general_pool)
+                if pair[0] not in top_ids
+            ]
+            remaining.sort(key=lambda pair: pair[1], reverse=True)
+            top_ids.extend([book_id for (book_id, _) in remaining[:limit - len(top_ids)]])
+    
+    recommendations: List[RecommendationItem] = []
+    for book_id in top_ids:
+        book = books_by_id.get(book_id)
+        if not book:
+            continue
+        
+        # Build why_this_book paragraph from score factors
+        score_factors = book_score_factors.get(book_id, ScoreFactors())
+        why_this_book_text = build_why_this_book(score_factors, onboarding, book)
+        
+        # Build why_signals (reason chips)
+        why_signals = _build_why_signals(onboarding, book)
+        
+        # Build purchase URL
+        purchase_url = _build_purchase_url(book)
+        
+        relevancy_score = round(total_scores[book_id], 2)
+        
+        # Include debug fields if debug mode is enabled
+        debug_fields = {}
+        if debug:
+            debug_fields = {
+                "promise_match": score_factors.promise_match,
+                "framework_match": score_factors.framework_match,
+                "outcome_match": score_factors.outcome_match,
+                "score_factors": {
+                    "challenge_fit": score_factors.challenge_fit,
+                    "stage_fit": score_factors.stage_fit,
+                    "business_model_fit": score_factors.business_model_fit,
+                    "areas_fit": score_factors.areas_fit,
+                    "promise_match": score_factors.promise_match,
+                    "framework_match": score_factors.framework_match,
+                    "outcome_match": score_factors.outcome_match,
+                    "total": relevancy_score,
+                },
+            }
+        
+        recommendations.append(
+            RecommendationItem(
+                book_id=str(book.id),
+                title=book.title,
+                subtitle=getattr(book, "subtitle", None),
+                author_name=getattr(book, "author_name", None),
+                score=relevancy_score,
+                relevancy_score=relevancy_score,
+                thumbnail_url=getattr(book, "thumbnail_url", None),
+                cover_image_url=getattr(book, "cover_image_url", None),
+                page_count=getattr(book, "page_count", None),
+                published_year=getattr(book, "published_year", None),
+                categories=book.categories,
+                language=getattr(book, "language", None),
+                isbn_10=getattr(book, "isbn_10", None),
+                isbn_13=getattr(book, "isbn_13", None),
+                average_rating=getattr(book, "average_rating", None),
+                ratings_count=getattr(book, "ratings_count", None),
+                theme_tags=book.theme_tags,
+                functional_tags=book.functional_tags,
+                business_stage_tags=book.business_stage_tags,
+                purchase_url=purchase_url,
+                why_this_book=why_this_book_text,
+                why_recommended=None,  # Deprecated
+                why_signals=why_signals if why_signals else None,
+                **debug_fields,
+            )
+        )
+    
+    if not recommendations:
+        raise NotEnoughSignalError("No recommendations after scoring/filtering.")
+    
+    # Ensure recommendations are sorted by relevancy_score descending
+    recommendations.sort(key=lambda x: x.relevancy_score, reverse=True)
+    
     return recommendations
 
 
@@ -1356,16 +1853,16 @@ def get_recommendations_for_user(
         return []
     
     # Compute score for each book
-    def compute_total_score(book: Book) -> Tuple[float, str, bool]:
+    def compute_total_score(book: Book) -> Tuple[float, str, bool, ScoreFactors]:
         """
         Compute total score for a book.
         
-        Returns: (total_score, why_recommended, should_filter_out)
+        Returns: (total_score, why_recommended, should_filter_out, score_factors)
         """
         # FILTERING: Check for hard filters first
         # 1. NOT_INTERESTED - hard filter
         if book.id in not_interested_book_ids:
-            return 0.0, "You marked this as not interested.", True
+            return 0.0, "You marked this as not interested.", True, ScoreFactors()
         
         # 2. Already read (unless we want to allow re-reads)
         is_already_read = (
@@ -1375,7 +1872,7 @@ def get_recommendations_for_user(
         )
         if is_already_read:
             # Filter out already-read books (can be changed to allow re-reads)
-            return 0.0, "You've already read this book.", True
+            return 0.0, "You've already read this book.", True, ScoreFactors()
         
         # 3. READ_DISLIKED with high similarity to other disliked books
         if book.id in disliked_book_ids:
@@ -1383,7 +1880,7 @@ def get_recommendations_for_user(
             other_disliked = [b for b in books if b.id in disliked_book_ids and b.id != book.id]
             similar_count = sum(1 for db in other_disliked if _books_share_tags(book, db))
             if similar_count >= 2:  # Very similar to multiple disliked books
-                return 0.0, "Very similar to books you disliked.", True
+                return 0.0, "Very similar to books you disliked.", True, ScoreFactors()
         
         # SCORING: Calculate additive components
         preference_score, pref_reasons = _calculate_preference_score(
@@ -1394,7 +1891,7 @@ def get_recommendations_for_user(
             book, history_entries, books
         )
         
-        stage_fit_score, stage_reasons = _calculate_stage_fit_score(
+        stage_fit_score, stage_reasons, score_factors = _calculate_stage_fit_score(
             book, onboarding
         )
         
@@ -1417,15 +1914,15 @@ def get_recommendations_for_user(
         
         why = " ".join(all_reasons[:3])  # Limit to top 3 reasons
         
-        return total_score, why, False
+        return total_score, why, False, score_factors
     
     # Score all books
-    candidates: List[Tuple[Book, float, str]] = []
+    candidates: List[Tuple[Book, float, str, ScoreFactors]] = []
     for book in books:
-        score, why, should_filter = compute_total_score(book)
+        score, why, should_filter, factors = compute_total_score(book)
         if should_filter or score <= -5.0:  # Filter out negative scores below threshold
             continue
-        candidates.append((book, score, why))
+        candidates.append((book, score, why, factors))
     
     # Check if user has a service-like or SaaS-like business model
     is_service_like = False
@@ -1440,17 +1937,17 @@ def get_recommendations_for_user(
     
     # For service-like or SaaS-like users, apply 70/30 split (niche canon / general)
     if (is_service_like or is_saas_like) and candidates:
-        services_candidates: List[Tuple[Book, float, str]] = []
-        saas_candidates: List[Tuple[Book, float, str]] = []
-        general_candidates: List[Tuple[Book, float, str]] = []
+        services_candidates: List[Tuple[Book, float, str, ScoreFactors]] = []
+        saas_candidates: List[Tuple[Book, float, str, ScoreFactors]] = []
+        general_candidates: List[Tuple[Book, float, str, ScoreFactors]] = []
         
-        for book, score, why in candidates:
+        for book, score, why, factors in candidates:
             if is_services_canon(book):
-                services_candidates.append((book, score, why))
+                services_candidates.append((book, score, why, factors))
             elif is_saas_canon(book):
-                saas_candidates.append((book, score, why))
+                saas_candidates.append((book, score, why, factors))
             else:
-                general_candidates.append((book, score, why))
+                general_candidates.append((book, score, why, factors))
         
         target_niche = int(limit * 0.7)
         
@@ -1516,10 +2013,9 @@ def get_recommendations_for_user(
     
     # Build RecommendationItem objects
     items: List[RecommendationItem] = []
-    for book, score, why in top:
-        # Build why_this_book explanation using enhanced helper
-        score_context = {"score": score, "why_legacy": why}
-        why_this_book = _build_why_this_book(onboarding, book, score_context)
+    for book, score, why, factors in top:
+        # Build why_this_book paragraph from score factors
+        why_this_book_text = build_why_this_book(factors, onboarding, book)
         
         # Build why_signals (reason chips)
         why_signals = _build_why_signals(onboarding, book)
@@ -1550,8 +2046,8 @@ def get_recommendations_for_user(
                 functional_tags=book.functional_tags,
                 business_stage_tags=book.business_stage_tags,
                 purchase_url=purchase_url,
-                why_this_book=why_this_book,
-                why_recommended=why_this_book,  # Legacy field for backward compatibility
+                why_this_book=why_this_book_text,
+                why_recommended=None,  # Deprecated
                 why_signals=why_signals if why_signals else None,
             )
         )

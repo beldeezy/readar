@@ -1,0 +1,695 @@
+[
+  {
+    "title": "How to Win Friends and Influence People",
+    "author_name": "Dale Carnegie",
+    "promise": "Helps you build strong relationships by applying timeless principles of empathy, respect, and effective communication.",
+    "best_for": "Best when you’re trying to lead or network and need to improve your people skills and influence.",
+    "core_frameworks": [
+      "Carnegie’s human relations principles (e.g., “Don’t criticize, condemn, or complain” and “Give honest appreciation”)",
+      "“Six Ways to Make People Like You” (e.g., Become genuinely interested in others)"
+    ],
+    "anti_patterns": [
+      "Criticizing or arguing with others (puts them on defense)",
+      "Failing to listen to and appreciate people (makes others feel unimportant)"
+    ],
+    "outcomes": [
+      "Quickly win trust and friendship in business and social settings (e.g. “make friends quickly and easily”)",
+      "Gain cooperation and influence by making others feel valued"
+    ],
+    "read_by_founder": true
+  },
+  {
+    "title": "Think and Grow Rich",
+    "author_name": "Napoleon Hill",
+    "promise": "Helps you achieve personal success by mastering the mental strategies (“13 principles”) used by wealthy entrepreneurs.",
+    "best_for": "Best when you’re pursuing big goals and need to develop a success-oriented mindset and plan.",
+    "core_frameworks": [
+      "Burning Desire & Faith (unwavering purpose and belief in your goals)",
+      "Mastermind Alliance (surround yourself with like-minded people for collective success)"
+    ],
+    "anti_patterns": [
+      "Quitting when faced with obstacles (lack of persistence)",
+      "Drifting without a definite goal or plan (no clear target, so no progress)"
+    ],
+    "outcomes": [
+      "Transforms your mindset to “turn dreams into reality” by instilling self-belief and drive",
+      "Leads you to systematically accumulate wealth through focused ambition and learned success habits"
+    ]
+  },
+  {
+    "title": "The 7 Habits of Highly Effective People",
+    "author_name": "Stephen R. Covey",
+    "promise": "Helps you become highly effective by internalizing seven fundamental habits that improve your personal and professional life.",
+    "best_for": "Best when you’re feeling stuck in your personal growth or leadership and need a holistic framework to change how you work and relate to others.",
+    "core_frameworks": [
+      "Seven Habits framework (e.g., Be Proactive; Begin with the End in Mind; Put First Things First; Think Win–Win; Seek First to Understand…; Synergize; Sharpen the Saw)"
+    ],
+    "anti_patterns": [
+      "Reactive, blame-oriented mindset (waiting for things to happen to you instead of taking initiative)",
+      "Focusing only on urgent tasks (ignoring important-but-not-urgent activities like planning, learning, health)"
+    ],
+    "outcomes": [
+      "A reputation for principle-centered leadership – you act with integrity, vision, and mutual respect",
+      "Improved personal productivity and relationships through habit-driven self-mastery and teamwork"
+    ]
+  },
+  {
+    "title": "Influence: The Psychology of Persuasion",
+    "author_name": "Robert B. Cialdini",
+    "promise": "Helps you become more persuasive by teaching six universal principles of influence that explain why people say “yes.”",
+    "best_for": "Best when you’re in sales, marketing, or leadership and need to ethically sway others by understanding human behavior.",
+    "core_frameworks": [
+      "Six Principles of Influence (Reciprocity, Commitment/Consistency, Social Proof, Authority, Liking, Scarcity – tactics that trigger automatic “yes” responses)",
+      "Ethical persuasion techniques (using influence principles in honest ways that benefit both sides)"
+    ],
+    "anti_patterns": [
+      "Hard-sell or coercive tactics that ignore human psychology (pushy approaches create resistance)",
+      "Trying to persuade without establishing trust or rapport (skipping Liking or Authority, so others remain skeptical)"
+    ],
+    "outcomes": [
+      "Higher conversion rates and agreement rates by leveraging natural human tendencies (people comply without feeling forced)",
+      "Better defense against manipulation – you recognize when these principles are used on you and respond wisely"
+    ]
+  },
+  {
+    "title": "High Output Management",
+    "author_name": "Andrew S. Grove",
+    "promise": "Helps you 10× your team’s productivity by managing through leverage – optimizing processes, decisions, and team outputs for maximum impact.",
+    "best_for": "Best when you’re leading a growing team or organization and need practical techniques to improve efficiency, planning, and performance management.",
+    "core_frameworks": [
+      "Management by Objectives (OKR) – set clear measurable goals that align team output with company priorities",
+      "High-Leverage Activities (spend time on actions that create disproportionately large outputs through others, e.g., good training, systems)",
+      "One-on-one meetings (regular, structured check-ins to coach employees and catch issues early)",
+      "Batch processing & manufacturing mindset applied to office work (optimize workflows as you would in a factory for consistency and quality)"
+    ],
+    "anti_patterns": [
+      "Micromanaging senior people (or under-managing junior people – failing to adjust your management style to the person’s level)",
+      "Avoiding tough feedback or decisions (letting problems fester instead of confronting them constructively and promptly)"
+    ],
+    "outcomes": [
+      "Quantifiably better team output and morale – your group hits targets consistently by working smarter, not just harder",
+      "Smooth, scalable operations where managers empower teams, resulting in fewer fires and more strategic progress"
+    ]
+  },
+  {
+    "title": "The E-Myth Revisited",
+    "author_name": "Michael E. Gerber",
+    "promise": "Helps you turn your small business into a scalable enterprise by showing why most fail and how to build systems that don’t rely solely on you.",
+    "best_for": "Best when you’re a hands-on business owner feeling overwhelmed by daily operations and need a blueprint to organize and grow beyond yourself.",
+    "core_frameworks": [
+      "Entrepreneur–Manager–Technician model (every owner must wear all 3 hats; success comes from balancing visionary work, management, and technical execution)",
+      "Franchise Prototype (document your business as if franchising it – create systems so it can run consistently without your constant presence)"
+    ],
+    "anti_patterns": [
+      "Doing everything yourself (“technician’s trap” – working in the business, not on the business, and burning out)",
+      "Lack of documented processes (running operations ad hoc so that quality and results are inconsistent and dependent on individuals)"
+    ],
+    "outcomes": [
+      "A self-sustaining, scalable company that can grow and even be replicated (franchised) because it’s built on systems, not just personal effort",
+      "Relief from the owner-as-bottleneck syndrome – you gain time to focus on strategic growth rather than daily technical work"
+    ]
+  },
+  {
+    "title": "The Lean Startup",
+    "author_name": "Eric Ries",
+    "promise": "Helps you build a successful startup faster by continuous experimentation and validated learning instead of months of blind planning.",
+    "best_for": "Best when you’re launching a new product or business and need to maximize your odds of success on limited time/resources.",
+    "core_frameworks": [
+      "Build–Measure–Learn loop (iterative cycle of rapid prototyping, user feedback, and learning)",
+      "Minimum Viable Product (MVP) (launch a stripped-down product to test assumptions early)",
+      "Innovation accounting (use actionable metrics to validate learning, avoid vanity metrics)"
+    ],
+    "anti_patterns": [
+      "Writing a 50-page business plan and building in stealth (overplanning and overengineering without customer feedback)",
+      "Chasing vanity metrics (surface numbers that don’t indicate real progress)"
+    ],
+    "outcomes": [
+      "A culture of rapid innovation and agility – you pivot faster when an idea isn’t working, saving time and capital",
+      "Successful application leads to more capital-efficient growth and a higher chance of hitting product-market fit by meeting real customer needs early"
+    ]
+  },
+  {
+    "title": "Zero to One",
+    "author_name": "Peter Thiel (with Blake Masters)",
+    "promise": "Helps you uncover unique, monopoly opportunities by thinking differently about innovation – building things that go from 0 to 1 (truly new) instead of copying others.",
+    "best_for": "Best when you’re starting a venture in a crowded world and need to find a breakthrough idea or strategy that can create an entirely new market or category.",
+    "core_frameworks": [
+      "0→1 vs. 1→n (create truly new products that go from zero to one, instead of incremental improvements that go from one to n)",
+      "Secrets (believe that there are hidden truths to find – what valuable company can you start that others aren’t pursuing because they don’t see it?)",
+      "Monopoly theory (aim for creative monopolies by building proprietary technology, network effects, economies of scale, and strong branding)",
+      "The Power Law of venture (a few big bets drive the majority of returns – focus on opportunities that can 10x, not just incrementally improve)"
+    ],
+    "anti_patterns": [
+      "Competing in crowded “red ocean” markets with no differentiation (doomed to fight over small margins)",
+      "Copying existing models without insight (if someone else already proved it, truly outsized profits are gone – look for something new)"
+    ],
+    "outcomes": [
+      "A visionary strategy that can yield monopoly-like profits (you find an untapped market or create something so differentiated that you stand alone)",
+      "Clarity on the grand vision for your startup – you’re chasing something meaningful and unique, not just another clone business"
+    ]
+  },
+  {
+    "title": "The Hard Thing About Hard Things",
+    "author_name": "Ben Horowitz",
+    "promise": "Helps you survive the toughest startup challenges by sharing gritty, real-world advice on decisions where there’s no easy answer.",
+    "best_for": "Best when you’re a founder/CEO in crisis mode or facing high-stakes dilemmas (firing friends, near bankruptcy, culture issues) and need frank guidance.",
+    "core_frameworks": [
+      "Wartime vs. Peacetime CEO (understand when to strictly drive survival vs. when to guide growth more collaboratively)",
+      "No formula for tough decisions (accepting that leadership means choosing between bad options with courage and conviction)",
+      "Hire for strength, not lack of weakness (prioritize candidates’ standout traits that match your needs over well-rounded mediocrity)",
+      "The Struggle (normalizing the emotional turmoil of leading a startup and developing resilience through it)"
+    ],
+    "anti_patterns": [
+      "Waiting for a magical solution or “silver bullet” (hard things require taking action and often choosing an imperfect path)",
+      "Letting emotions or friendships override necessary decisions (e.g., keeping an executive who isn’t scaling just because they’ve been loyal)"
+    ],
+    "outcomes": [
+      "Confidence and resilience under fire – you’ll feel less alone and more prepared handling crises after seeing how others navigated them",
+      "Practical wisdom for CEO dilemmas (from structuring your org to demoting/hiring people) that can make the difference between failure and survival"
+    ]
+  },
+  {
+    "title": "Start with Why",
+    "author_name": "Simon Sinek",
+    "promise": "Helps you inspire customers and teams by clarifying the deep purpose (“Why”) behind your product or mission.",
+    "best_for": "Best when you’re building a brand or movement and need to energize others – employees or customers – through a compelling sense of purpose.",
+    "core_frameworks": [
+      "Golden Circle (framework of Why → How → What, starting with a clear Why at the core to drive everything you do)",
+      "Law of Diffusion of Innovation (innovators and early adopters buy into your Why; achieving tipping point requires reaching early majority by inspiring belief)"
+    ],
+    "anti_patterns": [
+      "Starting pitches or branding with what features you offer (communicating only the What and How, which fails to set you apart emotionally)",
+      "Chasing transactions over loyalty (focusing on selling products instead of winning believers in your mission)"
+    ],
+    "outcomes": [
+      "Stronger loyalty and enthusiasm from customers and employees who believe what you believe (they join your cause, not just buy a product)",
+      "A guiding north star for your organization – clearer decisions and branding because everyone knows the underlying Why driving it all"
+    ]
+  },
+  {
+    "title": "Blitzscaling",
+    "author_name": "Reid Hoffman & Chris Yeh",
+    "promise": "Helps you ignite dizzying growth by prioritizing speed over efficiency in an uncertain, hyper-competitive environment.",
+    "best_for": "Best when you’re trying to scale a startup at breakneck speed and need unconventional strategies to outrun competitors.",
+    "core_frameworks": [
+      "Blitzscaling stages (key transitions from small team to massive scale, each with unique challenges)",
+      "Counterintuitive rules for hypergrowth (e.g., embrace inefficiency and chaos to achieve lightning-fast expansion)",
+      "Network-effects leverage (using viral loops and platform strategies to fuel exponential user growth)",
+      "Rapid decision-making culture (prioritizing quick, iterative choices over deliberation to maintain momentum)"
+    ],
+    "anti_patterns": [
+      "Striving for perfect efficiency too early (optimizing processes instead of aggressively growing the customer base)",
+      "Playing it safe in winner-take-all markets (failing to take bold risks needed for exponential growth)",
+      "Scaling with rigid bureaucracy (slowing down innovation with excessive process during hypergrowth)",
+      "Under-investing in talent or infrastructure during rapid expansion (causing breakdowns as growth accelerates)"
+    ],
+    "outcomes": [
+      "Explosive market share gains by outpacing slower-moving competitors",
+      "An organization designed to handle massive scale and continuous change (without collapsing under its own growth)",
+      "Early dominance of a category by establishing your company as the de facto market leader"
+    ]
+  },
+  {
+    "title": "Book Yourself Solid",
+    "author_name": "Michael Port",
+    "promise": "Helps you attract a full roster of ideal clients by following a systematic, service-based marketing framework.",
+    "best_for": "Best when you’re a freelancer or service professional who needs more clients and a clear plan to promote yourself effectively.",
+    "core_frameworks": [
+      "Red Velvet Rope Policy (filtering for ideal clients who energize you, so you do your best work)",
+      "7 core self-promotion strategies (networking, direct outreach, referrals, social media, speaking, etc., executed consistently)",
+      "Keep-in-touch marketing (regularly following up with prospects and past clients to build relationships)",
+      "Perfect pricing and packaging (structuring your services and pricing for high value and appeal)"
+    ],
+    "anti_patterns": [
+      "Chasing every potential client without qualification (ending up with bad-fit clients who drain your energy)",
+      "Inconsistent or ad-hoc marketing (only promoting yourself when business is slow, instead of maintaining steady outreach)",
+      "Underpricing your services out of fear (sending a message that your work is low-value)",
+      "Offering unclear or too many options (confusing prospects with a lack of a focused signature service)"
+    ],
+    "outcomes": [
+      "A steady pipeline of high-quality clients who appreciate your value (so you become “booked solid”)",
+      "Higher client satisfaction and more referrals by working only with ideal clients you can truly help",
+      "Greater confidence in marketing yourself, knowing you have a repeatable system to generate business"
+    ]
+  },
+  {
+    "title": "Breakthrough Advertising",
+    "author_name": "Eugene M. Schwartz",
+    "promise": "Helps you craft marketing messages that deeply compel customers by channeling their existing desires and market awareness.",
+    "best_for": "Best when you’re creating ads or sales copy in a crowded market and need to cut through noise with a powerful, unique message.",
+    "core_frameworks": [
+      "Levels of customer awareness (5 stages from completely unaware to most aware – tailor your approach to each level)",
+      "Market sophistication model (calibrate your claims based on how many similar promises customers have already heard)",
+      "Tapping mass desire (identifying and riding existing powerful desires in your audience, rather than trying to create demand from scratch)",
+      "The Big Idea (distilling your campaign to one bold, unique promise that grabs attention and imagination)"
+    ],
+    "anti_patterns": [
+      "Leading with features or jargon instead of triggering core desires (failing to emotionally engage the reader)",
+      "Using generic copy that doesn’t acknowledge prior marketing (e.g., making claims the audience has heard many times before)",
+      "Ignoring audience awareness (pitching advanced solutions to an unawakened audience, or basics to an already savvy audience)",
+      "Overloading your message with multiple ideas (diluting impact instead of focusing on one breakthrough concept)"
+    ],
+    "outcomes": [
+      "Advertising campaigns that seize attention and resonate strongly with what customers truly want",
+      "Higher conversion and response rates by meeting the customer exactly where they are in awareness and desire",
+      "Distinctive marketing that stands out in a saturated market, making your product memorable and eagerly anticipated"
+    ]
+  },
+  {
+    "title": "Built to Last",
+    "author_name": "Jim Collins & Jerry I. Porras",
+    "promise": "Helps you lay the groundwork for a company that thrives for decades by distilling what visionary, enduring businesses do differently.",
+    "best_for": "Best when you’re shaping an organization’s culture and strategy for the long term and need proven principles to create lasting success.",
+    "core_frameworks": [
+      "Core ideology (defining enduring core values and purpose beyond profit to guide all decisions)",
+      "BHAG – Big Hairy Audacious Goals (setting bold long-term goals that inspire and drive progress)",
+      "Clock-building vs. time-telling (building great systems and culture that outlast any single product or leader)",
+      "Cult-like culture (nurturing a strong, inclusive culture fiercely aligned with the company’s core values)"
+    ],
+    "anti_patterns": [
+      "Chasing trendy tactics at the expense of core values (losing the guiding purpose when pursuing short-term gains)",
+      "Relying on one charismatic leader or product (instead of building institutional strength that can endure turnovers and change)",
+      "Shying away from bold goals (settling for incrementalism rather than inspiring innovation with audacious vision)",
+      "Neglecting to preserve and renew the core ideology (allowing mission drift or cultural decay over time)"
+    ],
+    "outcomes": [
+      "An organization with enduring greatness – it remains successful and relevant through market cycles and generations of leadership",
+      "A strong culture that attracts dedicated employees and loyal customers who share the company’s values",
+      "Achievement of bold, long-term missions (you continuously innovate and grow while staying true to your core principles)"
+    ]
+  },
+  {
+    "title": "Built to Sell",
+    "author_name": "John Warrillow",
+    "promise": "Helps you create a self-sustaining company that can thrive without you by systematizing and \"productizing\" your business services.",
+    "best_for": "Best when you’re a hands-on entrepreneur whose business depends on you for everything, and you need to make it scalable or ready for sale.",
+    "core_frameworks": [
+      "Productized service offering (focusing on a niche service you can deliver consistently and at scale, instead of custom work)",
+      "Standard operating procedures (documented processes so the business runs smoothly without constant owner intervention)",
+      "Scalable sales engine (repeatable marketing and sales process that isn't reliant on the owner’s personal relationships)",
+      "The \"freedom point\" (restructuring until daily operations no longer require your presence, increasing sale value)"
+    ],
+    "anti_patterns": [
+      "Being the bottleneck for all decisions (an owner-dependent operation that can’t run in your absence)",
+      "Offering an array of one-off, custom services (difficult to scale or sell a business with no repeatable productized core)",
+      "Keeping critical know-how in your head (undocumented processes that make the business fragile and hard to transfer)",
+      "Over-reliance on a few big clients or one star employee (risking stability and valuation if they leave)"
+    ],
+    "outcomes": [
+      "Day-to-day operations that run smoothly without your constant input, freeing you to focus on growth or exit",
+      "A more scalable business model with predictable, consistent service delivery",
+      "Higher business valuation and buyer interest, since the company isn’t dependent on the owner to succeed"
+    ]
+  },
+  {
+    "title": "Built to Sell: Creating a Successful Agency",
+    "author_name": "John Warrillow",
+    "promise": "Helps you apply scalable, owner-independent practices to a creative agency by productizing services and building recurring revenue.",
+    "best_for": "Best when you’re running a creative/marketing agency stuck in custom project work and need to build a more predictable, sellable business model.",
+    "core_frameworks": [
+      "Niche specialization (focusing your agency on a specific service or industry niche to streamline delivery and stand out)",
+      "Retainer-based offerings (shifting from one-off projects to ongoing retainers or subscriptions for steady income)",
+      "Productized creative services (standardizing your offerings so creative work is repeatable and not reinvented each time)",
+      "Delegated client management (building a team to handle client work so the owner isn’t the sole point of contact or “rainmaker”)"
+    ],
+    "anti_patterns": [
+      "Accepting any and all client projects (lack of focus leading to inefficient, custom work each time)",
+      "Reinventing the wheel for every client (no standard process, making scaling creative work nearly impossible)",
+      "Living in feast-or-famine cycles (depending on sporadic big projects rather than stable recurring revenue)",
+      "Owner-centric client relationships (all clients insist on you personally, making the agency hard to scale or sell)"
+    ],
+    "outcomes": [
+      "More predictable cash flow via recurring retainers instead of just project spikes",
+      "An agency that operates on well-defined processes and a capable team rather than the owner’s day-to-day involvement",
+      "Stronger positioning and reputation in a niche, which makes winning new business (and eventually selling the firm) much easier"
+    ]
+  },
+  {
+    "title": "Business Model Generation",
+    "author_name": "Alexander Osterwalder & Yves Pigneur",
+    "promise": "Helps you craft innovative business models by guiding you through the Business Model Canvas and creative strategies for value creation.",
+    "best_for": "Best when you’re launching a new venture or rethinking an existing business and need a clear, visual way to design and test your business model.",
+    "core_frameworks": [
+      "Business Model Canvas (visual framework with 9 building blocks – from customer segments and value propositions to revenue streams and cost structure)",
+      "Business model patterns (proven model archetypes like freemium, multi-sided platforms, long tail, etc., that can inspire your design)",
+      "Customer-centered iteration (brainstorming and then testing assumptions about your model through feedback and pivots)",
+      "Visual collaboration techniques (using sketches, Post-its, and diagrams to engage your team in business model innovation)"
+    ],
+    "anti_patterns": [
+      "Writing a static, text-heavy business plan upfront (instead of iterating on a flexible, one-page canvas)",
+      "Fixating only on the product and neglecting the overall model (like distribution, partnerships, or revenue streams)",
+      "Assuming your initial model is correct without validation (skipping customer testing and necessary pivots)",
+      "Using jargon and complexity that team members or investors can’t follow (rather than a simple visual language everyone understands)"
+    ],
+    "outcomes": [
+      "A clear one-page blueprint of how your business creates, delivers, and captures value (understood by your whole team)",
+      "The agility to pivot or adjust parts of your model quickly as you learn what works (because you can see all the pieces and their interconnections)",
+      "Better team alignment and creativity in shaping the business, since everyone can contribute to and iterate on the visual canvas"
+    ]
+  },
+  {
+    "title": "Clockwork",
+    "author_name": "Mike Michalowicz",
+    "promise": "Helps you design your business to run itself by applying systems, delegation, and a focus on what truly drives your company’s success.",
+    "best_for": "Best when you’re a business owner overwhelmed by daily tasks and need to structure operations so the company can run smoothly even when you step away.",
+    "core_frameworks": [
+      "The 4D Mix (allocating time between Doing, Deciding, Delegating, and Designing – and working toward more strategic \"Design\" time)",
+      "Queen Bee Role (identifying your business’s most critical function – its core value driver – and ensuring it’s protected and prioritized)",
+      "The 3T framework (Trash, Trim, Transfer – systematically eliminate, streamline, or outsource tasks that don’t require your unique attention)",
+      "The 2-week vacation test (building systems so robust that the business can operate for weeks without the owner’s involvement)"
+    ],
+    "anti_patterns": [
+      "Acting as the constant decision bottleneck (making every call yourself instead of empowering your team with authority and clarity)",
+      "Failing to delegate or document processes (forcing yourself to do everything and keeping the business dependent on your memory)",
+      "Chasing every new idea or client request (losing focus on the core activity that actually makes the business successful)",
+      "Micromanaging day-to-day operations (not trusting systems or people, which prevents the business from running without you)"
+    ],
+    "outcomes": [
+      "A company that runs efficiently even in your absence – you can step away (even take a real vacation) without things falling apart",
+      "Higher productivity and consistency, because everyone understands the key priorities and processes",
+      "Significantly reduced owner stress and burnout, as you shift from being the doer-of-all-things to the designer of a self-sustaining business"
+    ]
+  },
+  {
+    "title": "Company of One",
+    "author_name": "Paul Jarvis",
+    "promise": "Helps you create a sustainable, profitable business by staying intentionally small and agile instead of chasing growth for its own sake.",
+    "best_for": "Best when you’re tempted to scale up out of peer pressure but would prefer a lean, independent operation that maximizes freedom and value.",
+    "core_frameworks": [
+      "Stay small mindset (challenging the “bigger is better” assumption and focusing on profitability and purpose over size)",
+      "Minimalist operations (keeping expenses, team, and processes lean to reduce overhead and complexity)",
+      "Focus on autonomy and craft (prioritizing personal freedom, quality of work, and customer value rather than managing a big organization)",
+      "Scaling smartly when needed (leveraging automation, partnerships, or high-margin products instead of mass hiring)"
+    ],
+    "anti_patterns": [
+      "Hiring in pursuit of vanity metrics (adding employees or office space you don’t truly need, just to appear “grown up”)",
+      "Equating success with endless expansion (pursuing growth that adds stress or risk without improving the business or life)",
+      "Sacrificing personal well-being for business scale (burning out by doing things that don’t align with your desired lifestyle)",
+      "Assuming you must become a big corporation to be legitimate (ignoring the advantages of remaining a nimble, one-person or small team company)"
+    ],
+    "outcomes": [
+      "A lean business that is highly profitable and resilient without the burden of unnecessary overhead",
+      "Greater control over your time and work, since you’re not managing layers of staff or bureaucracy",
+      "Agility to quickly adapt to market changes or pursue new opportunities due to minimal complexity in your operations"
+    ]
+  },
+  {
+    "title": "Contagious",
+    "author_name": "Jonah Berger",
+    "promise": "Helps you generate viral buzz by applying six key principles (STEPPS) that drive people to share products and ideas.",
+    "best_for": "Best when you’re trying to get more word-of-mouth for a product or campaign and need to understand what makes things naturally catchy and shareable.",
+    "core_frameworks": [
+      "STEPPS framework (Social Currency, Triggers, Emotion, Public, Practical Value, Stories – six elements that make ideas contagious)",
+      "Emotional resonance (creating content that evokes strong emotions—especially positive or even awe or anger—to spur sharing)",
+      "Practical value (people share things that are useful or help others save time/money)",
+      "Storytelling (wrapping your message in a memorable story so that people want to retell it, spreading your idea along the way)"
+    ],
+    "anti_patterns": [
+      "Relying solely on paid ads and neglecting shareability (ignoring the built-in word-of-mouth potential of your product/content)",
+      "Publishing bland content with no emotional or practical hook (if it doesn’t make people feel or help them, they won’t share it)",
+      "Making something go viral but disconnecting from your brand (people share the joke or gimmick but forget your product entirely)",
+      "Assuming virality is pure luck (rather than designing campaigns deliberately around proven social transmission principles)"
+    ],
+    "outcomes": [
+      "Marketing messages and products that spread organically as customers eagerly tell others",
+      "Significantly more referrals and organic growth, reducing your reliance on advertising",
+      "A brand reputation for being interesting and buzz-worthy, giving you a cultural footprint that competitors lack"
+    ]
+  },
+  {
+    "title": "Continuous Discovery Habits",
+    "author_name": "Teresa Torres",
+    "promise": "Helps you continuously uncover customer needs and test ideas by making user research and experimentation a regular, habitual part of your product process.",
+    "best_for": "Best when you’re building or evolving a product and want to avoid guesswork – you need a systematic approach to learning from customers every week.",
+    "core_frameworks": [
+      "Opportunity Solution Tree (visual framework mapping customer needs/opportunities to potential solutions and experiments)",
+      "Weekly customer touchpoints (making it a habit to interview users or observe behavior continuously, not just at project start)",
+      "Rapid prototyping and testing (constantly generating hypotheses and running small experiments to validate ideas quickly)",
+      "Cross-functional discovery (product, design, and engineering collaborating from the start to explore and test solutions together)"
+    ],
+    "anti_patterns": [
+      "Doing customer research only at the beginning of a project (and then building for months without further validation)",
+      "Making product decisions based on assumptions or opinions (instead of real user evidence gathered continuously)",
+      "Launching big features without interim tests (risking building things that don’t actually solve user problems)",
+      "Isolating discovery to a single team or phase (not involving the whole product trio or making it an ongoing practice)"
+    ],
+    "outcomes": [
+      "Products that truly resonate with users because you continuously shaped them with real customer input",
+      "Far fewer wasted features and faster iterations – you validate what works (and what doesn’t) early on",
+      "A team culture of ongoing curiosity and evidence-based decision making, leading to better product success rates"
+    ]
+  },
+  {
+    "title": "Deep Work",
+    "author_name": "Cal Newport",
+    "promise": "Helps you dramatically improve productivity by training you to focus deeply on cognitively demanding tasks without distraction.",
+    "best_for": "Best when you’re drowning in emails, notifications, or busywork and need to carve out focused time to do high-impact work or learn complex skills.",
+    "core_frameworks": [
+      "Deep vs. shallow work (understanding the difference and why deep, uninterrupted focus is increasingly valuable)",
+      "Time-blocking deep work (scheduling dedicated blocks for concentration and creating rituals to support intense focus)",
+      "Eliminating distractions (minimizing notifications, social media, and open-office interruptions to protect attention)",
+      "Attention as a skill (practicing concentration like a muscle, and embracing boredom to rebuild your focus ability)"
+    ],
+    "anti_patterns": [
+      "Multitasking and constant context-switching (training your brain to be distracted and never diving deep on anything)",
+      "Relying on willpower in a tempting environment (not setting up systems or rules, and expecting yourself to resist every interruption)",
+      "Packing your schedule with meetings/emails (leaving no safeguarded time for strategic, deep efforts)",
+      "Equating busyness with productivity (checking off shallow tasks instead of producing meaningful results through deep work)"
+    ],
+    "outcomes": [
+      "Significantly higher quality output in less time, by working in a state of intense concentration",
+      "Faster learning of difficult skills or concepts, since you can give them undivided attention",
+      "Less mental exhaustion and greater satisfaction, because you spend more time on work that matters (and less on fragmented busywork)"
+    ]
+  },
+  {
+    "title": "Duct Tape Marketing",
+    "author_name": "John Jantsch",
+    "promise": "Helps you implement a simple, affordable marketing system by following a step-by-step framework tailored for small businesses.",
+    "best_for": "Best when you’re a small business owner or marketer overwhelmed by marketing options and need a down-to-earth, repeatable approach to get more customers.",
+    "core_frameworks": [
+      "Duct Tape Marketing 7-step system (from strategy and ideal client definition to the \"Marketing Hourglass\" customer journey framework)",
+      "Marketing Hourglass model (guiding customers through Know, Like, Trust, Try, Buy, Repeat, Refer stages to foster loyalty and referrals)",
+      "Core differentiation (finding your business’s unique value and messaging it clearly to stand out in the market)",
+      "Education-based content (using useful content and information to build trust and credibility with prospects)"
+    ],
+    "anti_patterns": [
+      "Doing random acts of marketing with no overarching strategy (wasting effort on tactics that don’t connect or compound)",
+      "Trying to target “everyone” (diluting your message by not focusing on your ideal, high-fit customers)",
+      "Neglecting existing customers post-sale (failing to follow up, thus losing easy repeat and referral opportunities)",
+      "Overcomplicating marketing with expensive or trendy tactics (instead of executing consistent, proven basics well)"
+    ],
+    "outcomes": [
+      "A steady pipeline of ideal clients coming through a structured marketing funnel (so marketing becomes predictable)",
+      "Greater customer loyalty and word-of-mouth as you intentionally move people from first contact to repeat business and referrals",
+      "Confidence and clarity in your marketing efforts, since you’re following a plan rather than guessing what to do each week"
+    ]
+  },
+  {
+    "title": "Elon Musk",
+    "author_name": "Ashlee Vance",
+    "promise": "Helps you draw entrepreneurial inspiration by revealing how Elon Musk applies first-principles thinking, bold risk-taking, and relentless drive to revolutionize industries.",
+    "best_for": "Best when you’re an entrepreneur or innovator seeking real-world insight from how a visionary tackles massive challenges and perseveres through setbacks.",
+    "core_frameworks": [
+      "First-principles thinking (breaking problems down to fundamental truths, as Musk does to innovate in rockets, cars, energy, etc.)",
+      "Bold, long-term vision (setting almost fantastical goals—like colonizing Mars or mainstreaming electric cars—that rally people and resources)",
+      "High risk tolerance (embracing failure and enormous personal bets, e.g., pouring fortune into SpaceX and Tesla despite near-bankruptcies)",
+      "Extreme work ethic and intensity (demanding standards and relentless focus to execute on ambitious plans)"
+    ],
+    "anti_patterns": [
+      "Accepting conventional limits without question (Musk constantly challenges “established” assumptions in industries)",
+      "Playing it safe to avoid failure (he often risks failure boldly in order to achieve breakthrough success)",
+      "Staying in one comfort-zone domain (Musk leaps into new fields, from software to rockets, instead of sticking to what he already knows)",
+      "Chasing only short-term gains (often reinvesting and enduring pain now to realize a transformative long-term mission)"
+    ],
+    "outcomes": [
+      "Motivation to pursue audacious goals and innovations, drawn from seeing how Musk defied skeptics and made the improbable happen",
+      "Practical insight into managing multiple breakthrough companies at once and the leadership it takes to drive them",
+      "A broadened sense of what’s possible in technology and business when you apply radical thinking and unwavering commitment"
+    ]
+  },
+  {
+    "title": "Empowered",
+    "author_name": "Marty Cagan & Chris Jones",
+    "promise": "Helps you build truly innovative products by creating empowered teams – giving product teams the autonomy and skills to solve customer problems, not just implement requirements.",
+    "best_for": "Best when you’re leading product development and need to shift from a feature factory mindset to a culture where teams own outcomes and drive continuous innovation.",
+    "core_frameworks": [
+      "Empowered product teams (cross-functional teams given end-to-end ownership to discover, design, and deliver solutions for specific problems)",
+      "Outcome-focused roadmaps (setting objectives/results to achieve rather than dictating feature lists, allowing teams to find the best way there)",
+      "Coaching leadership style (product leaders act as coaches and mentors, not micromanaging tasks but developing team judgment and skills)",
+      "Strong product trio (tight partnership of product manager, designer, and tech lead working collaboratively from idea through delivery)"
+    ],
+    "anti_patterns": [
+      "Command-and-control feature roadmaps (telling teams exactly what to build, which kills creativity and accountability)",
+      "Centralized decision-making on product details (not trusting teams closest to the customer to figure out effective solutions)",
+      "Neglecting team skill development (expecting innovation without investing in training teams in discovery, design, and testing practices)",
+      "Treating engineers as just coders (excluding engineering from ideation and problem-solving, thus missing their valuable insights)"
+    ],
+    "outcomes": [
+      "More creative, effective product solutions as teams closest to the user problems figure out the ‘how’",
+      "Faster iteration and delivery since teams are clear on goals and feel ownership to get results",
+      "Higher morale and talent retention – people feel trusted, empowered, and able to make a real impact on outcomes"
+    ]
+  },
+  {
+    "title": "Essentialism",
+    "author_name": "Greg McKeown",
+    "promise": "Helps you reclaim focus and effectiveness by aggressively cutting out the trivial and committing only to what’s truly essential.",
+    "best_for": "Best when you’re overextended, constantly busy but not making impact, and need a disciplined approach to simplify your commitments and priorities.",
+    "core_frameworks": [
+      "Disciplined pursuit of less (continuously identifying the vital few tasks or goals and eliminating the trivial many)",
+      "Saying “no” gracefully (setting boundaries and turning down opportunities that don’t align with your top priorities)",
+      "Designing buffers (building slack in your schedule to handle the unexpected, rather than packing every minute)",
+      "Rituals of focus (establishing routines and habits that protect time and energy for your most important work)"
+    ],
+    "anti_patterns": [
+      "Saying yes to almost everything (overcommitting to projects or meetings and scattering your energy)",
+      "Multitasking on low-value activities out of FOMO (fear of missing out leading you to pursue too many things superficially)",
+      "Neglecting rest or reflection time (believing you must be “busy” constantly, which leads to burnout and poor choices)",
+      "Equating busyness with productivity (assuming that doing more things is better, rather than excelling at a few crucial things)"
+    ],
+    "outcomes": [
+      "Absolute clarity on your top priorities, allowing you to channel your best effort where it counts most",
+      "Significant improvements in results and impact by investing energy in fewer, more meaningful projects",
+      "Less stress and overwhelm as you shed the non-essentials – you have more control over your time and can even rest without guilt"
+    ]
+  },
+  {
+    "title": "Financial Intelligence for Entrepreneurs",
+    "author_name": "Karen Berman & Joe Knight",
+    "promise": "Helps you demystify your business’s finances by teaching you how to read financial statements and use the numbers to drive smarter decisions.",
+    "best_for": "Best when you’re a founder or small business owner without a finance background and need to confidently interpret profit, cash flow, and other financial metrics to run your company.",
+    "core_frameworks": [
+      "Financial statement basics (understanding the income statement, balance sheet, and cash flow statement and what each reveals about your business)",
+      "Key business ratios and metrics (gross margin, profitability ratios, ROI, etc., and how to calculate and interpret them)",
+      "Cash vs. profit (grasping the difference between accounting profit and actual cash in the bank, and why both matter)",
+      "Data-driven decision making (using financial insights to inform pricing, cost management, and investment choices)"
+    ],
+    "anti_patterns": [
+      "Running the business by gut feel alone (ignoring financial data or waiting until a crisis to examine the numbers)",
+      "Equating profits with cash (assuming that if you’re showing a profit, you must have cash on hand – a dangerous misunderstanding)",
+      "Focusing only on sales/revenue and neglecting balance sheet health (overlooking assets, liabilities, and equity that affect long-term stability)",
+      "Avoiding the “boring” financial stuff (staying in the dark about numbers due to intimidation or disinterest, which can lead to poor decisions)"
+    ],
+    "outcomes": [
+      "Confidence in reading and discussing financial reports (you can engage with investors, accountants, and reports without feeling lost)",
+      "Better budgeting and forecasting, leading to fewer cash crunches and more strategic use of resources",
+      "More informed decisions about scaling, hiring, pricing, or cost-cutting because you understand the financial implications"
+    ]
+  },
+  {
+    "title": "From Impossible to Inevitable",
+    "author_name": "Aaron Ross & Jason Lemkin",
+    "promise": "Helps you unlock explosive growth by applying seven hyper-growth “ingredients” – from nailing a niche market to building a predictable revenue sales machine.",
+    "best_for": "Best when you’re trying to scale a B2B or SaaS company that has initial traction but needs a clear, repeatable blueprint to accelerate revenue growth.",
+    "core_frameworks": [
+      "Nail a niche (focus tightly on a core customer segment and pain point that you can dominate early on)",
+      "Predictable Revenue model (build a scalable outbound sales pipeline with specialized roles, as popularized by Aaron Ross)",
+      "Recurring revenue math (mastering SaaS growth levers like annual recurring revenue, churn reduction, upsells for compounding growth)",
+      "Scalable sales infrastructure (onboard sales reps and customers with processes so you can rapidly multiply what works without chaos)"
+    ],
+    "anti_patterns": [
+      "Attempting to scale broadly without product-market fit (skipping the step of dominating a niche first)",
+      "Relying only on organic or ad-hoc sales (not developing a repeatable outbound/inbound sales process to consistently generate leads)",
+      "Neglecting customer success and onboarding (allowing high churn to counteract new sales, stalling growth)",
+      "Stagnating with one tactic (expecting growth to continue without continually experimenting and finding new growth plays)"
+    ],
+    "outcomes": [
+      "A ramped-up revenue curve driven by a reliable sales pipeline and sharply defined market positioning",
+      "A more efficient and effective sales organization (specialized teams, clear processes) that increases lead conversion and deal size",
+      "Confidence in hitting aggressive growth targets or attracting investors, since growth becomes systematic and predictable rather than a mystery"
+    ]
+  },
+  {
+    "title": "Hacking Growth",
+    "author_name": "Sean Ellis & Morgan Brown",
+    "promise": "Helps you accelerate customer and revenue growth by implementing a rapid experimentation framework across your product and marketing efforts.",
+    "best_for": "Best when you’re trying to jumpstart growth in a startup or product and need a hands-on, data-driven approach to find what tactics actually work.",
+    "core_frameworks": [
+      "Growth hacking process (continuous cycle of ideation, prioritization, testing, and analysis to find high-impact growth tactics)",
+      "Cross-functional growth team (combining marketing, product, engineering, and data roles to work on growth experiments collaboratively)",
+      "Pirate Metrics (AARRR framework – focusing on Acquisition, Activation, Retention, Revenue, Referral to optimize the full funnel)",
+      "North Star metric (identifying a single key metric that best reflects your product’s value, to align and focus growth efforts)"
+    ],
+    "anti_patterns": [
+      "Betting on one-off big marketing campaigns (instead of running many small, iterative experiments to learn and improve)",
+      "Keeping growth responsibilities siloed (e.g., not involving product team in user acquisition or not leveraging marketers in retention efforts)",
+      "Making changes without measurement (tweaking product or marketing with no tracking, thus gaining no insight into what works)",
+      "Quitting after a few failed tests (not recognizing that consistent, ongoing experimentation is needed to eventually hit big wins)"
+    ],
+    "outcomes": [
+      "A significantly higher growth rate as you systematically discover what truly drives user acquisition and retention for your product",
+      "A culture of evidence-based decision making, where ideas are tested and scaled based on actual results rather than gut feeling",
+      "Improved conversion and retention metrics across the board by doubling down on the strategies and tactics proven to move those numbers"
+    ]
+  },
+  {
+    "title": "High Growth Handbook",
+    "author_name": "Elad Gil",
+    "promise": "Helps you expertly navigate the hyper-growth phase of a startup by distilling best practices on scaling teams, culture, and strategy from those who’ve done it.",
+    "best_for": "Best when you’re a founder or executive of a startup that’s starting to scale rapidly and need guidance on managing explosive growth without imploding.",
+    "core_frameworks": [
+      "Organizational scaling (how and when to hire executives, restructure teams, and formalize processes as headcount balloons)",
+      "Maintaining culture at scale (deliberately instilling and evolving culture and communication so the company stays aligned as it grows)",
+      "Strategic expansion decisions (frameworks for when to expand internationally, acquire other companies, or diversify product lines)",
+      "Common hyper-growth pitfalls (awareness of issues like founder burnout, loss of focus, quality drops, and how to preempt them)"
+    ],
+    "anti_patterns": [
+      "Clinging to a garage-stage structure (failing to bring in experienced leaders or define roles as the company outgrows its early setup)",
+      "Letting culture “just happen” during growth (assuming core values will automatically survive massive hiring waves without effort)",
+      "Expanding into too many areas too quickly (overextending to new markets or products before solidifying a strong base)",
+      "Founder overcontrol or burnout (not evolving your role or delegating as complexity grows, leading to bottlenecks or personal collapse)"
+    ],
+    "outcomes": [
+      "A smoother evolution from scrappy startup to scaled enterprise with fewer growing pains and crises",
+      "A strong leadership bench and organizational structure that can seize opportunities at scale without chaos",
+      "Retention of your company’s innovative spirit and values even as it grows, avoiding the “successful but soulless” large company trap"
+    ]
+  },
+  {
+    "title": "Influence: Science and Practice",
+    "author_name": "Robert B. Cialdini",
+    "promise": "Helps you become more persuasive by revealing the psychology of why people say “yes” – distilled into six timeless principles of influence backed by research.",
+    "best_for": "Best when you’re in sales, marketing, negotiations or any leadership role and need to ethically sway others’ decisions and behavior with proven techniques.",
+    "core_frameworks": [
+      "Six Principles of Influence (Reciprocity, Commitment/Consistency, Social Proof, Authority, Liking, Scarcity – universal levers that drive people to comply)",
+      "Contrast effect (how perceptions of options shift based on what’s presented first, influencing choices)",
+      "Ethical influence strategies (applying these principles in win-win ways rather than manipulation)",
+      "Defense against undue influence (recognizing when these tactics are used on you so you can resist if needed)"
+    ],
+    "anti_patterns": [
+      "Trying to persuade by pushiness or coercion (ignoring subtle psychological triggers that foster genuine agreement)",
+      "Neglecting social proof and credibility (e.g., failing to show that others trust you or that you’re an authority, missing easy influence wins)",
+      "Being oblivious to influence tactics (unknowingly succumbing to sales tricks or pressure techniques without understanding why)",
+      "Abusing these principles unethically (manipulating people in ways that, when discovered, destroy trust and reputation)"
+    ],
+    "outcomes": [
+      "Significantly higher success rate in winning people’s agreement – whether closing a sale or getting buy-in – by leveraging natural human tendencies",
+      "Stronger relationships and trust as you practice influence techniques that align with people’s psychology (and do so ethically)",
+      "A keen eye for persuasion in the wild – you’ll spot when someone is using these principles on you and respond with clear-headed awareness"
+    ]
+  },
+  {
+    "title": "Inspired",
+    "author_name": "Marty Cagan",
+    "promise": "Helps you build tech products that customers love by mastering modern product management – from continuous customer discovery to effective product team collaboration.",
+    "best_for": "Best when you’re a product manager or founder developing a new app or service and need a guide on how to find the right product ideas and execute them with your team.",
+    "core_frameworks": [
+      "Continuous product discovery (engaging with users, prototyping, and testing ideas frequently to validate what to build)",
+      "Cross-functional product teams (tight collaboration between product management, design, and engineering to iterate quickly)",
+      "MVPs and rapid iteration (releasing minimum viable features to learn fast, then improving based on feedback rather than big bang launches)",
+      "Outcome-focused roadmap (prioritizing problems to solve or outcomes to achieve rather than a static list of feature outputs)"
+    ],
+    "anti_patterns": [
+      "Building features in a vacuum (working from a wish list or top-down directives without real user validation)",
+      "Lengthy spec and development cycles with no user feedback (risking a big launch that misses the mark on customer needs)",
+      "Siloing the product process (PMs making decisions alone, or engineers not involved in understanding the customer’s problem)",
+      "Measuring success by output (shipping lots of features) instead of outcomes (impact on user behavior or business metrics)"
+    ],
+    "outcomes": [
+      "A much higher likelihood of product-market fit – you deliver features that have been vetted by users and truly solve their problems",
+      "Far fewer wasted development cycles, with faster learning and time-to-market thanks to quick prototype-and-test loops",
+      "An energized product team that feels ownership and clarity on the ‘why’ behind each feature, leading to more innovative and effective solutions"
+    ]
+  }
+]
