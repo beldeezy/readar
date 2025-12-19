@@ -3,7 +3,7 @@ SHELL := /bin/bash
 BACKEND_DIR := backend
 FRONTEND_DIR := frontend
 PYTHON := python3
-VENV_DIR := $(BACKEND_DIR)/.venv
+VENV_DIR := .venv
 VENV_PY := $(VENV_DIR)/bin/python
 
 .PHONY: help dev dev-backend dev-frontend \
@@ -28,11 +28,11 @@ help:
 # --- Backend install helpers (venv is created in backend/.venv) ---
 
 backend-venv:
-	@test -d "$(VENV_DIR)" || ($(PYTHON) -m venv $(VENV_DIR))
-	@$(VENV_PY) -m pip install --upgrade pip
+	@cd $(BACKEND_DIR) && test -d "$(VENV_DIR)" || ($(PYTHON) -m venv $(VENV_DIR))
+	@cd $(BACKEND_DIR) && $(VENV_PY) -m pip install --upgrade pip
 
 backend-reqs: backend-venv
-	@$(VENV_PY) -m pip install -r $(BACKEND_DIR)/requirements.txt
+	@cd $(BACKEND_DIR) && $(VENV_PY) -m pip install -r requirements.txt
 
 backend-install: backend-reqs
 	@echo "Backend venv + deps installed."

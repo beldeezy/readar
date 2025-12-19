@@ -11,7 +11,7 @@ import logging
 from app.database import get_db
 from app.core.auth import get_current_user
 from app.models import User
-from app.utils.instrumentation import log_event
+from app.utils.instrumentation import log_event_best_effort
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/events", tags=["events"])
@@ -45,37 +45,25 @@ async def log_recommendation_click(
     This endpoint accepts click events from the frontend and logs them.
     It never throws errors for missing optional fields - validation is minimal.
     Authentication is optional - if user is authenticated, we log their user_id.
+    Uses best-effort logging that never breaks the request path.
     """
-    try:
-        user = get_optional_user(request, db)
-        user_id = user.id if user else None
-        
-        log_event(
-            db=db,
-            event_name="recommendation_clicked",
-            user_id=user_id,
-            properties={
-                "book_id": payload.book_id,
-                "request_id": payload.request_id,
-                "position": payload.position,
-            },
-            request_id=payload.request_id,
-            session_id=payload.session_id,
-        )
-        db.commit()
-        
-        return None
-    except Exception as e:
-        # Never break the request path - log and return 204 anyway
-        logger.warning(
-            "Failed to log recommendation click: book_id=%s, request_id=%s, error=%s",
-            payload.book_id,
-            payload.request_id,
-            str(e),
-            exc_info=True,
-        )
-        # Still return 204 - we don't want to break the user experience
-        return None
+    user = get_optional_user(request, db)
+    user_id = user.id if user else None
+    
+    # Best-effort logging - never raises exceptions
+    log_event_best_effort(
+        event_name="recommendation_clicked",
+        user_id=user_id,
+        properties={
+            "book_id": payload.book_id,
+            "request_id": payload.request_id,
+            "position": payload.position,
+        },
+        request_id=payload.request_id,
+        session_id=payload.session_id,
+    )
+    
+    return None
 
 
 @router.get("/recent")

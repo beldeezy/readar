@@ -14,7 +14,7 @@ from app.schemas.recommendation import RecommendationItem, RecommendationRequest
 from app.schemas.onboarding import OnboardingPayload
 from app.core.auth import get_current_user
 from app.models import User
-from app.utils.instrumentation import log_event
+from app.utils.instrumentation import log_event_best_effort
 
 logger = logging.getLogger(__name__)
 
@@ -62,11 +62,10 @@ async def get_recommendations(
             detail=f"Failed to get recommendations: {e}",
         )
     
-    # Log impression event
+    # Log impression event (best-effort, non-blocking)
     book_ids = [item.book_id for item in items]
     top_book_id = book_ids[0] if book_ids else None
-    log_event(
-        db=db,
+    log_event_best_effort(
         event_name="recommendations_impression",
         user_id=user_id,
         properties={
@@ -77,7 +76,6 @@ async def get_recommendations(
         },
         request_id=request_id,
     )
-    db.commit()
     
     return RecommendationsResponse(request_id=request_id, items=items)
 
@@ -155,11 +153,10 @@ async def get_recommendations_post(
             detail=f"Failed to get recommendations: {e}",
         )
     
-    # Log impression event
+    # Log impression event (best-effort, non-blocking)
     book_ids = [item.book_id for item in items]
     top_book_id = book_ids[0] if book_ids else None
-    log_event(
-        db=db,
+    log_event_best_effort(
         event_name="recommendations_impression",
         user_id=user_id,
         properties={
@@ -170,7 +167,6 @@ async def get_recommendations_post(
         },
         request_id=request_id,
     )
-    db.commit()
     
     return RecommendationsResponse(request_id=request_id, items=items)
 

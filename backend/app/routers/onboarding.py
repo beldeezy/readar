@@ -5,7 +5,7 @@ from app.database import get_db
 from app.models import User, OnboardingProfile, UserBookInteraction, Book, UserBookStatus
 from app.schemas.onboarding import OnboardingPayload, OnboardingProfileResponse
 from app.core.auth import get_current_user
-from app.utils.instrumentation import log_event
+from app.utils.instrumentation import log_event_best_effort
 from datetime import datetime
 import uuid
 import logging
@@ -111,9 +111,8 @@ async def create_or_update_onboarding(
             
             db.commit()
         
-        # Log onboarding completion event
-        log_event(
-            db=db,
+        # Log onboarding completion event (best-effort, non-blocking)
+        log_event_best_effort(
             event_name="onboarding_completed",
             user_id=user_id,
             properties={
@@ -122,7 +121,6 @@ async def create_or_update_onboarding(
                 "org_size": existing_profile.org_size,
             },
         )
-        db.commit()  # Commit the event log
         
         return OnboardingProfileResponse.model_validate(existing_profile)
     except HTTPException:
