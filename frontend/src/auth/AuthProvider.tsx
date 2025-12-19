@@ -15,6 +15,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   onboardingComplete: boolean | null; // null = unknown/checking, true = complete, false = incomplete
   onboardingChecked: boolean;
+  hasVerifiedMagicLink: boolean;
+  setHasVerifiedMagicLink: (v: boolean) => void;
   logout: () => Promise<void>;
   refreshOnboardingStatus: () => Promise<void>;
 }
@@ -27,6 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null);
   const [onboardingChecked, setOnboardingChecked] = useState(false);
+  const [hasVerifiedMagicLink, setHasVerifiedMagicLink] = useState(false);
 
   useEffect(() => {
     // Get initial session
@@ -59,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
         setOnboardingComplete(null);
         setOnboardingChecked(false);
+        setHasVerifiedMagicLink(false);
       }
       setLoading(false);
     });
@@ -199,12 +203,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setOnboardingComplete(null);
     setOnboardingChecked(false);
+    setHasVerifiedMagicLink(false);
   };
 
   const isAuthenticated = user !== null;
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, isAuthenticated, onboardingComplete, onboardingChecked, logout, refreshOnboardingStatus: checkOnboardingStatus }}>
+    <AuthContext.Provider value={{ user, session, loading, isAuthenticated, onboardingComplete, onboardingChecked, hasVerifiedMagicLink, setHasVerifiedMagicLink, logout, refreshOnboardingStatus: checkOnboardingStatus }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchRecommendations, apiClient } from '../api/client';
-import type { RecommendationItem, OnboardingPayload } from '../api/types';
+import type { OnboardingPayload } from '../api/types';
 import { setPostAuthRedirect } from '../auth/postAuthRedirect';
 import { useAuth } from '../auth/AuthProvider';
 import RadarIcon from '../components/RadarIcon';
@@ -10,13 +10,48 @@ import './RecommendationsPage.css';
 const PENDING_ONBOARDING_KEY = 'readar_pending_onboarding';
 const PREVIEW_RECS_KEY = 'readar_preview_recs';
 
+async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  const timeoutPromise = new Promise<T>((_, reject) =>
+    setTimeout(() => reject(new Error(message)), ms)
+  );
+  return Promise.race([promise, timeoutPromise]);
+}
+
+function normalizePendingOnboardingToPayload(pendingOnboarding: any): OnboardingPayload {
+  return {
+    ...pendingOnboarding,
+
+    // Backend expects business_model as a string
+    business_model: Array.isArray(pendingOnboarding.business_models)
+      ? pendingOnboarding.business_models.join(', ')
+      : (pendingOnboarding.business_model || ''),
+
+    // Backend expects biggest_challenge as a string
+    biggest_challenge:
+      pendingOnboarding.biggest_challenge ||
+      pendingOnboarding.challenges_and_blockers ||
+      '',
+
+    // Backend expects blockers as a string
+    blockers:
+      pendingOnboarding.blockers ||
+      pendingOnboarding.challenges_and_blockers ||
+      '',
+
+    // Backend expects book_preferences as an array
+    book_preferences: Array.isArray(pendingOnboarding.book_preferences)
+      ? pendingOnboarding.book_preferences
+      : [],
+  } as OnboardingPayload;
+}
+
 export default function RecommendationsLoadingPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
-  const [phase, setPhase] = useState<"fetching" | "finalizing">("fetching");
+  const [phase, setPhase] = useState<'fetching' | 'finalizing'>('fetching');
 
-  const { user: authUser, refreshOnboardingStatus } = useAuth();
+  const { user: authUser, hasVerifiedMagicLink, refreshOnboardingStatus } = useAuth();
 
   const limitParam = searchParams.get('limit');
   const limit = limitParam ? parseInt(limitParam, 10) : 5;
@@ -37,52 +72,36 @@ export default function RecommendationsLoadingPage() {
 
     async function run() {
       try {
-        console.log("RecommendationsLoadingPage mounted");
+        console.log('RecommendationsLoadingPage mounted');
 
         const pendingOnboardingStr = localStorage.getItem(PENDING_ONBOARDING_KEY);
-        const userId = authUser?.id ?? "anon";
+        const userId = authUser?.id ?? 'anon';
 
         // Build a run key based on the only things that should change the flow
-        const runKey = `${userId}|limit=${limit}|pending=${pendingOnboardingStr ? "1" : "0"}`;
+        const runKey = `${userId}|limit=${limit}|pending=${pendingOnboardingStr ? '1' : '0'}`;
 
         // If we already ran this exact scenario, do nothing
-        if (lastRunKeyRef.current === runKey) {
-          return;
-        }
+        if (lastRunKeyRef.current === runKey) return;
         lastRunKeyRef.current = runKey;
-
-        // If we have pending onboarding but authUser is not yet populated, give it a beat.
-        // (Prevents bouncing into preview/login flow repeatedly while auth is settling.)
-        if (pendingOnboardingStr && !authUser) {
-          // If you have a visible "Logout" etc, authUser should exist soon; wait briefly once.
-          await sleep(300);
-          if (cancelled) return;
-
-          const stillNoUser = !authUser; // note: authUser closure won't update; this is just a small delay guard
-          // Continue into preview flow if still no user after a short delay
-        }
 
         // CASE 1: pending exists AND NOT authenticated => preview flow => login
         if (pendingOnboardingStr && !authUser) {
           try {
             const pendingOnboarding = JSON.parse(pendingOnboardingStr);
+            const payload = normalizePendingOnboardingToPayload(pendingOnboarding);
 
-            const payload: OnboardingPayload = {
-              ...pendingOnboarding,
-              business_model: pendingOnboarding.business_models?.join(', ') || pendingOnboarding.business_model || '',
-              biggest_challenge: pendingOnboarding.challenges_and_blockers || pendingOnboarding.biggest_challenge || '',
-              blockers: pendingOnboarding.challenges_and_blockers || pendingOnboarding.blockers || '',
-              book_preferences: pendingOnboarding.book_preferences || [],
-            } as OnboardingPayload;
-
-            const recs = await apiClient.getPreviewRecommendations(payload);
-
+            const recs = await withTimeout(
+              apiClient.getPreviewRecommendations(payload),
+              20000,
+              'Fetching preview recommendations took too long. Backend may be down or stuck.'
+            );
             if (cancelled) return;
 
             localStorage.setItem(PREVIEW_RECS_KEY, JSON.stringify(recs));
-            setPhase("finalizing");
+            setPhase('finalizing');
 
-            await sleep(7000);
+            // Hold loading page a bit so it feels intentional
+            await sleep(1200);
             if (cancelled) return;
 
             setPostAuthRedirect('/recommendations');
@@ -90,67 +109,81 @@ export default function RecommendationsLoadingPage() {
             return;
           } catch (e: any) {
             if (cancelled) return;
-            setError(e?.message || "Failed to generate preview recommendations.");
+            setError(e?.message || 'Failed to generate preview recommendations.');
             return;
           }
         }
 
-        // CASE 2: authenticated AND pending exists => finalize pending into backend, then fetch real recs
-        if (pendingOnboardingStr && authUser) {
+        // Force login when user is authenticated but not verified
+        if (pendingOnboardingStr && authUser && !hasVerifiedMagicLink) {
+          setPostAuthRedirect('/recommendations');
+          navigate('/login');
+          return;
+        }
+
+        // CASE 2: authenticated AND pending exists AND verified => finalize pending into backend, then fetch real recs
+        if (pendingOnboardingStr && authUser && hasVerifiedMagicLink) {
           try {
             const pendingOnboarding = JSON.parse(pendingOnboardingStr);
-
-            const payload: OnboardingPayload = {
-              ...pendingOnboarding,
-              business_model: pendingOnboarding.business_models?.join(', ') || pendingOnboarding.business_model || '',
-              biggest_challenge: pendingOnboarding.challenges_and_blockers || pendingOnboarding.biggest_challenge || '',
-              blockers: pendingOnboarding.challenges_and_blockers || pendingOnboarding.blockers || '',
-              book_preferences: pendingOnboarding.book_preferences || [],
-            } as OnboardingPayload;
+            const payload = normalizePendingOnboardingToPayload(pendingOnboarding);
 
             // Save once to backend now that we have auth
-            await apiClient.saveOnboarding(payload);
+            await withTimeout(
+              apiClient.saveOnboarding(payload),
+              20000,
+              'Saving onboarding took too long. Backend may be down or stuck.'
+            );
 
-            // Refresh onboarding status (do not depend on function identity)
-            await refreshRef.current();
+            // Refresh auth/onboarding state (use ref to avoid effect dependency loops)
+            await refreshRef.current?.();
 
             // Clear pending + preview recs so we don't loop
             localStorage.removeItem(PENDING_ONBOARDING_KEY);
             localStorage.removeItem(PREVIEW_RECS_KEY);
 
-            const recs = await fetchRecommendations({ limit });
+            const recs = await withTimeout(
+              fetchRecommendations({ limit }),
+              20000,
+              'Fetching recommendations took too long. Backend may be down or stuck.'
+            );
             if (cancelled) return;
 
-            setPhase("finalizing");
-            await sleep(7000);
+            setPhase('finalizing');
+            await sleep(900);
             if (cancelled) return;
 
-            navigate(`/recommendations`, { state: { prefetchedRecommendations: recs } });
+            navigate('/recommendations', { state: { prefetchedRecommendations: recs } });
             return;
           } catch (e: any) {
             if (cancelled) return;
-            setError(e?.message || "Failed to finalize onboarding and fetch recommendations.");
+            setError(e?.message || 'Failed to finalize onboarding and fetch recommendations.');
             return;
           }
         }
 
-        // CASE 3: no pending => normal authed flow
+        // CASE 3: no pending => normal authenticated flow
         try {
-          const recs = await fetchRecommendations({ limit });
+          const recs = await withTimeout(
+            fetchRecommendations({ limit }),
+            20000,
+            'Fetching recommendations took too long. Backend may be down or stuck.'
+          );
           if (cancelled) return;
 
-          setPhase("finalizing");
-          await sleep(7000);
+          setPhase('finalizing');
+          await sleep(900);
           if (cancelled) return;
 
-          navigate(`/recommendations`, { state: { prefetchedRecommendations: recs } });
+          navigate('/recommendations', { state: { prefetchedRecommendations: recs } });
+          return;
         } catch (e: any) {
           if (cancelled) return;
-          setError(e?.message || "Failed to generate recommendations.");
+          setError(e?.message || 'Failed to generate recommendations.');
+          return;
         }
       } catch (e: any) {
         if (cancelled) return;
-        setError(e?.message || "Failed to generate recommendations.");
+        setError(e?.message || 'Failed to generate recommendations.');
       }
     }
 
@@ -159,24 +192,23 @@ export default function RecommendationsLoadingPage() {
     return () => {
       cancelled = true;
     };
-  }, [limit, authUser?.id, navigate]);
+  }, [limit, navigate, authUser]);
 
   if (error) {
     return (
       <div className="readar-recommendations-page">
         <div className="container">
-          <h1 style={{
-            fontSize: 'var(--rd-font-size-2xl)',
-            fontWeight: 600,
-            color: 'var(--rd-text)',
-            marginBottom: '0.5rem'
-          }}>
+          <h1
+            style={{
+              fontSize: 'var(--rd-font-size-2xl)',
+              fontWeight: 600,
+              color: 'var(--rd-text)',
+              marginBottom: '0.5rem',
+            }}
+          >
             Error loading recommendations
           </h1>
-          <p style={{
-            fontSize: 'var(--rd-font-size-sm)',
-            color: 'var(--readar-warm)'
-          }}>
+          <p style={{ fontSize: 'var(--rd-font-size-sm)', color: 'var(--readar-warm)' }}>
             {error}
           </p>
         </div>
@@ -187,52 +219,63 @@ export default function RecommendationsLoadingPage() {
   return (
     <div className="readar-recommendations-page">
       <div className="container">
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          marginBottom: '2rem'
-        }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            marginBottom: '2rem',
+          }}
+        >
           <RadarIcon size={120} opacity={0.8} animationDuration={8} />
-          <h1 style={{
-            fontSize: 28,
-            fontWeight: 700,
-            color: 'var(--rd-text)',
-            marginTop: '1.5rem',
-            marginBottom: '0.5rem'
-          }}>
+          <h1
+            style={{
+              fontSize: 28,
+              fontWeight: 700,
+              color: 'var(--rd-text)',
+              marginTop: '1.5rem',
+              marginBottom: '0.5rem',
+            }}
+          >
             Scanning your next reads…
           </h1>
         </div>
 
-        {phase === "fetching" && (
-          <p style={{
-            fontSize: 'var(--rd-font-size-sm)',
-            color: 'var(--rd-muted)',
-            marginBottom: '1.5rem',
-            textAlign: 'center'
-          }}>
+        {phase === 'fetching' && (
+          <p
+            style={{
+              fontSize: 'var(--rd-font-size-sm)',
+              color: 'var(--rd-muted)',
+              marginBottom: '1.5rem',
+              textAlign: 'center',
+            }}
+          >
             Analyzing your inputs…
           </p>
         )}
 
-        {phase === "finalizing" && (
-          <p style={{
-            fontSize: 'var(--rd-font-size-sm)',
-            color: 'var(--rd-muted)',
-            marginBottom: '1.5rem',
-            textAlign: 'center'
-          }}>
+        {phase === 'finalizing' && (
+          <p
+            style={{
+              fontSize: 'var(--rd-font-size-sm)',
+              color: 'var(--rd-muted)',
+              marginBottom: '1.5rem',
+              textAlign: 'center',
+            }}
+          >
             Finalizing your recommendations…
           </p>
         )}
 
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-          gap: '1rem',
-          marginTop: '1.5rem'
-        }}>
+        {/* Simple skeleton */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+            gap: '1rem',
+            marginTop: '1.5rem',
+          }}
+        >
           {[...Array(6)].map((_, i) => (
             <div
               key={i}

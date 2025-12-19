@@ -4,6 +4,7 @@ import { supabase } from '../auth/supabaseClient';
 import { apiClient } from '../api/client';
 import { setAccessToken, clearAccessToken } from '../auth/auth';
 import { popPostAuthRedirect } from '../auth/postAuthRedirect';
+import { useAuth } from '../auth/AuthProvider';
 import type { OnboardingPayload } from '../api/types';
 import Card from '../components/Card';
 import './AuthPage.css';
@@ -15,6 +16,7 @@ export default function AuthCallbackPage() {
   const [status, setStatus] = useState<'checking' | 'success' | 'error'>('checking');
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const authContext = useAuth();
 
   useEffect(() => {
     const handleAuthCallback = async () => {
@@ -33,6 +35,10 @@ export default function AuthCallbackPage() {
         if (session?.access_token) {
           // Store access token in localStorage
           setAccessToken(session.access_token);
+          
+          // NEW: mark magic link verified for this session
+          authContext.setHasVerifiedMagicLink(true);
+          
           setStatus('success');
           
           // Set up auth state change listener to keep token updated

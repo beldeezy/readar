@@ -31,26 +31,70 @@ readar-v1/
 - PostgreSQL 12+
 - Stripe account (for payments)
 
-## Local Development
+## Local development
 
-### Backend (FastAPI)
+### Start the app
 
-From the repo root:
+Open two terminals:
+
+**Terminal A (backend):**
+```bash
+make dev-backend
+```
+
+**Terminal B (frontend):**
+```bash
+make dev-frontend
+```
+
+Or use `make dev` to see instructions and start the backend.
+
+### Environment setup
+
+**Backend:**
+
+1. Copy the example env file:
+   ```bash
+   cp backend/.env.example backend/.env
+   ```
+
+2. Edit `backend/.env` with your real values:
+   - `DATABASE_URL` - PostgreSQL connection string
+   - `SUPABASE_URL` - Supabase project URL
+   - `SUPABASE_ANON_KEY` - Supabase anonymous/public key
+   - `SUPABASE_JWT_SECRET` - Supabase JWT secret (from Supabase Project Settings → API → JWT Secret)
+   - `DEBUG` - Set to `true` for local development (optional)
+   - `ADMIN_EMAIL_ALLOWLIST` - Comma-separated admin emails (optional)
+
+**Frontend:**
+
+Create `frontend/.env.local` with:
+```env
+VITE_API_BASE_URL=http://127.0.0.1:8000
+VITE_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+VITE_SUPABASE_ANON_KEY=YOUR_ANON_PUBLIC_KEY
+```
+
+**Important:** Use `http://127.0.0.1:8000` (not `localhost`) for IPv4 consistency. The frontend automatically appends `/api` to `VITE_API_BASE_URL` if not already present.
+
+### Database sanity checks
+
+Check current migration status:
+```bash
+make backend-alembic-check
+```
+
+Show all Alembic heads:
+```bash
+make backend-alembic-heads
+```
+
+### Fresh start (apply all migrations)
 
 ```bash
 cd backend
-source venv/bin/activate
-uvicorn app.main:app --reload --port 8000
-```
-
-### Frontend (Vite)
-
-From the repo root:
-
-```bash
-cd frontend
-npm install
-npm run dev
+source .venv/bin/activate
+python -m alembic upgrade head
 ```
 
 ### Required Environment Variables
@@ -70,10 +114,12 @@ DEBUG=true (optional)
 **frontend/.env.local**
 
 ```
-VITE_API_BASE_URL=http://localhost:8000/api
+VITE_API_BASE_URL=http://127.0.0.1:8000
 VITE_SUPABASE_URL=...
 VITE_SUPABASE_ANON_KEY=...
 ```
+
+**Note:** Use `http://127.0.0.1:8000` (no `/api` suffix). The frontend automatically appends `/api` to the base URL.
 
 **Notes:**
 - Do **not** include actual secret values.
@@ -98,15 +144,20 @@ VITE_SUPABASE_ANON_KEY=...
 3. **Run database migrations:**
    ```bash
    cd backend
-   source venv/bin/activate
+   source .venv/bin/activate
    alembic upgrade head
    ```
 
 4. **Start backend:**
    ```bash
+   make dev-backend
+   ```
+   
+   Or manually:
+   ```bash
    cd backend
-   source venv/bin/activate
-   uvicorn app.main:app --reload
+   source .venv/bin/activate
+   python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
    ```
 
 5. **Start frontend:**
@@ -119,12 +170,20 @@ VITE_SUPABASE_ANON_KEY=...
 
 ### 1. Install Dependencies
 
+**Using Makefile (recommended):**
+```bash
+make backend-install
+```
+
+**Or manually:**
 ```bash
 cd ~/readar-v1/backend
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+python3 -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
+
+**Note:** The Makefile enforces the venv path to `backend/.venv`. The old `backend/venv` folder is ignored by git.
 
 ### 2. Configure Environment Variables
 
@@ -171,7 +230,7 @@ createdb readar
 
 # Run migrations
 cd ~/readar-v1/backend
-source venv/bin/activate
+source .venv/bin/activate
 alembic upgrade head
 ```
 
@@ -184,14 +243,22 @@ python -m app.scripts.seed_books
 
 ### 5. Run Backend
 
+**Using Makefile (recommended):**
 ```bash
-cd ~/readar-v1/backend
-source venv/bin/activate
-python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+make dev-backend
 ```
 
-The API will be available at `http://127.0.0.1:8000` (or `http://localhost:8000`)
+**Or manually:**
+```bash
+cd ~/readar-v1/backend
+source .venv/bin/activate
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+The API will be available at `http://127.0.0.1:8000`
 API documentation at `http://127.0.0.1:8000/docs`
+
+**Note:** The Makefile enforces the venv path to `backend/.venv`. If you have an old `backend/venv` folder, you can remove it (it's already in `.gitignore`).
 
 ## Frontend Setup
 
@@ -221,9 +288,9 @@ VITE_SUPABASE_URL="https://YOUR_PROJECT_REF.supabase.co"
 VITE_SUPABASE_ANON_KEY="YOUR_ANON_PUBLIC_KEY"
 ```
 
-**Note:** The frontend automatically appends `/api` to `VITE_API_BASE_URL` if not already present. So `http://127.0.0.1:8000` becomes `http://127.0.0.1:8000/api` for API calls.
-
-**Important:** Use `127.0.0.1` instead of `localhost` for IPv4 consistency and to avoid DNS resolution issues.
+**Important:** 
+- Use `http://127.0.0.1:8000` (no `/api` suffix). The frontend automatically appends `/api` to the base URL.
+- Use `127.0.0.1` instead of `localhost` for IPv4 consistency and to avoid DNS resolution issues.
 
 **Note:** Get your Supabase credentials from your Supabase project dashboard:
 1. Go to Project Settings → API
@@ -263,6 +330,7 @@ Environment variables will not load until Vite restarts. You can verify your env
 
 ```bash
 cd ~/readar-v1/backend
+source .venv/bin/activate
 alembic revision --autogenerate -m "description"
 ```
 
@@ -270,6 +338,7 @@ alembic revision --autogenerate -m "description"
 
 ```bash
 cd ~/readar-v1/backend
+source .venv/bin/activate
 alembic upgrade head
 ```
 
@@ -277,6 +346,7 @@ alembic upgrade head
 
 ```bash
 cd ~/readar-v1/backend
+source .venv/bin/activate
 alembic downgrade -1
 ```
 

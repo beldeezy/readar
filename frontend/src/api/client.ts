@@ -68,6 +68,16 @@ class ApiClient {
     this.client.interceptors.response.use(
       (response) => response,
       (error) => {
+        // Axios timeout (backend reachable but not responding fast enough OR connection never completes)
+        if (error.code === 'ECONNABORTED' || String(error.message || '').includes('timeout')) {
+          const debug = getApiBaseUrlDebug();
+          return Promise.reject(
+            new Error(
+              `Backend request timed out (15s). This usually means the backend is down, stuck, or waiting on the database. API_BASE_URL=${debug.API_BASE_URL}`
+            )
+          );
+        }
+
         // Network-layer errors (no response). This includes true network down
         // and also browser-blocked responses (CORS / aborted / etc.)
         if (
