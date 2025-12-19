@@ -289,6 +289,16 @@ class ApiClient {
     >('/profile/book-status', { params });
     return response.data;
   }
+
+  async getAdminRecommendationsDebug(limit: number, debug: boolean): Promise<RecommendationsResponse> {
+    const response = await this.client.get<RecommendationsResponse>('/recommendations', {
+      params: {
+        limit,
+        debug: debug ? 'true' : 'false',
+      },
+    });
+    return response.data;
+  }
 }
 
 export const apiClient = new ApiClient();

@@ -14,6 +14,7 @@ import Books from './pages/admin/Books';
 import Users from './pages/admin/Users';
 import Engine from './pages/admin/Engine';
 import InsightReview from './pages/admin/InsightReview';
+import RecommendationsDebug from './pages/admin/RecommendationsDebug';
 import EnvCheckPage from './pages/EnvCheckPage';
 import Header from './components/Header';
 import ScrollToTop from './components/ScrollToTop';
@@ -124,6 +125,7 @@ function AppRoutes() {
         <Route path="engine" element={<Engine />}>
           <Route path="insight-review" element={<InsightReview />} />
         </Route>
+        <Route path="recommendations-debug" element={<RecommendationsDebug />} />
         <Route index element={<Navigate to="/admin/books" replace />} />
       </Route>
     </Routes>
