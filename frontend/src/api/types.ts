@@ -109,6 +109,11 @@ export interface RecommendationItem {
   why_signals?: Array<{ type: string; label: string }>;
 }
 
+export interface RecommendationsResponse {
+  request_id: string;
+  items: RecommendationItem[];
+}
+
 export interface UserBookInteraction {
   id: string;
   user_id: string;

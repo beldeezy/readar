@@ -6,6 +6,7 @@ import type {
   OnboardingProfile,
   Book,
   RecommendationItem,
+  RecommendationsResponse,
   UserBookInteraction,
   BookPreferenceStatus,
   CheckoutSessionRequest,
@@ -169,8 +170,8 @@ class ApiClient {
     return response.data;
   }
 
-  async getRecommendations(maxResults?: number): Promise<RecommendationItem[]> {
-    const response = await this.client.post<RecommendationItem[]>('/recommendations', {
+  async getRecommendations(maxResults?: number): Promise<RecommendationsResponse> {
+    const response = await this.client.post<RecommendationsResponse>('/recommendations', {
       max_results: maxResults,
     });
     return response.data;
@@ -254,7 +255,7 @@ export const apiClient = new ApiClient();
 
 export async function fetchRecommendations(params: {
   limit?: number;
-}): Promise<RecommendationItem[]> {
+}): Promise<RecommendationsResponse> {
   const { limit = 5 } = params;
   const safeLimit = Math.min(Math.max(limit, 1), 5);
   const url = `${API_BASE_URL}/recommendations?limit=${safeLimit}`;
@@ -300,5 +301,53 @@ export async function fetchRecommendations(params: {
     }
 
     throw new Error(err?.message || "Failed to fetch recommendations");
+  }
+}
+
+/**
+ * Send a recommendation click event to the backend (best-effort, non-blocking).
+ * Uses sendBeacon if available, otherwise fetch with keepalive.
+ */
+export async function logRecommendationClick(params: {
+  book_id: string;
+  request_id: string;
+  position: number;
+  session_id?: string;
+}): Promise<void> {
+  const url = `${API_BASE_URL}/events/recommendation-click`;
+  const payload = {
+    book_id: params.book_id,
+    request_id: params.request_id,
+    position: params.position,
+    session_id: params.session_id,
+  };
+
+  try {
+    // Prefer sendBeacon for reliability (works even if page is unloading)
+    if (navigator.sendBeacon) {
+      const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+      navigator.sendBeacon(url, blob);
+      return;
+    }
+
+    // Fallback to fetch with keepalive
+    const authHeader = getAuthHeader();
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    if (authHeader) {
+      headers.Authorization = authHeader.Authorization;
+    }
+
+    await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+      keepalive: true,
+      credentials: 'include',
+    });
+  } catch (err) {
+    // Silently fail - we don't want to break the user experience
+    console.warn('Failed to log recommendation click:', err);
   }
 }

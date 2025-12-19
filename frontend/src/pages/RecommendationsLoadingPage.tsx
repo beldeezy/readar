@@ -118,14 +118,14 @@ export default function RecommendationsLoadingPage() {
             localStorage.removeItem(PENDING_ONBOARDING_KEY);
             localStorage.removeItem(PREVIEW_RECS_KEY);
 
-            const recs = await fetchRecommendations({ limit });
+            const response = await fetchRecommendations({ limit });
             if (cancelled) return;
 
             setPhase("finalizing");
             await sleep(7000);
             if (cancelled) return;
 
-            navigate(`/recommendations`, { state: { prefetchedRecommendations: recs } });
+            navigate(`/recommendations`, { state: { prefetchedRecommendations: response } });
             return;
           } catch (e: any) {
             if (cancelled) return;
@@ -136,14 +136,14 @@ export default function RecommendationsLoadingPage() {
 
         // CASE 3: no pending => normal authed flow
         try {
-          const recs = await fetchRecommendations({ limit });
+          const response = await fetchRecommendations({ limit });
           if (cancelled) return;
 
           setPhase("finalizing");
           await sleep(7000);
           if (cancelled) return;
 
-          navigate(`/recommendations`, { state: { prefetchedRecommendations: recs } });
+          navigate(`/recommendations`, { state: { prefetchedRecommendations: response } });
         } catch (e: any) {
           if (cancelled) return;
           setError(e?.message || "Failed to generate recommendations.");

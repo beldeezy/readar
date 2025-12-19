@@ -11,6 +11,7 @@ const PREVIEW_RECS_KEY = 'readar_preview_recs';
 
 export default function RecommendationsPage() {
   const [recommendations, setRecommendations] = useState<RecommendationItem[]>([]);
+  const [requestId, setRequestId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -29,11 +30,18 @@ export default function RecommendationsPage() {
     const apiBaseUrl = rawBase.endsWith('/api') ? rawBase : `${rawBase}/api`;
     
     // Check if we have prefetched recommendations from the loading page
-    const prefetchedRecs = (location.state as any)?.prefetchedRecommendations as RecommendationItem[] | undefined;
+    const prefetchedData = (location.state as any)?.prefetchedRecommendations;
+    const prefetchedRecs = Array.isArray(prefetchedData) 
+      ? prefetchedData as RecommendationItem[]
+      : prefetchedData?.items as RecommendationItem[] | undefined;
+    const prefetchedRequestId = prefetchedData?.request_id as string | undefined;
     
     if (prefetchedRecs) {
       // Use prefetched results immediately
       setRecommendations(prefetchedRecs);
+      if (prefetchedRequestId) {
+        setRequestId(prefetchedRequestId);
+      }
       setLoading(false);
       return;
     }
@@ -93,9 +101,10 @@ export default function RecommendationsPage() {
       setError(null);
       
       try {
-        const recs = await fetchRecommendations({ limit: 5 });
+        const response = await fetchRecommendations({ limit: 5 });
         if (!cancelled) {
-          setRecommendations(recs);
+          setRecommendations(response.items);
+          setRequestId(response.request_id);
           // Clear preview recs if we successfully fetched from backend
           localStorage.removeItem(PREVIEW_RECS_KEY);
         }
@@ -141,8 +150,9 @@ export default function RecommendationsPage() {
     try {
       await apiClient.updateUserBook(bookId, status);
       // Optionally refresh recommendations or update UI
-      const recs = await fetchRecommendations({ limit: 5 });
-      setRecommendations(recs);
+      const response = await fetchRecommendations({ limit: 5 });
+      setRecommendations(response.items);
+      setRequestId(response.request_id);
     } catch (err: any) {
       console.error('Failed to update book status:', err);
     }
@@ -257,6 +267,8 @@ export default function RecommendationsPage() {
               book={book}
               onAction={handleBookAction}
               isTopMatch={index === 0}
+              requestId={requestId || undefined}
+              position={index}
             />
           ))}
         </div>

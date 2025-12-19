@@ -16,6 +16,7 @@ from app.routers import (
     debug,
     admin_debug,
     me,
+    events,
 )
 from app.database import init_db
 
@@ -56,6 +57,7 @@ app.include_router(recommendations.router, prefix="/api")
 app.include_router(user_books.router, prefix="/api")
 app.include_router(billing.router, prefix="/api")
 app.include_router(reading_history.router, prefix="/api")
+app.include_router(events.router, prefix="/api")
 app.include_router(debug.router, prefix="/api")
 app.include_router(admin_debug.router, prefix="/admin")
 

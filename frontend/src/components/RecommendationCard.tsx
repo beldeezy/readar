@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import type { RecommendationItem, BookPreferenceStatus } from '../api/types';
+import { logRecommendationClick } from '../api/client';
 import Card from './Card';
 import Badge from './Badge';
 import Button from './Button';
@@ -10,6 +11,8 @@ interface RecommendationCardProps {
   book: RecommendationItem;
   onAction: (bookId: string, status: BookPreferenceStatus) => void;
   isTopMatch?: boolean;
+  requestId?: string;
+  position?: number;
 }
 
 /**
@@ -22,8 +25,39 @@ function buildAmazonSearchUrl(title: string, author?: string): string {
   return `https://www.amazon.com/s?k=${encodedQuery}`;
 }
 
-export default function RecommendationCard({ book, onAction, isTopMatch = false }: RecommendationCardProps) {
+export default function RecommendationCard({ 
+  book, 
+  onAction, 
+  isTopMatch = false,
+  requestId,
+  position = 0,
+}: RecommendationCardProps) {
   const navigate = useNavigate();
+
+  const handleClick = (e: React.MouseEvent) => {
+    // Log click event (best-effort, non-blocking)
+    if (requestId) {
+      logRecommendationClick({
+        book_id: book.book_id,
+        request_id: requestId,
+        position: position,
+      });
+    }
+    // Navigate as normal
+    navigate(`/book/${book.book_id}`);
+  };
+
+  const handleCtaClick = (e: React.MouseEvent) => {
+    // Log click event (best-effort, non-blocking)
+    if (requestId) {
+      logRecommendationClick({
+        book_id: book.book_id,
+        request_id: requestId,
+        position: position,
+      });
+    }
+    // Let the link navigate normally
+  };
 
   // Build metadata line (year • pages • rating)
   const metaParts: string[] = [];
@@ -55,7 +89,7 @@ export default function RecommendationCard({ book, onAction, isTopMatch = false 
             )}
           </div>
           <div className="readar-book-content">
-            <h3 onClick={() => navigate(`/book/${book.book_id}`)} className="readar-book-title">
+            <h3 onClick={handleClick} className="readar-book-title" style={{ cursor: 'pointer' }}>
               {book.title}
             </h3>
             {book.subtitle && <p className="readar-book-subtitle">{book.subtitle}</p>}
@@ -127,7 +161,7 @@ export default function RecommendationCard({ book, onAction, isTopMatch = false 
         </div>
 
         <div style={{ marginTop: 'auto', paddingTop: '0.75rem' }}>
-          <GetBookCTA href={ctaUrl} />
+          <GetBookCTA href={ctaUrl} onBeforeClick={handleCtaClick} />
         </div>
       </Card>
     </div>
