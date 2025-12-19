@@ -9,6 +9,7 @@ import './RecommendationsPage.css';
 
 const PENDING_ONBOARDING_KEY = 'readar_pending_onboarding';
 const PREVIEW_RECS_KEY = 'readar_preview_recs';
+const HAS_ONBOARDING_KEY = 'readar_has_onboarding';
 
 async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
   const timeoutPromise = new Promise<T>((_, reject) =>
@@ -51,7 +52,7 @@ export default function RecommendationsLoadingPage() {
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<'fetching' | 'finalizing'>('fetching');
 
-  const { user: authUser, hasVerifiedMagicLink, refreshOnboardingStatus } = useAuth();
+  const { user: authUser, hasVerifiedMagicLink, setHasVerifiedMagicLink, refreshOnboardingStatus } = useAuth();
 
   const limitParam = searchParams.get('limit');
   const limit = limitParam ? parseInt(limitParam, 10) : 5;
@@ -64,6 +65,31 @@ export default function RecommendationsLoadingPage() {
 
   // Guard to prevent spam/re-runs
   const lastRunKeyRef = useRef<string | null>(null);
+
+  // Helper to check whether onboarding exists for the authenticated user
+  async function checkExistingOnboarding(): Promise<boolean> {
+    // Check localStorage cache first (optional optimization)
+    const cached = localStorage.getItem(HAS_ONBOARDING_KEY);
+    if (cached === '1') {
+      return true;
+    }
+    
+    try {
+      await apiClient.getOnboarding(); // GET /api/onboarding (auth required)
+      // Cache the result
+      localStorage.setItem(HAS_ONBOARDING_KEY, '1');
+      return true; // 200 => onboarding exists
+    } catch (e: any) {
+      const status = e?.response?.status;
+      if (status === 404) {
+        // Clear cache if onboarding doesn't exist
+        localStorage.removeItem(HAS_ONBOARDING_KEY);
+        return false; // onboarding not created yet
+      }
+      // If 401 or network error, rethrow so we surface a real error/redirect
+      throw e;
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -83,6 +109,35 @@ export default function RecommendationsLoadingPage() {
         // If we already ran this exact scenario, do nothing
         if (lastRunKeyRef.current === runKey) return;
         lastRunKeyRef.current = runKey;
+
+        // Check if we can skip magic link verification (user already has onboarding in backend)
+        let canSkipMagicLink = false;
+
+        if (authUser && !hasVerifiedMagicLink) {
+          try {
+            canSkipMagicLink = await checkExistingOnboarding();
+            // Optional: if onboarding exists, treat this as verified for the rest of this session to avoid re-checks
+            if (canSkipMagicLink && typeof setHasVerifiedMagicLink === "function") {
+              setHasVerifiedMagicLink(true);
+            }
+          } catch (e: any) {
+            // If auth is invalid, let existing client interceptor handle redirect on 401.
+            // For network/other errors, fall through to error handling below.
+            // We'll just keep canSkipMagicLink false and let later calls fail with a useful message.
+            const status = e?.response?.status;
+            if (status === 401) {
+              // Auth invalid - let interceptor handle it
+              throw e;
+            }
+            // For network/timeout errors, show helpful message
+            if (!e?.response || String(e?.message || '').includes('timeout') || String(e?.message || '').includes('timed out')) {
+              setError('Backend unavailable or not responding. Confirm backend is running and DATABASE_URL is set.');
+              return;
+            }
+            // Other errors - let them bubble up
+            throw e;
+          }
+        }
 
         // CASE 1: pending exists AND NOT authenticated => preview flow => login
         if (pendingOnboardingStr && !authUser) {
@@ -114,15 +169,15 @@ export default function RecommendationsLoadingPage() {
           }
         }
 
-        // Force login when user is authenticated but not verified
-        if (pendingOnboardingStr && authUser && !hasVerifiedMagicLink) {
+        // Force login when user is authenticated but not verified AND cannot skip (no existing onboarding)
+        if (pendingOnboardingStr && authUser && !hasVerifiedMagicLink && !canSkipMagicLink) {
           setPostAuthRedirect('/recommendations');
           navigate('/login');
           return;
         }
 
-        // CASE 2: authenticated AND pending exists AND verified => finalize pending into backend, then fetch real recs
-        if (pendingOnboardingStr && authUser && hasVerifiedMagicLink) {
+        // CASE 2: authenticated AND pending exists AND (verified OR can skip) => finalize pending into backend, then fetch real recs
+        if (pendingOnboardingStr && authUser && (hasVerifiedMagicLink || canSkipMagicLink)) {
           try {
             const pendingOnboarding = JSON.parse(pendingOnboardingStr);
             const payload = normalizePendingOnboardingToPayload(pendingOnboarding);
@@ -140,6 +195,8 @@ export default function RecommendationsLoadingPage() {
             // Clear pending + preview recs so we don't loop
             localStorage.removeItem(PENDING_ONBOARDING_KEY);
             localStorage.removeItem(PREVIEW_RECS_KEY);
+            // Mark onboarding as existing in cache
+            localStorage.setItem(HAS_ONBOARDING_KEY, '1');
 
             const recs = await withTimeout(
               fetchRecommendations({ limit }),
@@ -156,9 +213,21 @@ export default function RecommendationsLoadingPage() {
             return;
           } catch (e: any) {
             if (cancelled) return;
-            setError(e?.message || 'Failed to finalize onboarding and fetch recommendations.');
+            // Improve error messaging for network/timeout errors
+            if (!e?.response || String(e?.message || '').includes('timeout') || String(e?.message || '').includes('timed out')) {
+              setError('Backend unavailable or not responding. Confirm backend is running and DATABASE_URL is set.');
+            } else {
+              setError(e?.message || 'Failed to finalize onboarding and fetch recommendations.');
+            }
             return;
           }
+        }
+
+        // If user is authenticated but not magic-link-verified AND onboarding does not exist yet, require login
+        if (!pendingOnboardingStr && authUser && !hasVerifiedMagicLink && !canSkipMagicLink) {
+          setPostAuthRedirect('/recommendations');
+          navigate('/login');
+          return;
         }
 
         // CASE 3: no pending => normal authenticated flow
@@ -178,7 +247,12 @@ export default function RecommendationsLoadingPage() {
           return;
         } catch (e: any) {
           if (cancelled) return;
-          setError(e?.message || 'Failed to generate recommendations.');
+          // Improve error messaging for network/timeout errors
+          if (!e?.response || String(e?.message || '').includes('timeout') || String(e?.message || '').includes('timed out')) {
+            setError('Backend unavailable or not responding. Confirm backend is running and DATABASE_URL is set.');
+          } else {
+            setError(e?.message || 'Failed to generate recommendations.');
+          }
           return;
         }
       } catch (e: any) {

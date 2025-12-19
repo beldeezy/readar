@@ -7,6 +7,7 @@ import type { User, OnboardingPayload } from '../api/types';
 
 const PENDING_ONBOARDING_KEY = 'readar_pending_onboarding';
 const PREVIEW_RECS_KEY = 'readar_preview_recs';
+const HAS_ONBOARDING_KEY = 'readar_has_onboarding';
 
 interface AuthContextType {
   user: User | null;
@@ -204,6 +205,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setOnboardingComplete(null);
     setOnboardingChecked(false);
     setHasVerifiedMagicLink(false);
+    // Clear onboarding cache on logout
+    localStorage.removeItem(HAS_ONBOARDING_KEY);
   };
 
   const isAuthenticated = user !== null;
