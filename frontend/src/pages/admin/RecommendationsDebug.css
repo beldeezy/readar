@@ -1,0 +1,302 @@
+.readar-recs-debug-page {
+  width: 100%;
+}
+
+.readar-recs-debug-header {
+  margin-bottom: 2rem;
+}
+
+/* Controls Panel */
+.readar-recs-debug-controls-panel {
+  margin-bottom: 1.5rem;
+  padding: 1.5rem;
+  background-color: var(--rd-surface);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+.readar-recs-debug-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.readar-recs-debug-control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 120px;
+}
+
+.readar-recs-debug-control-label {
+  font-size: var(--rd-font-size-sm);
+  color: var(--rd-text);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+}
+
+.readar-recs-debug-input {
+  padding: 0.5rem 0.75rem;
+  font-size: var(--rd-font-size-sm);
+  font-family: var(--rd-font);
+  color: var(--rd-text);
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  transition: border-color 120ms linear, background-color 120ms linear;
+  width: 100px;
+}
+
+.readar-recs-debug-input:focus {
+  outline: none;
+  border-color: var(--rd-accent);
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.readar-recs-debug-checkbox {
+  margin-right: 0.5rem;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+/* Loading State */
+.readar-recs-debug-loading {
+  padding: 3rem;
+  text-align: center;
+  background-color: var(--rd-surface);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: var(--rd-text);
+}
+
+/* Error State */
+.readar-recs-debug-error-panel {
+  padding: 3rem;
+  text-align: center;
+  background-color: var(--rd-surface);
+  border: 2px solid #ff6b6b;
+  border-radius: 8px;
+  color: #ff6b6b;
+}
+
+.readar-recs-debug-error-panel h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.25rem;
+}
+
+.readar-recs-debug-error-panel p {
+  margin: 0 0 1.5rem 0;
+  color: var(--rd-text);
+}
+
+/* Results Card */
+.readar-recs-debug-results-card {
+  background-color: var(--rd-surface);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.readar-recs-debug-results-header {
+  padding: 1.5rem;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.readar-recs-debug-results-header h3 {
+  margin: 0;
+  font-size: var(--rd-font-size-lg);
+  color: var(--rd-text);
+  font-weight: 600;
+}
+
+.readar-recs-debug-request-id {
+  font-size: var(--rd-font-size-xs);
+  color: var(--rd-muted);
+  font-family: 'Courier New', monospace;
+}
+
+/* Table */
+.readar-recs-debug-table-container {
+  overflow-x: auto;
+}
+
+.readar-recs-debug-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--rd-font-size-sm);
+}
+
+.readar-recs-debug-table thead {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.readar-recs-debug-table th {
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--rd-text);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+  white-space: nowrap;
+}
+
+.readar-recs-debug-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.05);
+  color: var(--rd-text);
+}
+
+.readar-recs-debug-table tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.readar-recs-debug-table-row {
+  cursor: pointer;
+}
+
+.readar-recs-debug-title-cell {
+  font-weight: 500;
+  max-width: 300px;
+  word-wrap: break-word;
+}
+
+.readar-recs-debug-expand-btn {
+  padding: 0.25rem 0.5rem;
+  font-family: var(--rd-font);
+  font-size: var(--rd-font-size-sm);
+  color: var(--rd-text);
+  background-color: transparent;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: border-color 120ms linear, background-color 120ms linear;
+}
+
+.readar-recs-debug-expand-btn:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-color: var(--rd-accent);
+}
+
+/* Details Row */
+.readar-recs-debug-details-row {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+.readar-recs-debug-details-cell {
+  padding: 0 !important;
+}
+
+.readar-recs-debug-details-content {
+  padding: 1.5rem;
+}
+
+.readar-recs-debug-details-section {
+  margin-bottom: 1.5rem;
+}
+
+.readar-recs-debug-details-section:last-child {
+  margin-bottom: 0;
+}
+
+.readar-recs-debug-details-section h4 {
+  margin: 0 0 0.75rem 0;
+  font-size: var(--rd-font-size-base);
+  color: var(--rd-text);
+  font-weight: 600;
+}
+
+.readar-recs-debug-insights-list,
+.readar-recs-debug-factors-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.readar-recs-debug-insights-list li,
+.readar-recs-debug-factors-list li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: var(--rd-text);
+  font-size: var(--rd-font-size-sm);
+}
+
+.readar-recs-debug-insights-list li:last-child,
+.readar-recs-debug-factors-list li:last-child {
+  border-bottom: none;
+}
+
+.readar-recs-debug-insights-list li strong,
+.readar-recs-debug-factors-list li strong {
+  color: var(--rd-accent);
+  margin-right: 0.5rem;
+}
+
+.readar-recs-debug-empty {
+  color: var(--rd-muted);
+  font-size: var(--rd-font-size-sm);
+  font-style: italic;
+  margin: 0;
+}
+
+.readar-recs-debug-json {
+  margin: 0;
+  padding: 1rem;
+  background-color: rgba(0, 0, 0, 0.3);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: var(--rd-font-size-xs);
+  color: var(--rd-accent);
+  overflow-x: auto;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.readar-recs-debug-details-section details {
+  cursor: pointer;
+}
+
+.readar-recs-debug-details-section summary {
+  padding: 0.5rem;
+  color: var(--rd-text);
+  font-size: var(--rd-font-size-sm);
+  font-weight: 500;
+  user-select: none;
+}
+
+.readar-recs-debug-details-section summary:hover {
+  color: var(--rd-accent);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .readar-recs-debug-controls-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .readar-recs-debug-control-group {
+    min-width: 100%;
+  }
+
+  .readar-recs-debug-table {
+    font-size: var(--rd-font-size-xs);
+  }
+
+  .readar-recs-debug-table th,
+  .readar-recs-debug-table td {
+    padding: 0.5rem;
+  }
+
+  .readar-recs-debug-results-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+}
+

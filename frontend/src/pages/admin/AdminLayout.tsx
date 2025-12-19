@@ -8,6 +8,7 @@ export default function AdminLayout() {
     { name: 'Books', path: '/admin/books' },
     { name: 'Users', path: '/admin/users' },
     { name: 'Engine Debug', path: '/admin/engine' },
+    { name: 'Recs Debug', path: '/admin/recommendations-debug' },
   ];
 
   return (
