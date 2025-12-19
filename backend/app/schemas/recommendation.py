@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from app.schemas.book import BookResponse
 
 
@@ -32,6 +32,10 @@ class RecommendationItem(BaseModel):
     framework_match: Optional[float] = None
     outcome_match: Optional[float] = None
     score_factors: Optional[Dict[str, float]] = None  # Full score factors breakdown
+    matched_insights: Optional[List[Dict[str, Any]]] = None  # Matched insights with key, weight, reason
+    insight_score_total: Optional[float] = None  # Total score contribution from insights
+    base_score: Optional[float] = None  # Score before insight and status adjustments
+    final_score: Optional[float] = None  # Final score after all adjustments
 
 
 class RecommendationRequest(BaseModel):

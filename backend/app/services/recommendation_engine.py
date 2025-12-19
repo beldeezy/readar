@@ -1,10 +1,13 @@
-from typing import List, Tuple, Set, Optional, Dict
+from typing import List, Tuple, Set, Optional, Dict, Any, TypedDict
 from uuid import UUID
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import ProgrammingError, OperationalError
 import logging
 from collections import Counter, defaultdict
 from urllib.parse import quote_plus
 from dataclasses import dataclass
+from app.utils.timing import now_ms, log_elapsed
+from app.core.config import settings
 from app.models import (
     User,
     OnboardingProfile,
@@ -13,10 +16,19 @@ from app.models import (
     UserBookStatus,
     ReadingHistoryEntry,
     BookDifficulty,
+    UserBookStatusModel,
 )
 from app.schemas.recommendation import RecommendationItem
 
 logger = logging.getLogger(__name__)
+
+
+# Insight type definition (internal, not persisted)
+class Insight(TypedDict):
+    """Internal insight representation with key, weight, and reason."""
+    key: str  # e.g. "business_stage:pre-revenue"
+    weight: float  # e.g. 1.2
+    reason: str  # Human-readable explanation
 
 
 @dataclass
@@ -316,6 +328,120 @@ def _get_book_tags(book: Book) -> Tuple[Set[str], Set[str], Set[str]]:
     return categories, functional_tags, theme_tags
 
 
+def _get_book_insight_tags(book: Book) -> Set[str]:
+    """
+    Extract insight-comparable tags from a book.
+    
+    Returns a set of insight keys that can be matched against user insights.
+    Format: "prefix:value" (e.g., "business_stage:pre-revenue", "focus_area:marketing")
+    """
+    insight_tags: Set[str] = set()
+    
+    # business_stage_tags → "business_stage:*"
+    if book.business_stage_tags:
+        for tag in book.business_stage_tags:
+            if tag:
+                normalized = _normalize_tag_value(tag)
+                insight_tags.add(f"business_stage:{normalized}")
+    
+    # functional_tags → "focus_area:*"
+    if book.functional_tags:
+        for tag in book.functional_tags:
+            if tag:
+                normalized = _normalize_tag_value(tag)
+                insight_tags.add(f"focus_area:{normalized}")
+    
+    # theme_tags → "bottleneck:*"
+    if book.theme_tags:
+        for tag in book.theme_tags:
+            if tag:
+                normalized = _normalize_tag_value(tag)
+                insight_tags.add(f"bottleneck:{normalized}")
+    
+    return insight_tags
+
+
+def _normalize_tag_value(value: str) -> str:
+    """Normalize tag value: lowercase, spaces → hyphens."""
+    if not value:
+        return ""
+    return value.lower().strip().replace(" ", "-").replace("_", "-")
+
+
+def _build_user_insights(onboarding: Optional[OnboardingProfile]) -> List[Insight]:
+    """
+    Convert onboarding profile into a list of weighted insights.
+    
+    Rules:
+    - business_stage → weight 1.2, key: "business_stage:{value}"
+    - business_model → weight 1.0, key: "business_model:{normalized_value}"
+    - areas_of_business (array) → each weight 0.8, key: "focus_area:{value}"
+    - biggest_challenge → weight 1.1, key: "bottleneck:{normalized_value}"
+    
+    Returns empty list if onboarding is None or all fields are empty.
+    This function must NEVER throw.
+    """
+    insights: List[Insight] = []
+    
+    try:
+        if not onboarding:
+            return insights
+        
+        # business_stage → weight 1.2
+        if onboarding.business_stage:
+            stage_value = (
+                onboarding.business_stage.value 
+                if hasattr(onboarding.business_stage, 'value') 
+                else str(onboarding.business_stage)
+            )
+            if stage_value:
+                normalized = _normalize_tag_value(stage_value)
+                insights.append({
+                    "key": f"business_stage:{normalized}",
+                    "weight": 1.2,
+                    "reason": f"at the {stage_value.replace('-', ' ').title()} stage"
+                })
+        
+        # business_model → weight 1.0
+        if onboarding.business_model:
+            normalized = _normalize_tag_value(onboarding.business_model)
+            if normalized:
+                insights.append({
+                    "key": f"business_model:{normalized}",
+                    "weight": 1.0,
+                    "reason": f"building a {onboarding.business_model} business"
+                })
+        
+        # areas_of_business (array) → each weight 0.8
+        if onboarding.areas_of_business:
+            for area in onboarding.areas_of_business:
+                if area:
+                    normalized = _normalize_tag_value(area)
+                    if normalized:
+                        insights.append({
+                            "key": f"focus_area:{normalized}",
+                            "weight": 0.8,
+                            "reason": f"focused on {area.replace('_', ' ').title()}"
+                        })
+        
+        # biggest_challenge → weight 1.1
+        if onboarding.biggest_challenge:
+            normalized = _normalize_tag_value(onboarding.biggest_challenge)
+            if normalized:
+                insights.append({
+                    "key": f"bottleneck:{normalized}",
+                    "weight": 1.1,
+                    "reason": f"facing {onboarding.biggest_challenge}"
+                })
+    
+    except Exception as e:
+        # This function must NEVER throw - log and return empty list
+        logger.warning(f"Error building user insights: {e}", exc_info=True)
+        return []
+    
+    return insights
+
+
 def _books_share_tags(book1: Book, book2: Book) -> bool:
     """Check if two books share any tags."""
     cats1, func1, theme1 = _get_book_tags(book1)
@@ -440,15 +566,21 @@ def humanize(value: str) -> str:
     return value.replace("_", " ").strip()
 
 
-def build_why_this_book(factors: ScoreFactors, user_profile: Optional[OnboardingProfile], book: Book) -> str:
+def build_why_this_book(
+    factors: ScoreFactors, 
+    user_profile: Optional[OnboardingProfile], 
+    book: Book,
+    matched_insights: Optional[List[Insight]] = None
+) -> str:
     """
     Build a single compelling paragraph explaining why a book is recommended.
     
     Uses Hook → Bridge → Action structure:
-    - Hook: user bottleneck (from user profile + score factors)
+    - Hook: user bottleneck (from user profile + score factors or matched insights)
     - Bridge: book promise + optional framework (from book.promise and book.core_frameworks)
     - Action: one concrete outcome (from book.outcomes)
     
+    If matched_insights are provided, uses top 2-3 insights by weight to generate explanation.
     Falls back to factor-based copy when insight fields are missing.
     Outputs one paragraph (2-4 sentences max).
     No generic CTA.
@@ -467,6 +599,56 @@ def build_why_this_book(factors: ScoreFactors, user_profile: Optional[Onboarding
             return book.promise.strip()
         return "This is a solid foundational pick to build clarity and execution momentum."
     
+    # If we have matched insights, use them to build the explanation
+    if matched_insights:
+        # Sort by weight (descending) and take top 2-3
+        sorted_insights = sorted(matched_insights, key=lambda x: x["weight"], reverse=True)[:3]
+        
+        if sorted_insights:
+            # Build hook from top insights (top 2-3 by weight)
+            hook_parts = []
+            for insight in sorted_insights[:2]:  # Use top 2 for hook
+                reason = insight["reason"]
+                # Clean up reason text - remove "You're" prefix if present
+                if reason.startswith("You're "):
+                    reason = reason[7:]  # Remove "You're "
+                elif reason.startswith("you're "):
+                    reason = reason[7:]  # Remove "you're "
+                
+                hook_parts.append(reason)
+            
+            if hook_parts:
+                # Combine hook parts naturally
+                if len(hook_parts) == 1:
+                    parts.append(f"You're {hook_parts[0]}, making this especially relevant right now.")
+                else:
+                    # Join with "and" for multiple insights
+                    combined = " and ".join(hook_parts)
+                    parts.append(f"You're {combined}, making this especially relevant right now.")
+            
+            # BRIDGE: Book promise + optional framework
+            if has_promise:
+                promise_text = book.promise.strip()
+                if has_frameworks:
+                    framework = book.core_frameworks[0]
+                    parts.append(f"{promise_text}, introducing the {framework} framework.")
+                else:
+                    parts.append(promise_text + ".")
+            elif has_frameworks:
+                framework = book.core_frameworks[0]
+                parts.append(f"This book introduces the {framework} framework.")
+            
+            # ACTION: One concrete outcome
+            if has_outcomes:
+                outcome = book.outcomes[0]
+                parts.append(f"You'll walk away with {outcome.lower()}.")
+            
+            # Final formatting: one paragraph (2-4 sentences)
+            result = " ".join(parts).strip()
+            if result:
+                return result
+    
+    # Fallback to original logic if no matched insights or if matched insights didn't produce good output
     # Format business stage for display
     business_stage = None
     if user_profile.business_stage:
@@ -1306,6 +1488,12 @@ def get_personalized_recommendations(
     - Reading history (Goodreads)
     - Onboarding profile (stage, model, challenge)
     """
+    # Timing: start of function
+    t0 = now_ms() if settings.DEBUG else None
+    
+    # A) Load user + onboarding profile
+    if settings.DEBUG:
+        t1 = log_elapsed(t0, f"user={user_id} phase=load_user_profile", logger.debug)
     user = _get_user(db, user_id)
     interactions = _get_user_interactions(db, user_id)
     history_entries = _get_user_reading_history(db, user_id)
@@ -1325,9 +1513,61 @@ def get_personalized_recommendations(
         .filter(OnboardingProfile.user_id == user_id)
         .one_or_none()
     )
+    
+    if settings.DEBUG:
+        t2 = log_elapsed(t1, f"user={user_id} phase=load_onboarding", logger.debug)
 
-    # Load candidate books – for now, all books.
+    # B) Fetch user book status once per request
+    # Defensive: handle missing table gracefully (schema drift protection)
+    if settings.DEBUG:
+        t_status_start = now_ms()
+    try:
+        user_book_statuses = (
+            db.query(UserBookStatusModel)
+            .filter(UserBookStatusModel.user_id == user_id)
+            .all()
+        )
+    except (ProgrammingError, OperationalError) as e:
+        # Table doesn't exist yet - treat as empty status map
+        # This allows onboarding/recommendations to work even if migrations haven't run
+        error_msg = str(e).lower()
+        if "does not exist" in error_msg or "relation" in error_msg and "does not exist" in error_msg:
+            # CRITICAL: Rollback the aborted transaction before continuing
+            # Without this, subsequent queries will fail with InFailedSqlTransaction
+            db.rollback()
+            logger.warning(
+                "user_book_status table not found for user %s. "
+                "Treating as empty status map. Run migrations: alembic upgrade head",
+                user_id
+            )
+            user_book_statuses = []
+        else:
+            # Re-raise if it's a different database error
+            raise
+    
+    if settings.DEBUG:
+        status_count = len(user_book_statuses)
+        t_status_elapsed = now_ms() - t_status_start
+        logger.debug(f"user={user_id} phase=user_book_status query={t_status_elapsed:.2f}ms count={status_count}")
+        t3 = now_ms()
+    
+    # Build dict mapping book_id (as string) to status
+    # Note: UserBookStatusModel.book_id is String, Book.id is UUID
+    book_status_map: Dict[str, str] = {
+        status_obj.book_id: status_obj.status
+        for status_obj in user_book_statuses
+    }
+
+    # C) Load candidate books – for now, all books.
+    if settings.DEBUG:
+        t_books_start = now_ms()
     books: List[Book] = db.query(Book).all()
+    if settings.DEBUG:
+        books_count = len(books)
+        t_books_elapsed = now_ms() - t_books_start
+        logger.debug(f"user={user_id} phase=fetch_books query={t_books_elapsed:.2f}ms count={books_count}")
+        t4 = now_ms()
+    
     if not books:
         raise NotEnoughSignalError("No books in catalog.")
 
@@ -1341,11 +1581,25 @@ def get_personalized_recommendations(
     interaction_scores, blocked_book_ids = _score_from_interactions(interactions)
     history_scores = _score_from_history(history_entries, title_author_to_id)
     user_ctx = _build_user_context(onboarding)
+    
+    # Build user insights from onboarding profile
+    user_insights = _build_user_insights(onboarding)
 
     total_scores: Dict[UUID, float] = defaultdict(float)
     book_reasons: Dict[UUID, List[str]] = defaultdict(list)
     book_score_factors: Dict[UUID, ScoreFactors] = {}
+    # Track original scores and adjustments for debug
+    original_scores: Dict[UUID, float] = {}
+    status_adjustments: Dict[UUID, Dict[str, Any]] = {}
+    # Track matched insights for each book (for debug and "why this book")
+    book_matched_insights: Dict[UUID, List[Insight]] = defaultdict(list)
+    # Track base scores before insight adjustments (for debug)
+    base_scores: Dict[UUID, float] = {}
 
+    # D) Scoring loop
+    if settings.DEBUG:
+        t_scoring_start = now_ms()
+    scored_count = 0
     for book in books:
         if book.id in blocked_book_ids:
             continue
@@ -1353,6 +1607,14 @@ def get_personalized_recommendations(
         # Skip books the user already read (optional – adjust if you want to show re-reads)
         # Check if book is in liked/disliked interactions (already read)
         if book.id in {i.book_id for i in interactions if i.status in {UserBookStatus.READ_LIKED, UserBookStatus.READ_DISLIKED}}:
+            continue
+
+        # Check user_book_status for exclusion rules
+        book_id_str = str(book.id)
+        status = book_status_map.get(book_id_str)
+        
+        # Hard exclusion rules: skip books with "not_for_me" or "read_disliked"
+        if status in ("not_for_me", "read_disliked"):
             continue
 
         # Start with interaction + history scores
@@ -1363,6 +1625,44 @@ def get_personalized_recommendations(
         stage_fit_score, score_factors = _score_from_stage_fit(user_ctx, book, onboarding)
         total_scores[book.id] += stage_fit_score
         book_score_factors[book.id] = score_factors
+        
+        # Store base score before insight and status adjustments
+        base_scores[book.id] = total_scores[book.id]
+        
+        # Apply score adjustments based on user_book_status
+        if status == "interested":
+            total_scores[book.id] += 0.3
+            status_adjustments[book.id] = {
+                "status": status,
+                "adjustment": 0.3,
+                "original_score": original_scores[book.id],
+                "adjusted_score": total_scores[book.id],
+            }
+        elif status == "read_liked":
+            total_scores[book.id] += 0.5
+            status_adjustments[book.id] = {
+                "status": status,
+                "adjustment": 0.5,
+                "original_score": original_scores[book.id],
+                "adjusted_score": total_scores[book.id],
+            }
+        
+        # Apply insight-weighted scoring
+        # Match user insights against book insight tags
+        book_insight_tags = _get_book_insight_tags(book)
+        insight_score_total = 0.0
+        
+        for insight in user_insights:
+            if insight["key"] in book_insight_tags:
+                # Exact prefix match found
+                insight_score_total += insight["weight"]
+                book_matched_insights[book.id].append(insight)
+        
+        # Add insight score to total
+        total_scores[book.id] += insight_score_total
+        
+        # Store original score before status adjustments (after insights)
+        original_scores[book.id] = total_scores[book.id]
 
         # Collect reasons for why_this_book explanation
         reasons: List[str] = []
@@ -1398,6 +1698,13 @@ def get_personalized_recommendations(
         
         if reasons:
             book_reasons[book.id] = reasons
+        
+        scored_count += 1
+
+    if settings.DEBUG:
+        t_scoring_elapsed = now_ms() - t_scoring_start
+        logger.debug(f"user={user_id} phase=scoring_loop elapsed={t_scoring_elapsed:.2f}ms scored={scored_count}")
+        t5 = now_ms()
 
     # Remove books with zero score if we have at least some positive scores
     # but keep a fallback so we don't end up empty.
@@ -1421,6 +1728,10 @@ def get_personalized_recommendations(
     # Build mapping for quick lookup
     books_by_id = {b.id: b for b in books}
 
+    # E) Sorting/limiting
+    if settings.DEBUG:
+        t_sorting_start = now_ms()
+    
     if not is_service_like and not is_saas_like:
         # Non-service, non-SaaS behavior: sort by score only
         scored_items.sort(key=lambda x: x[1], reverse=True)
@@ -1468,6 +1779,11 @@ def get_personalized_recommendations(
             ]
             remaining.sort(key=lambda pair: pair[1], reverse=True)
             top_ids.extend([book_id for (book_id, _) in remaining[:limit - len(top_ids)]])
+    
+    if settings.DEBUG:
+        t_sorting_elapsed = now_ms() - t_sorting_start
+        logger.debug(f"user={user_id} phase=sorting_limiting elapsed={t_sorting_elapsed:.2f}ms")
+        t6 = now_ms()
 
     recommendations: List[RecommendationItem] = []
     for book_id in top_ids:
@@ -1475,9 +1791,10 @@ def get_personalized_recommendations(
         if not book:
             continue
 
-        # Build why_this_book paragraph from score factors
+        # Build why_this_book paragraph from score factors and matched insights
         score_factors = book_score_factors.get(book_id, ScoreFactors())
-        why_this_book_text = build_why_this_book(score_factors, onboarding, book)
+        matched_insights = book_matched_insights.get(book_id, [])
+        why_this_book_text = build_why_this_book(score_factors, onboarding, book, matched_insights)
         
         # Build why_signals (reason chips)
         why_signals = _build_why_signals(onboarding, book)
@@ -1486,6 +1803,10 @@ def get_personalized_recommendations(
         purchase_url = _build_purchase_url(book)
 
         relevancy_score = round(total_scores[book_id], 2)
+        
+        # Calculate insight score total for debug
+        insight_score_total = sum(insight["weight"] for insight in matched_insights)
+        base_score = base_scores.get(book_id, original_scores.get(book_id, 0.0))
         
         # Include debug fields if debug mode is enabled
         debug_fields = {}
@@ -1504,7 +1825,39 @@ def get_personalized_recommendations(
                     "outcome_match": score_factors.outcome_match,
                     "total": relevancy_score,
                 },
+                "matched_insights": [
+                    {
+                        "key": insight["key"],
+                        "weight": insight["weight"],
+                        "reason": insight["reason"]
+                    }
+                    for insight in matched_insights
+                ],
+                "insight_score_total": round(insight_score_total, 2),
+                "base_score": round(base_score, 2),
+                "final_score": relevancy_score,
             }
+            
+            # Add user_book_status debug trace if available
+            book_id_str = str(book_id)
+            status = book_status_map.get(book_id_str)
+            if status:
+                adjustment_info = status_adjustments.get(book_id)
+                if adjustment_info:
+                    debug_fields["user_book_status"] = {
+                        "book_id": book_id_str,
+                        "original_score": adjustment_info["original_score"],
+                        "adjusted_score": adjustment_info["adjusted_score"],
+                        "applied_status": adjustment_info["status"],
+                        "adjustment": adjustment_info["adjustment"],
+                    }
+                else:
+                    # Status exists but no adjustment (e.g., excluded books won't reach here)
+                    debug_fields["user_book_status"] = {
+                        "book_id": book_id_str,
+                        "applied_status": status,
+                        "note": "Status present but no score adjustment applied",
+                    }
         
         recommendations.append(
             RecommendationItem(
@@ -1540,6 +1893,14 @@ def get_personalized_recommendations(
 
     # Ensure recommendations are sorted by relevancy_score descending
     recommendations.sort(key=lambda x: x.relevancy_score, reverse=True)
+    
+    # Final timing summary
+    if settings.DEBUG and t0 is not None:
+        total_elapsed = now_ms() - t0
+        logger.debug(
+            f"user={user_id} phase=total elapsed={total_elapsed:.2f}ms "
+            f"limit={limit} debug={debug} returned={len(recommendations)}"
+        )
 
     return recommendations
 
@@ -1581,9 +1942,16 @@ def get_recommendations_from_payload(
     # Build user context from onboarding
     user_ctx = _build_user_context(onboarding)
     
+    # Build user insights from onboarding profile
+    user_insights = _build_user_insights(onboarding)
+    
     total_scores: Dict[UUID, float] = defaultdict(float)
     book_reasons: Dict[UUID, List[str]] = defaultdict(list)
     book_score_factors: Dict[UUID, ScoreFactors] = {}
+    # Track matched insights for each book (for debug and "why this book")
+    book_matched_insights: Dict[UUID, List[Insight]] = defaultdict(list)
+    # Track base scores before insight adjustments (for debug)
+    base_scores: Dict[UUID, float] = {}
     
     # Extract book preferences to block books user marked as not_interested
     blocked_book_ids: Set[UUID] = set()
@@ -1609,6 +1977,22 @@ def get_recommendations_from_payload(
         stage_fit_score, score_factors = _score_from_stage_fit(user_ctx, book, onboarding)
         total_scores[book.id] += stage_fit_score
         book_score_factors[book.id] = score_factors
+        
+        # Store base score before insight adjustments
+        base_scores[book.id] = total_scores[book.id]
+        
+        # Apply insight-weighted scoring
+        book_insight_tags = _get_book_insight_tags(book)
+        insight_score_total = 0.0
+        
+        for insight in user_insights:
+            if insight["key"] in book_insight_tags:
+                # Exact prefix match found
+                insight_score_total += insight["weight"]
+                book_matched_insights[book.id].append(insight)
+        
+        # Add insight score to total
+        total_scores[book.id] += insight_score_total
         
         # Collect reasons
         reasons: List[str] = []
@@ -1715,9 +2099,10 @@ def get_recommendations_from_payload(
         if not book:
             continue
         
-        # Build why_this_book paragraph from score factors
+        # Build why_this_book paragraph from score factors and matched insights
         score_factors = book_score_factors.get(book_id, ScoreFactors())
-        why_this_book_text = build_why_this_book(score_factors, onboarding, book)
+        matched_insights = book_matched_insights.get(book_id, [])
+        why_this_book_text = build_why_this_book(score_factors, onboarding, book, matched_insights)
         
         # Build why_signals (reason chips)
         why_signals = _build_why_signals(onboarding, book)
@@ -1726,6 +2111,10 @@ def get_recommendations_from_payload(
         purchase_url = _build_purchase_url(book)
         
         relevancy_score = round(total_scores[book_id], 2)
+        
+        # Calculate insight score total for debug
+        insight_score_total = sum(insight["weight"] for insight in matched_insights)
+        base_score = base_scores.get(book_id, relevancy_score - insight_score_total)
         
         # Include debug fields if debug mode is enabled
         debug_fields = {}
@@ -1744,6 +2133,17 @@ def get_recommendations_from_payload(
                     "outcome_match": score_factors.outcome_match,
                     "total": relevancy_score,
                 },
+                "matched_insights": [
+                    {
+                        "key": insight["key"],
+                        "weight": insight["weight"],
+                        "reason": insight["reason"]
+                    }
+                    for insight in matched_insights
+                ],
+                "insight_score_total": round(insight_score_total, 2),
+                "base_score": round(base_score, 2),
+                "final_score": relevancy_score,
             }
         
         recommendations.append(
