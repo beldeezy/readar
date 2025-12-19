@@ -7,15 +7,60 @@ import Card from '../components/Card';
 import Badge from '../components/Badge';
 import './ProfilePage.css';
 
+interface BookStatusItem {
+  book_id: string;
+  status: string;
+  updated_at: string;
+  title?: string;
+  author_name?: string;
+}
+
 export default function ProfilePage() {
   const [profile, setProfile] = useState<OnboardingProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [bookStatuses, setBookStatuses] = useState<{
+    interested: BookStatusItem[];
+    read_liked: BookStatusItem[];
+    read_disliked: BookStatusItem[];
+    not_for_me: BookStatusItem[];
+  }>({
+    interested: [],
+    read_liked: [],
+    read_disliked: [],
+    not_for_me: [],
+  });
+  const [loadingBookStatuses, setLoadingBookStatuses] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     loadProfile();
+    loadBookStatuses();
   }, []);
+
+  const loadBookStatuses = async () => {
+    try {
+      setLoadingBookStatuses(true);
+      const [interested, readLiked, readDisliked, notForMe] = await Promise.all([
+        apiClient.getBookStatusList('interested'),
+        apiClient.getBookStatusList('read_liked'),
+        apiClient.getBookStatusList('read_disliked'),
+        apiClient.getBookStatusList('not_for_me'),
+      ]);
+      
+      setBookStatuses({
+        interested,
+        read_liked: readLiked,
+        read_disliked: readDisliked,
+        not_for_me: notForMe,
+      });
+    } catch (err: any) {
+      console.warn('Failed to load book statuses:', err);
+      // Don't show error to user - this is optional data
+    } finally {
+      setLoadingBookStatuses(false);
+    }
+  };
 
   const loadProfile = async () => {
     try {
@@ -158,6 +203,123 @@ export default function ProfilePage() {
           <Button variant="primary" onClick={handleReRunOnboarding} delayMs={140}>
             Update Profile
           </Button>
+        </div>
+
+        {/* Book Activity Section */}
+        <div style={{ marginTop: '2rem' }}>
+          <h2 className="readar-profile-section-title" style={{ marginBottom: '1rem' }}>
+            Book Activity
+          </h2>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+            {/* Interested */}
+            <Card variant="flat" className="readar-profile-section">
+              <h3 style={{ fontSize: 'var(--rd-font-size-lg)', fontWeight: 600, marginBottom: '0.75rem' }}>
+                Interested
+              </h3>
+              {loadingBookStatuses ? (
+                <p style={{ color: 'var(--rd-muted)', fontSize: 'var(--rd-font-size-sm)' }}>Loading...</p>
+              ) : bookStatuses.interested.length === 0 ? (
+                <p style={{ color: 'var(--rd-muted)', fontSize: 'var(--rd-font-size-sm)' }}>No books yet</p>
+              ) : (
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                  {bookStatuses.interested.map((item) => (
+                    <li key={item.book_id} style={{ marginBottom: '0.5rem', fontSize: 'var(--rd-font-size-sm)' }}>
+                      {item.title ? (
+                        <>
+                          <strong>{item.title}</strong>
+                          {item.author_name && <span style={{ color: 'var(--rd-muted)' }}> by {item.author_name}</span>}
+                        </>
+                      ) : (
+                        <span style={{ color: 'var(--rd-muted)' }}>{item.book_id}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+
+            {/* Read (Liked) */}
+            <Card variant="flat" className="readar-profile-section">
+              <h3 style={{ fontSize: 'var(--rd-font-size-lg)', fontWeight: 600, marginBottom: '0.75rem' }}>
+                Read (Liked)
+              </h3>
+              {loadingBookStatuses ? (
+                <p style={{ color: 'var(--rd-muted)', fontSize: 'var(--rd-font-size-sm)' }}>Loading...</p>
+              ) : bookStatuses.read_liked.length === 0 ? (
+                <p style={{ color: 'var(--rd-muted)', fontSize: 'var(--rd-font-size-sm)' }}>No books yet</p>
+              ) : (
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                  {bookStatuses.read_liked.map((item) => (
+                    <li key={item.book_id} style={{ marginBottom: '0.5rem', fontSize: 'var(--rd-font-size-sm)' }}>
+                      {item.title ? (
+                        <>
+                          <strong>{item.title}</strong>
+                          {item.author_name && <span style={{ color: 'var(--rd-muted)' }}> by {item.author_name}</span>}
+                        </>
+                      ) : (
+                        <span style={{ color: 'var(--rd-muted)' }}>{item.book_id}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+
+            {/* Read (Disliked) */}
+            <Card variant="flat" className="readar-profile-section">
+              <h3 style={{ fontSize: 'var(--rd-font-size-lg)', fontWeight: 600, marginBottom: '0.75rem' }}>
+                Read (Disliked)
+              </h3>
+              {loadingBookStatuses ? (
+                <p style={{ color: 'var(--rd-muted)', fontSize: 'var(--rd-font-size-sm)' }}>Loading...</p>
+              ) : bookStatuses.read_disliked.length === 0 ? (
+                <p style={{ color: 'var(--rd-muted)', fontSize: 'var(--rd-font-size-sm)' }}>No books yet</p>
+              ) : (
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                  {bookStatuses.read_disliked.map((item) => (
+                    <li key={item.book_id} style={{ marginBottom: '0.5rem', fontSize: 'var(--rd-font-size-sm)' }}>
+                      {item.title ? (
+                        <>
+                          <strong>{item.title}</strong>
+                          {item.author_name && <span style={{ color: 'var(--rd-muted)' }}> by {item.author_name}</span>}
+                        </>
+                      ) : (
+                        <span style={{ color: 'var(--rd-muted)' }}>{item.book_id}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+
+            {/* Not for me */}
+            <Card variant="flat" className="readar-profile-section">
+              <h3 style={{ fontSize: 'var(--rd-font-size-lg)', fontWeight: 600, marginBottom: '0.75rem' }}>
+                Not for me
+              </h3>
+              {loadingBookStatuses ? (
+                <p style={{ color: 'var(--rd-muted)', fontSize: 'var(--rd-font-size-sm)' }}>Loading...</p>
+              ) : bookStatuses.not_for_me.length === 0 ? (
+                <p style={{ color: 'var(--rd-muted)', fontSize: 'var(--rd-font-size-sm)' }}>No books yet</p>
+              ) : (
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                  {bookStatuses.not_for_me.map((item) => (
+                    <li key={item.book_id} style={{ marginBottom: '0.5rem', fontSize: 'var(--rd-font-size-sm)' }}>
+                      {item.title ? (
+                        <>
+                          <strong>{item.title}</strong>
+                          {item.author_name && <span style={{ color: 'var(--rd-muted)' }}> by {item.author_name}</span>}
+                        </>
+                      ) : (
+                        <span style={{ color: 'var(--rd-muted)' }}>{item.book_id}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          </div>
         </div>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import type { RecommendationItem, BookPreferenceStatus } from '../api/types';
-import { logRecommendationClick } from '../api/client';
+import { logRecommendationClick, apiClient } from '../api/client';
 import Card from './Card';
 import Badge from './Badge';
 import Button from './Button';
@@ -33,6 +34,7 @@ export default function RecommendationCard({
   position = 0,
 }: RecommendationCardProps) {
   const navigate = useNavigate();
+  const [savingStatus, setSavingStatus] = useState<string | null>(null);
 
   const handleClick = (e: React.MouseEvent) => {
     // Log click event (best-effort, non-blocking)
@@ -57,6 +59,39 @@ export default function RecommendationCard({
       });
     }
     // Let the link navigate normally
+  };
+
+  const handleStatusClick = async (status: BookPreferenceStatus) => {
+    // Prevent spam clicks
+    if (savingStatus) return;
+    
+    setSavingStatus(status);
+    
+    try {
+      // Call the new setBookStatus API
+      await apiClient.setBookStatus({
+        book_id: book.book_id,
+        status: status,
+        request_id: requestId || undefined,
+        position: position,
+        source: 'recommendations',
+      });
+      
+      // Also call the existing onAction callback for backward compatibility
+      if (onAction) {
+        onAction(book.book_id, status);
+      }
+      
+      // Show brief "saved" state
+      setTimeout(() => {
+        setSavingStatus(null);
+      }, 1000);
+    } catch (err: any) {
+      console.warn('Failed to save book status:', err);
+      // Re-enable buttons on error
+      setSavingStatus(null);
+      // Show non-blocking error (optional - could add toast here)
+    }
   };
 
   // Build metadata line (year • pages • rating)
@@ -128,34 +163,38 @@ export default function RecommendationCard({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => onAction(book.book_id, 'interested')}
+              onClick={() => handleStatusClick('interested')}
+              disabled={savingStatus !== null}
               className="readar-book-action"
             >
-              Save as Interested
+              {savingStatus === 'interested' ? 'Saved' : 'Save as Interested'}
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => onAction(book.book_id, 'read_liked')}
+              onClick={() => handleStatusClick('read_liked')}
+              disabled={savingStatus !== null}
               className="readar-book-action"
             >
-              Mark as Read (Liked)
+              {savingStatus === 'read_liked' ? 'Saved' : 'Mark as Read (Liked)'}
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => onAction(book.book_id, 'read_disliked')}
+              onClick={() => handleStatusClick('read_disliked')}
+              disabled={savingStatus !== null}
               className="readar-book-action"
             >
-              Mark as Read (Disliked)
+              {savingStatus === 'read_disliked' ? 'Saved' : 'Mark as Read (Disliked)'}
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => onAction(book.book_id, 'not_interested')}
+              onClick={() => handleStatusClick('not_interested')}
+              disabled={savingStatus !== null}
               className="readar-book-action readar-book-action--muted"
             >
-              Not for me
+              {savingStatus === 'not_interested' ? 'Noted' : 'Not for me'}
             </Button>
           </div>
         </div>
