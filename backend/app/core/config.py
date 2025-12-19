@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        # Normalize Supabase URL to avoid issuer mismatch like ...co//auth/v1
+        if self.SUPABASE_URL:
+            self.SUPABASE_URL = self.SUPABASE_URL.rstrip("/")
         # Validate DATABASE_URL is set and not the default placeholder
         default_placeholder = "postgresql://user:password@localhost/readar"
         if not self.DATABASE_URL or self.DATABASE_URL.strip() == "" or self.DATABASE_URL == default_placeholder:

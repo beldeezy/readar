@@ -6,7 +6,7 @@ import csv
 import logging
 from app.database import get_db
 from app.core.auth import get_current_user
-from app.core.user_helpers import get_or_create_user_by_auth_id
+from app.models import User
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/reading-history", tags=["reading_history"])
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/reading-history", tags=["reading_history"])
 @router.post("/upload-csv")
 async def upload_reading_history_csv(
     file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -26,13 +26,6 @@ async def upload_reading_history_csv(
     TODO: Re-enable writing reading history to the DB once schema is finalized.
     For now, this endpoint only validates and counts rows without persisting to the database.
     """
-    # Get or create local user from Supabase auth_user_id
-    user = get_or_create_user_by_auth_id(
-        db=db,
-        auth_user_id=current_user["auth_user_id"],
-        email=current_user.get("email", ""),
-    )
-    
     # Simple filename check - more forgiving than content-type
     filename = (file.filename or "").lower()
     if not filename.endswith(".csv"):
@@ -41,7 +34,7 @@ async def upload_reading_history_csv(
             detail="Please upload a .csv file exported from Goodreads."
         )
     
-    logger.info(f"Processing CSV upload for user_id={user.id} (auth_user_id={current_user['auth_user_id']}), filename={file.filename}")
+    logger.info(f"Processing CSV upload for user_id={user.id} (auth_user_id={user.auth_user_id}), filename={file.filename}")
 
     # Try to read and parse the CSV file
     try:
