@@ -12,7 +12,7 @@ from app.services.recommendation_engine import NotEnoughSignalError
 from app.schemas.recommendation import RecommendationItem, RecommendationRequest
 from app.schemas.onboarding import OnboardingPayload
 from app.core.auth import get_current_user
-from app.core.user_helpers import get_or_create_user_by_auth_id
+from app.models import User
 
 logger = logging.getLogger(__name__)
 
@@ -22,22 +22,16 @@ router = APIRouter(tags=["recommendations"])
 async def get_recommendations(
     limit: int = Query(5, ge=1, le=5),
     debug: bool = Query(False, description="Include debug fields in response"),
-    current_user: dict = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     # Hard clamp to avoid any weirdness if this endpoint is reused elsewhere
     if limit > 5:
         limit = 5
     
-    # Get or create local user from Supabase auth_user_id
-    user = get_or_create_user_by_auth_id(
-        db=db,
-        auth_user_id=current_user["auth_user_id"],
-        email=current_user.get("email", ""),
-    )
     user_id = user.id
     
-    logger.info("Fetching recommendations for user %s (auth_user_id=%s)", user_id, current_user["auth_user_id"])
+    logger.info("Fetching recommendations for user %s (auth_user_id=%s)", user_id, user.auth_user_id)
 
     try:
         items = recommendation_engine.get_personalized_recommendations(
@@ -72,18 +66,12 @@ async def get_recommendations(
 async def get_recommendations_post(
     request: RecommendationRequest = RecommendationRequest(),
     debug: bool = Query(False, description="Include debug fields in response"),
-    current_user: dict = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Generate book recommendations for the authenticated user (POST endpoint for backward compatibility).
     """
-    # Get or create local user from Supabase auth_user_id
-    user = get_or_create_user_by_auth_id(
-        db=db,
-        auth_user_id=current_user["auth_user_id"],
-        email=current_user.get("email", ""),
-    )
     user_id = user.id
 
     # Clamp max_results to 5

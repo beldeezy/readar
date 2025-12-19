@@ -15,6 +15,7 @@ from app.routers import (
     reading_history,
     debug,
     admin_debug,
+    me,
 )
 from app.database import init_db
 
@@ -48,6 +49,7 @@ app.add_middleware(
 
 # Routers
 app.include_router(auth.router, prefix="/api")
+app.include_router(me.router, prefix="/api")
 app.include_router(onboarding.router, prefix="/api")
 app.include_router(books.router, prefix="/api")
 app.include_router(recommendations.router, prefix="/api")

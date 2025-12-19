@@ -5,7 +5,6 @@ from app.database import get_db
 from app.models import User, OnboardingProfile, UserBookInteraction, Book, UserBookStatus
 from app.schemas.onboarding import OnboardingPayload, OnboardingProfileResponse
 from app.core.auth import get_current_user
-from app.core.user_helpers import get_or_create_user_by_auth_id
 from datetime import datetime
 import uuid
 import logging
@@ -27,18 +26,12 @@ router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 @router.post("", response_model=OnboardingProfileResponse, status_code=status.HTTP_201_CREATED)
 async def create_or_update_onboarding(
     payload: OnboardingPayload,
-    current_user: dict = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Create or update onboarding profile for the authenticated user.
     """
-    # Get or create local user from Supabase auth_user_id
-    user = get_or_create_user_by_auth_id(
-        db=db,
-        auth_user_id=current_user["auth_user_id"],
-        email=current_user.get("email", ""),
-    )
     user_id = user.id
     
     try:
@@ -136,19 +129,12 @@ async def create_or_update_onboarding(
 
 @router.get("", response_model=OnboardingProfileResponse)
 async def get_onboarding(
-    current_user: dict = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Get onboarding profile for the authenticated user.
     """
-    # Get local user from Supabase auth_user_id
-    user = get_or_create_user_by_auth_id(
-        db=db,
-        auth_user_id=current_user["auth_user_id"],
-        email=current_user.get("email", ""),
-    )
-    
     profile = db.query(OnboardingProfile).filter(
         OnboardingProfile.user_id == user.id
     ).first()
