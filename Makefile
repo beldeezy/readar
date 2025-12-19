@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 
 .PHONY: help dev dev-backend dev-frontend install install-backend install-frontend \
-        smoke smoke-backend smoke-frontend clean
+        frontend-install smoke smoke-backend smoke-frontend clean
 
 help:
 	@echo ""
@@ -26,6 +26,9 @@ install-frontend:
 	@echo ">> Installing frontend deps..."
 	cd frontend && npm install
 
+frontend-install:
+	cd frontend && npm install
+
 dev:
 	@echo ">> Start backend in one terminal: make dev-backend"
 	@echo ">> Start frontend in another terminal: make dev-frontend"
@@ -36,7 +39,13 @@ dev-backend:
 	cd backend && .venv/bin/python -m uvicorn app.main:app --reload --port 8000
 
 dev-frontend:
-	@cd frontend && test -d node_modules || npm install
+	@if [ ! -d "frontend/node_modules" ]; then \
+		echo ">> node_modules not found, running npm ci..."; \
+		cd frontend && npm ci; \
+	elif [ ! -f "frontend/node_modules/.bin/vite" ]; then \
+		echo ">> vite not found, running npm install..."; \
+		cd frontend && npm install; \
+	fi
 	@cd frontend && npm run dev
 
 smoke: smoke-backend smoke-frontend

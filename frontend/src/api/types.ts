@@ -107,6 +107,16 @@ export interface RecommendationItem {
   why_this_book: string; // Always present, single compelling paragraph explaining why recommended
   why_recommended?: string[]; // Deprecated: use why_this_book instead
   why_signals?: Array<{ type: string; label: string }>;
+  // Debug fields (only included when debug=true)
+  promise_match?: number;
+  framework_match?: number;
+  outcome_match?: number;
+  score_factors?: Record<string, number>; // Full score factors breakdown
+  matched_insights?: Array<{ key: string; weight: number; reason: string }>; // Matched insights with key, weight, reason
+  insight_score_total?: number; // Total score contribution from insights
+  base_score?: number; // Score before insight and status adjustments
+  final_score?: number; // Final score after all adjustments
+  diversity_penalty_applied?: number; // Diversity penalty (if applicable)
 }
 
 export interface RecommendationsResponse {
