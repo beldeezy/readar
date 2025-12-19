@@ -36,7 +36,8 @@ dev-backend:
 	cd backend && .venv/bin/python -m uvicorn app.main:app --reload --port 8000
 
 dev-frontend:
-	cd frontend && npm run dev
+	@cd frontend && test -d node_modules || npm install
+	@cd frontend && npm run dev
 
 smoke: smoke-backend smoke-frontend
 

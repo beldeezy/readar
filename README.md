@@ -280,6 +280,47 @@ cd ~/readar-v1/backend
 alembic downgrade -1
 ```
 
+### Fixing Alembic Migration State Issues
+
+If you encounter errors about missing revisions or multiple heads:
+
+**Symptoms:**
+- `alembic_version` table references a revision that doesn't exist locally (e.g., `80a813719b89`)
+- Multiple Alembic heads exist
+- Database missing tables that code expects (e.g., `user_book_status`)
+
+**Solution:**
+
+1. **Check current DB revision:**
+   ```bash
+   psql $DATABASE_URL -c "SELECT * FROM alembic_version;"
+   ```
+
+2. **If DB has invalid revision, stamp to a known good revision:**
+   ```bash
+   # Option 1: If event_logs table exists, stamp to that migration
+   psql $DATABASE_URL -c "UPDATE alembic_version SET version_num='add_event_logs_table';"
+   
+   # Option 2: If auth fields exist, stamp to the merge migration
+   psql $DATABASE_URL -c "UPDATE alembic_version SET version_num='9b0a1aada2ec';"
+   ```
+
+3. **Apply all migrations:**
+   ```bash
+   cd ~/readar-v1/backend
+   source venv/bin/activate
+   alembic upgrade head
+   ```
+
+4. **If multiple heads exist, create a merge migration:**
+   ```bash
+   # This should already exist in the repo, but if needed:
+   alembic merge -m "merge heads" <head1> <head2>
+   alembic upgrade head
+   ```
+
+**Note:** The recommendation engine includes defensive code to handle missing `user_book_status` table gracefully. If the table is missing, recommendations will still work but without status-based filtering.
+
 ## API Endpoints
 
 ### Auth
