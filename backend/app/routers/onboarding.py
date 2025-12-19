@@ -5,7 +5,7 @@ from app.database import get_db
 from app.models import User, OnboardingProfile, UserBookInteraction, Book, UserBookStatus
 from app.schemas.onboarding import OnboardingPayload, OnboardingProfileResponse
 from app.core.auth import get_current_user
-from app.core.user_helpers import get_or_create_user_by_auth_id
+from app.utils.instrumentation import log_event
 from datetime import datetime
 import uuid
 import logging
@@ -27,18 +27,12 @@ router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 @router.post("", response_model=OnboardingProfileResponse, status_code=status.HTTP_201_CREATED)
 async def create_or_update_onboarding(
     payload: OnboardingPayload,
-    current_user: dict = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Create or update onboarding profile for the authenticated user.
     """
-    # Get or create local user from Supabase auth_user_id
-    user = get_or_create_user_by_auth_id(
-        db=db,
-        auth_user_id=current_user["auth_user_id"],
-        email=current_user.get("email", ""),
-    )
     user_id = user.id
     
     try:
@@ -117,6 +111,19 @@ async def create_or_update_onboarding(
             
             db.commit()
         
+        # Log onboarding completion event
+        log_event(
+            db=db,
+            event_name="onboarding_completed",
+            user_id=user_id,
+            properties={
+                "business_model": existing_profile.business_model,
+                "business_stage": existing_profile.business_stage.value if hasattr(existing_profile.business_stage, 'value') else str(existing_profile.business_stage),
+                "org_size": existing_profile.org_size,
+            },
+        )
+        db.commit()  # Commit the event log
+        
         return OnboardingProfileResponse.model_validate(existing_profile)
     except HTTPException:
         # Re-raise HTTPExceptions as-is (they're already properly formatted)
@@ -136,19 +143,12 @@ async def create_or_update_onboarding(
 
 @router.get("", response_model=OnboardingProfileResponse)
 async def get_onboarding(
-    current_user: dict = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Get onboarding profile for the authenticated user.
     """
-    # Get local user from Supabase auth_user_id
-    user = get_or_create_user_by_auth_id(
-        db=db,
-        auth_user_id=current_user["auth_user_id"],
-        email=current_user.get("email", ""),
-    )
-    
     profile = db.query(OnboardingProfile).filter(
         OnboardingProfile.user_id == user.id
     ).first()

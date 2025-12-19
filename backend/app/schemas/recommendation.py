@@ -37,3 +37,9 @@ class RecommendationItem(BaseModel):
 class RecommendationRequest(BaseModel):
     max_results: Optional[int] = 10
 
+
+class RecommendationsResponse(BaseModel):
+    """Response wrapper for recommendations that includes request_id for event tracking."""
+    request_id: str
+    items: List[RecommendationItem]
+

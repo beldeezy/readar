@@ -1,5 +1,6 @@
 from uuid import UUID
 from typing import List
+import uuid as uuid_lib
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -9,35 +10,31 @@ from app.database import get_db
 from app import models
 from app.services import recommendation_engine
 from app.services.recommendation_engine import NotEnoughSignalError
-from app.schemas.recommendation import RecommendationItem, RecommendationRequest
+from app.schemas.recommendation import RecommendationItem, RecommendationRequest, RecommendationsResponse
 from app.schemas.onboarding import OnboardingPayload
 from app.core.auth import get_current_user
-from app.core.user_helpers import get_or_create_user_by_auth_id
+from app.models import User
+from app.utils.instrumentation import log_event
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["recommendations"])
 
-@router.get("/recommendations", response_model=List[RecommendationItem])
+@router.get("/recommendations", response_model=RecommendationsResponse)
 async def get_recommendations(
     limit: int = Query(5, ge=1, le=5),
     debug: bool = Query(False, description="Include debug fields in response"),
-    current_user: dict = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     # Hard clamp to avoid any weirdness if this endpoint is reused elsewhere
     if limit > 5:
         limit = 5
     
-    # Get or create local user from Supabase auth_user_id
-    user = get_or_create_user_by_auth_id(
-        db=db,
-        auth_user_id=current_user["auth_user_id"],
-        email=current_user.get("email", ""),
-    )
     user_id = user.id
+    request_id = str(uuid_lib.uuid4())
     
-    logger.info("Fetching recommendations for user %s (auth_user_id=%s)", user_id, current_user["auth_user_id"])
+    logger.info("Fetching recommendations for user %s (auth_user_id=%s)", user_id, user.auth_user_id)
 
     try:
         items = recommendation_engine.get_personalized_recommendations(
@@ -46,7 +43,6 @@ async def get_recommendations(
             limit=limit,
             debug=debug,
         )
-        return items
     except NotEnoughSignalError as e:
         # User has zero signal - fall back to generic recommendations
         logger.info(
@@ -57,7 +53,6 @@ async def get_recommendations(
             db=db,
             limit=limit,
         )
-        return items
     except Exception as e:
         # Log full traceback to server console
         logger.exception("Error while generating recommendations for user %s", user_id)
@@ -66,25 +61,39 @@ async def get_recommendations(
             status_code=500,
             detail=f"Failed to get recommendations: {e}",
         )
+    
+    # Log impression event
+    book_ids = [item.book_id for item in items]
+    top_book_id = book_ids[0] if book_ids else None
+    log_event(
+        db=db,
+        event_name="recommendations_impression",
+        user_id=user_id,
+        properties={
+            "request_id": request_id,
+            "count": len(items),
+            "top_book_id": top_book_id,
+            "book_ids": book_ids,
+        },
+        request_id=request_id,
+    )
+    db.commit()
+    
+    return RecommendationsResponse(request_id=request_id, items=items)
 
 
-@router.post("/recommendations", response_model=List[RecommendationItem])
+@router.post("/recommendations", response_model=RecommendationsResponse)
 async def get_recommendations_post(
     request: RecommendationRequest = RecommendationRequest(),
     debug: bool = Query(False, description="Include debug fields in response"),
-    current_user: dict = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Generate book recommendations for the authenticated user (POST endpoint for backward compatibility).
     """
-    # Get or create local user from Supabase auth_user_id
-    user = get_or_create_user_by_auth_id(
-        db=db,
-        auth_user_id=current_user["auth_user_id"],
-        email=current_user.get("email", ""),
-    )
     user_id = user.id
+    request_id = str(uuid_lib.uuid4())
 
     # Clamp max_results to 5
     effective_limit = min(request.max_results or 5, 5)
@@ -96,7 +105,6 @@ async def get_recommendations_post(
             limit=effective_limit,
             debug=debug,
         )
-        return items
     except NotEnoughSignalError as e:
         # User has zero signal - fall back to generic recommendations
         logger.info(
@@ -104,11 +112,10 @@ async def get_recommendations_post(
             user_id, str(e)
         )
         try:
-            fallback_items = recommendation_engine.get_generic_recommendations(
+            items = recommendation_engine.get_generic_recommendations(
                 db=db,
                 limit=effective_limit,
             )
-            return fallback_items
         except Exception as inner_e:
             logger.exception(
                 "Failed to get generic recommendations for user %s: %s",
@@ -127,11 +134,10 @@ async def get_recommendations_post(
             e,
         )
         try:
-            fallback_items = recommendation_engine.get_generic_recommendations(
+            items = recommendation_engine.get_generic_recommendations(
                 db=db,
                 limit=effective_limit,
             )
-            return fallback_items
         except Exception as inner_e:
             logger.exception(
                 "Failed to get generic recommendations for user %s: %s",
@@ -148,6 +154,25 @@ async def get_recommendations_post(
             status_code=500,
             detail=f"Failed to get recommendations: {e}",
         )
+    
+    # Log impression event
+    book_ids = [item.book_id for item in items]
+    top_book_id = book_ids[0] if book_ids else None
+    log_event(
+        db=db,
+        event_name="recommendations_impression",
+        user_id=user_id,
+        properties={
+            "request_id": request_id,
+            "count": len(items),
+            "top_book_id": top_book_id,
+            "book_ids": book_ids,
+        },
+        request_id=request_id,
+    )
+    db.commit()
+    
+    return RecommendationsResponse(request_id=request_id, items=items)
 
 
 @router.post("/recommendations/preview", response_model=List[RecommendationItem])

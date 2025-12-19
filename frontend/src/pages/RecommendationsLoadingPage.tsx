@@ -52,7 +52,8 @@ export default function RecommendationsLoadingPage() {
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<'fetching' | 'finalizing'>('fetching');
 
-  const { user: authUser, hasVerifiedMagicLink, setHasVerifiedMagicLink, refreshOnboardingStatus } = useAuth();
+  const { user: authUser, hasVerifiedMagicLink, setHasVerifiedMagicLink, refreshOnboardingStatus } =
+    useAuth();
 
   const limitParam = searchParams.get('limit');
   const limit = limitParam ? parseInt(limitParam, 10) : 5;
@@ -68,25 +69,19 @@ export default function RecommendationsLoadingPage() {
 
   // Helper to check whether onboarding exists for the authenticated user
   async function checkExistingOnboarding(): Promise<boolean> {
-    // Check localStorage cache first (optional optimization)
     const cached = localStorage.getItem(HAS_ONBOARDING_KEY);
-    if (cached === '1') {
-      return true;
-    }
-    
+    if (cached === '1') return true;
+
     try {
       await apiClient.getOnboarding(); // GET /api/onboarding (auth required)
-      // Cache the result
       localStorage.setItem(HAS_ONBOARDING_KEY, '1');
-      return true; // 200 => onboarding exists
+      return true;
     } catch (e: any) {
       const status = e?.response?.status;
       if (status === 404) {
-        // Clear cache if onboarding doesn't exist
         localStorage.removeItem(HAS_ONBOARDING_KEY);
-        return false; // onboarding not created yet
+        return false;
       }
-      // If 401 or network error, rethrow so we surface a real error/redirect
       throw e;
     }
   }
@@ -103,10 +98,7 @@ export default function RecommendationsLoadingPage() {
         const pendingOnboardingStr = localStorage.getItem(PENDING_ONBOARDING_KEY);
         const userId = authUser?.id ?? 'anon';
 
-        // Build a run key based on the only things that should change the flow
         const runKey = `${userId}|limit=${limit}|pending=${pendingOnboardingStr ? '1' : '0'}`;
-
-        // If we already ran this exact scenario, do nothing
         if (lastRunKeyRef.current === runKey) return;
         lastRunKeyRef.current = runKey;
 
@@ -116,25 +108,21 @@ export default function RecommendationsLoadingPage() {
         if (authUser && !hasVerifiedMagicLink) {
           try {
             canSkipMagicLink = await checkExistingOnboarding();
-            // Optional: if onboarding exists, treat this as verified for the rest of this session to avoid re-checks
-            if (canSkipMagicLink && typeof setHasVerifiedMagicLink === "function") {
+            if (canSkipMagicLink && typeof setHasVerifiedMagicLink === 'function') {
               setHasVerifiedMagicLink(true);
             }
           } catch (e: any) {
-            // If auth is invalid, let existing client interceptor handle redirect on 401.
-            // For network/other errors, fall through to error handling below.
-            // We'll just keep canSkipMagicLink false and let later calls fail with a useful message.
             const status = e?.response?.status;
-            if (status === 401) {
-              // Auth invalid - let interceptor handle it
-              throw e;
-            }
-            // For network/timeout errors, show helpful message
-            if (!e?.response || String(e?.message || '').includes('timeout') || String(e?.message || '').includes('timed out')) {
+            if (status === 401) throw e;
+
+            if (
+              !e?.response ||
+              String(e?.message || '').includes('timeout') ||
+              String(e?.message || '').includes('timed out')
+            ) {
               setError('Backend unavailable or not responding. Confirm backend is running and DATABASE_URL is set.');
               return;
             }
-            // Other errors - let them bubble up
             throw e;
           }
         }
@@ -155,7 +143,6 @@ export default function RecommendationsLoadingPage() {
             localStorage.setItem(PREVIEW_RECS_KEY, JSON.stringify(recs));
             setPhase('finalizing');
 
-            // Hold loading page a bit so it feels intentional
             await sleep(1200);
             if (cancelled) return;
 
@@ -182,20 +169,16 @@ export default function RecommendationsLoadingPage() {
             const pendingOnboarding = JSON.parse(pendingOnboardingStr);
             const payload = normalizePendingOnboardingToPayload(pendingOnboarding);
 
-            // Save once to backend now that we have auth
             await withTimeout(
               apiClient.saveOnboarding(payload),
               20000,
               'Saving onboarding took too long. Backend may be down or stuck.'
             );
 
-            // Refresh auth/onboarding state (use ref to avoid effect dependency loops)
             await refreshRef.current?.();
 
-            // Clear pending + preview recs so we don't loop
             localStorage.removeItem(PENDING_ONBOARDING_KEY);
             localStorage.removeItem(PREVIEW_RECS_KEY);
-            // Mark onboarding as existing in cache
             localStorage.setItem(HAS_ONBOARDING_KEY, '1');
 
             const recs = await withTimeout(
@@ -213,8 +196,11 @@ export default function RecommendationsLoadingPage() {
             return;
           } catch (e: any) {
             if (cancelled) return;
-            // Improve error messaging for network/timeout errors
-            if (!e?.response || String(e?.message || '').includes('timeout') || String(e?.message || '').includes('timed out')) {
+            if (
+              !e?.response ||
+              String(e?.message || '').includes('timeout') ||
+              String(e?.message || '').includes('timed out')
+            ) {
               setError('Backend unavailable or not responding. Confirm backend is running and DATABASE_URL is set.');
             } else {
               setError(e?.message || 'Failed to finalize onboarding and fetch recommendations.');
@@ -247,8 +233,11 @@ export default function RecommendationsLoadingPage() {
           return;
         } catch (e: any) {
           if (cancelled) return;
-          // Improve error messaging for network/timeout errors
-          if (!e?.response || String(e?.message || '').includes('timeout') || String(e?.message || '').includes('timed out')) {
+          if (
+            !e?.response ||
+            String(e?.message || '').includes('timeout') ||
+            String(e?.message || '').includes('timed out')
+          ) {
             setError('Backend unavailable or not responding. Confirm backend is running and DATABASE_URL is set.');
           } else {
             setError(e?.message || 'Failed to generate recommendations.');
@@ -266,7 +255,7 @@ export default function RecommendationsLoadingPage() {
     return () => {
       cancelled = true;
     };
-  }, [limit, navigate, authUser]);
+  }, [limit, navigate, authUser, hasVerifiedMagicLink, setHasVerifiedMagicLink]);
 
   if (error) {
     return (
@@ -282,9 +271,7 @@ export default function RecommendationsLoadingPage() {
           >
             Error loading recommendations
           </h1>
-          <p style={{ fontSize: 'var(--rd-font-size-sm)', color: 'var(--readar-warm)' }}>
-            {error}
-          </p>
+          <p style={{ fontSize: 'var(--rd-font-size-sm)', color: 'var(--readar-warm)' }}>{error}</p>
         </div>
       </div>
     );
@@ -341,7 +328,6 @@ export default function RecommendationsLoadingPage() {
           </p>
         )}
 
-        {/* Simple skeleton */}
         <div
           style={{
             display: 'grid',
