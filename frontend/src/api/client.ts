@@ -259,6 +259,46 @@ class ApiClient {
       throw new Error(error.message || 'Failed to upload reading history');
     }
   }
+
+  async setBookStatus(payload: {
+    book_id: string;
+    status: string;
+    request_id?: string;
+    position?: number;
+    source?: string;
+  }): Promise<{ ok: boolean }> {
+    // Map frontend "not_interested" to backend "not_for_me"
+    const backendStatus = payload.status === 'not_interested' ? 'not_for_me' : payload.status;
+    
+    const response = await this.client.post<{ ok: boolean }>('/book-status', {
+      book_id: payload.book_id,
+      status: backendStatus,
+      request_id: payload.request_id,
+      position: payload.position,
+      source: payload.source || 'recommendations',
+    });
+    return response.data;
+  }
+
+  async getBookStatusList(status?: string): Promise<Array<{
+    book_id: string;
+    status: string;
+    updated_at: string;
+    title?: string;
+    author_name?: string;
+  }>> {
+    const params = status ? { status } : {};
+    const response = await this.client.get<
+      Array<{
+        book_id: string;
+        status: string;
+        updated_at: string;
+        title?: string;
+        author_name?: string;
+      }>
+    >('/profile/book-status', { params });
+    return response.data;
+  }
 }
 
 export const apiClient = new ApiClient();

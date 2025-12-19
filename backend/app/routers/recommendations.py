@@ -14,7 +14,9 @@ from app.schemas.recommendation import RecommendationItem, RecommendationRequest
 from app.schemas.onboarding import OnboardingPayload
 from app.core.auth import get_current_user
 from app.models import User
-from app.utils.instrumentation import log_event_best_effort
+from app.utils.instrumentation import log_event
+from app.utils.timing import now_ms, log_elapsed
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +29,9 @@ async def get_recommendations(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    # Timing: start of request
+    t0 = now_ms()
+    
     # Hard clamp to avoid any weirdness if this endpoint is reused elsewhere
     if limit > 5:
         limit = 5
@@ -34,25 +39,49 @@ async def get_recommendations(
     user_id = user.id
     request_id = str(uuid_lib.uuid4())
     
+    # Timing: after auth/user lookup
+    if settings.DEBUG:
+        t1 = log_elapsed(t0, f"req_id={request_id} user={user_id} auth_lookup", logger.debug)
+    else:
+        t1 = now_ms()
+    
     logger.info("Fetching recommendations for user %s (auth_user_id=%s)", user_id, user.auth_user_id)
 
     try:
+        # Timing: before recommendation engine call
+        if settings.DEBUG:
+            t2 = log_elapsed(t1, f"req_id={request_id} user={user_id} before_recommendations", logger.debug)
+        else:
+            t2 = now_ms()
+        
         items = recommendation_engine.get_personalized_recommendations(
             db=db,
             user_id=user_id,
             limit=limit,
             debug=debug,
         )
+        
+        # Timing: after recommendation engine call
+        if settings.DEBUG:
+            t3 = log_elapsed(t2, f"req_id={request_id} user={user_id} recommendations_engine", logger.debug)
+        else:
+            t3 = now_ms()
     except NotEnoughSignalError as e:
         # User has zero signal - fall back to generic recommendations
         logger.info(
             "User %s has no signal, falling back to generic recommendations: %s",
             user_id, str(e)
         )
+        if settings.DEBUG:
+            t_fallback = log_elapsed(t2, f"req_id={request_id} user={user_id} before_fallback", logger.debug)
         items = recommendation_engine.get_generic_recommendations(
             db=db,
             limit=limit,
         )
+        if settings.DEBUG:
+            t3 = log_elapsed(t_fallback, f"req_id={request_id} user={user_id} fallback_recommendations", logger.debug)
+        else:
+            t3 = now_ms()
     except Exception as e:
         # Log full traceback to server console
         logger.exception("Error while generating recommendations for user %s", user_id)
@@ -62,10 +91,17 @@ async def get_recommendations(
             detail=f"Failed to get recommendations: {e}",
         )
     
-    # Log impression event (best-effort, non-blocking)
+    # Timing: before event logging
+    if settings.DEBUG:
+        t4 = log_elapsed(t3, f"req_id={request_id} user={user_id} before_event_log", logger.debug)
+    else:
+        t4 = now_ms()
+    
+    # Log impression event
     book_ids = [item.book_id for item in items]
     top_book_id = book_ids[0] if book_ids else None
-    log_event_best_effort(
+    log_event(
+        db=db,
         event_name="recommendations_impression",
         user_id=user_id,
         properties={
@@ -76,6 +112,14 @@ async def get_recommendations(
         },
         request_id=request_id,
     )
+    db.commit()
+    
+    # Timing: before response serialization
+    if settings.DEBUG:
+        t5 = log_elapsed(t4, f"req_id={request_id} user={user_id} event_log_commit", logger.debug)
+        t6 = log_elapsed(t5, f"req_id={request_id} user={user_id} response_serialize", logger.debug)
+        total = now_ms() - t0
+        logger.debug(f"req_id={request_id} user={user_id} total={total:.2f}ms limit={limit} count={len(items)}")
     
     return RecommendationsResponse(request_id=request_id, items=items)
 
@@ -153,10 +197,11 @@ async def get_recommendations_post(
             detail=f"Failed to get recommendations: {e}",
         )
     
-    # Log impression event (best-effort, non-blocking)
+    # Log impression event
     book_ids = [item.book_id for item in items]
     top_book_id = book_ids[0] if book_ids else None
-    log_event_best_effort(
+    log_event(
+        db=db,
         event_name="recommendations_impression",
         user_id=user_id,
         properties={
@@ -167,6 +212,7 @@ async def get_recommendations_post(
         },
         request_id=request_id,
     )
+    db.commit()
     
     return RecommendationsResponse(request_id=request_id, items=items)
 

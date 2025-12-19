@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Text, Boolean, DateTime, ForeignKey, Enum as SQLEnum, JSON, ARRAY, Float
+from sqlalchemy import Column, String, Integer, Text, Boolean, DateTime, ForeignKey, Enum as SQLEnum, JSON, ARRAY, Float, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 import uuid
@@ -179,4 +179,24 @@ class EventLog(Base):
     properties = Column(JSONB, nullable=True)
     request_id = Column(String, nullable=True)
     session_id = Column(String, nullable=True)
+
+
+class UserBookStatusModel(Base):
+    """
+    Latest book status for each user-book pair.
+    This table stores the current status (interested, read_liked, read_disliked, not_for_me)
+    and powers the Profile dashboard lists.
+    """
+    __tablename__ = "user_book_status"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    book_id = Column(String, nullable=False, index=True)  # Using String to match book IDs (may be UUID or string)
+    status = Column(String, nullable=False)  # one of: interested | read_liked | read_disliked | not_for_me
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    __table_args__ = (
+        UniqueConstraint('user_id', 'book_id', name='uq_user_book_status_user_book'),
+    )
 
