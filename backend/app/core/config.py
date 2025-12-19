@@ -49,6 +49,20 @@ class Settings(BaseSettings):
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        
+        # Normalize empty strings: if .env has empty values, fall back to environment variables
+        # This prevents empty .env lines (e.g., "DATABASE_URL=") from overriding shell env vars
+        import os
+        critical_fields = ["DATABASE_URL", "SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_JWT_SECRET"]
+        for field in critical_fields:
+            value = getattr(self, field, None)
+            if isinstance(value, str) and value.strip() == "":
+                # Empty string in .env - check if environment variable is set
+                env_value = os.getenv(field)
+                if env_value and env_value.strip():
+                    # Use environment variable instead of empty .env value
+                    setattr(self, field, env_value)
+        
         # Normalize Supabase URL to avoid issuer mismatch like ...co//auth/v1
         if self.SUPABASE_URL:
             self.SUPABASE_URL = self.SUPABASE_URL.rstrip("/")

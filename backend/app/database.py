@@ -1,6 +1,10 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import declarative_base, sessionmaker
 from app.core.config import settings
+import logging
+import time
+
+logger = logging.getLogger(__name__)
 
 # Debug: Print the database URL to verify which database we're connecting to (password masked)
 print("READAR DATABASE_URL =", settings.get_masked_database_url())
@@ -9,8 +13,30 @@ print("READAR DATABASE_URL =", settings.get_masked_database_url())
 engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,  # Verify connections before using them
-    echo=settings.DEBUG,  # Log SQL queries in debug mode
+    echo=False,  # Keep echo off - we'll log slow queries separately
 )
+
+# Add slow query logging (DEBUG mode only)
+if settings.DEBUG:
+    SLOW_QUERY_THRESHOLD_MS = 200.0
+    
+    @event.listens_for(engine, "before_cursor_execute")
+    def receive_before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+        """Store query start time before execution."""
+        context._query_start_time = time.perf_counter()
+    
+    @event.listens_for(engine, "after_cursor_execute")
+    def receive_after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+        """Log slow queries after execution."""
+        if hasattr(context, "_query_start_time"):
+            elapsed_ms = (time.perf_counter() - context._query_start_time) * 1000
+            if elapsed_ms >= SLOW_QUERY_THRESHOLD_MS:
+                # Get first line of statement for brevity
+                statement_first_line = statement.split("\n")[0].strip()[:100]
+                logger.warning(
+                    f"SLOW_QUERY: {elapsed_ms:.2f}ms - {statement_first_line}"
+                )
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
