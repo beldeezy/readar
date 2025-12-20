@@ -20,10 +20,23 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Step 1: Add new enum values to the existing enum type
+    # Step 0: Create the enum type if it doesn't exist (self-sufficient migration)
+    # This ensures the migration works even on a fresh database
+    op.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'userbookstatus') THEN
+                CREATE TYPE userbookstatus AS ENUM ('interested', 'read_liked', 'read_disliked', 'not_interested');
+            END IF;
+        END
+        $$;
+    """)
+    
+    # Step 1: Add new enum values to the existing enum type (safe if already exists)
     op.execute("ALTER TYPE userbookstatus ADD VALUE IF NOT EXISTS 'read_liked'")
     op.execute("ALTER TYPE userbookstatus ADD VALUE IF NOT EXISTS 'read_disliked'")
     op.execute("ALTER TYPE userbookstatus ADD VALUE IF NOT EXISTS 'interested'")
+    op.execute("ALTER TYPE userbookstatus ADD VALUE IF NOT EXISTS 'not_interested'")
     
     # Step 2: Migrate existing data
     # Map "read" -> "read_liked" (default assumption for existing read books)
