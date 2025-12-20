@@ -38,30 +38,48 @@ def upgrade() -> None:
     op.execute("ALTER TYPE userbookstatus ADD VALUE IF NOT EXISTS 'interested'")
     op.execute("ALTER TYPE userbookstatus ADD VALUE IF NOT EXISTS 'not_interested'")
     
-    # Step 2: Migrate existing data
+    # Step 2: Migrate existing data (only if table exists)
     # Map "read" -> "read_liked" (default assumption for existing read books)
     op.execute("""
-        UPDATE user_book_interactions 
-        SET status = 'read_liked'::userbookstatus 
-        WHERE status = 'read'::userbookstatus
+        DO $$
+        BEGIN
+            IF to_regclass('public.user_book_interactions') IS NOT NULL THEN
+                UPDATE user_book_interactions 
+                SET status = 'read_liked'::userbookstatus 
+                WHERE status = 'read'::userbookstatus;
+            END IF;
+        END
+        $$;
     """)
     
     # Map "interesting" -> "interested"
     op.execute("""
-        UPDATE user_book_interactions 
-        SET status = 'interested'::userbookstatus 
-        WHERE status = 'interesting'::userbookstatus
+        DO $$
+        BEGIN
+            IF to_regclass('public.user_book_interactions') IS NOT NULL THEN
+                UPDATE user_book_interactions 
+                SET status = 'interested'::userbookstatus 
+                WHERE status = 'interesting'::userbookstatus;
+            END IF;
+        END
+        $$;
     """)
     
     # Step 3: Remove old enum values by recreating the enum type
     # First, create a new enum type with only the new values
     op.execute("CREATE TYPE userbookstatus_new AS ENUM ('read_liked', 'read_disliked', 'interested', 'not_interested')")
     
-    # Update the column to use the new enum type
+    # Update the column to use the new enum type (only if table exists)
     op.execute("""
-        ALTER TABLE user_book_interactions 
-        ALTER COLUMN status TYPE userbookstatus_new 
-        USING status::text::userbookstatus_new
+        DO $$
+        BEGIN
+            IF to_regclass('public.user_book_interactions') IS NOT NULL THEN
+                ALTER TABLE user_book_interactions 
+                ALTER COLUMN status TYPE userbookstatus_new 
+                USING status::text::userbookstatus_new;
+            END IF;
+        END
+        $$;
     """)
     
     # Drop the old enum type and rename the new one
@@ -73,26 +91,44 @@ def downgrade() -> None:
     # Step 1: Create old enum type
     op.execute("CREATE TYPE userbookstatus_old AS ENUM ('read', 'interesting', 'not_interested')")
     
-    # Step 2: Migrate data back
+    # Step 2: Migrate data back (only if table exists)
     # Map "read_liked" and "read_disliked" -> "read"
     op.execute("""
-        UPDATE user_book_interactions 
-        SET status = 'read'::userbookstatus_old 
-        WHERE status::text IN ('read_liked', 'read_disliked')
+        DO $$
+        BEGIN
+            IF to_regclass('public.user_book_interactions') IS NOT NULL THEN
+                UPDATE user_book_interactions 
+                SET status = 'read'::userbookstatus_old 
+                WHERE status::text IN ('read_liked', 'read_disliked');
+            END IF;
+        END
+        $$;
     """)
     
     # Map "interested" -> "interesting"
     op.execute("""
-        UPDATE user_book_interactions 
-        SET status = 'interesting'::userbookstatus_old 
-        WHERE status::text = 'interested'
+        DO $$
+        BEGIN
+            IF to_regclass('public.user_book_interactions') IS NOT NULL THEN
+                UPDATE user_book_interactions 
+                SET status = 'interesting'::userbookstatus_old 
+                WHERE status::text = 'interested';
+            END IF;
+        END
+        $$;
     """)
     
-    # Step 3: Update the column to use the old enum type
+    # Step 3: Update the column to use the old enum type (only if table exists)
     op.execute("""
-        ALTER TABLE user_book_interactions 
-        ALTER COLUMN status TYPE userbookstatus_old 
-        USING status::text::userbookstatus_old
+        DO $$
+        BEGIN
+            IF to_regclass('public.user_book_interactions') IS NOT NULL THEN
+                ALTER TABLE user_book_interactions 
+                ALTER COLUMN status TYPE userbookstatus_old 
+                USING status::text::userbookstatus_old;
+            END IF;
+        END
+        $$;
     """)
     
     # Drop the new enum type and rename the old one
