@@ -282,8 +282,7 @@ def get_generic_recommendations(
         why_signals = _build_why_signals(None, book)
         
         # Build why_this_book for generic recs (no onboarding, so use empty factors)
-        empty_factors = ScoreFactors()
-        why_this_book_text = build_why_this_book(empty_factors, None, book)
+        why_this_book_text = build_why_this_book_v2(None, book, None, None)
         
         relevancy_score = 0.0  # generic recs, no personalized score
         recommendations.append(
@@ -809,6 +808,261 @@ def build_why_this_book(
         return "This is a solid foundational pick to build clarity and execution momentum."
     
     return result
+
+
+def build_why_this_book_v2(
+    user_ctx: Optional[Dict[str, Any]],
+    book: Book,
+    matched_insights: Optional[List[Insight]] = None,
+    dominant_insight: Optional[str] = None,
+) -> str:
+    """
+    Build a concise, human-readable "Why this book?" explanation.
+    
+    Priority order:
+    1. If matched_insights exist: use top 1-2 insights by weight + book promise
+    2. Else if dominant_insight exists: use it + book categories/functional tags
+    3. Else: simple fallback (stage fit + categories)
+    
+    Returns 1-2 sentences, max 240 chars. Never shows raw tags.
+    
+    Args:
+        user_ctx: User context dict (from _build_user_context) or None
+        book: Book model instance
+        matched_insights: List of matched insights (from scoring)
+        dominant_insight: Dominant insight key (from _get_dominant_insight) or None
+    """
+    parts: List[str] = []
+    
+    # Helper: Normalize stage display
+    def normalize_stage(stage_value: str) -> str:
+        """Convert stage value to display format."""
+        stage_map = {
+            "idea": "Idea",
+            "pre-revenue": "Pre-revenue",
+            "pre_revenue": "Pre-revenue",
+            "early-revenue": "Early revenue",
+            "early_revenue": "Early revenue",
+            "scaling": "Scaling",
+        }
+        normalized = stage_value.lower().replace("_", "-")
+        return stage_map.get(normalized, stage_value.replace("-", " ").title())
+    
+    # Helper: Extract value from insight key
+    def extract_insight_value(insight_key: str) -> str:
+        """Extract the value part from an insight key like 'business_stage:pre-revenue'."""
+        if ":" in insight_key:
+            return insight_key.split(":", 1)[1]
+        return insight_key
+    
+    # Helper: Convert insight to plain English phrase
+    def insight_to_phrase(insight: Insight) -> str:
+        """Convert an insight to a human-readable phrase."""
+        key = insight["key"]
+        reason = insight.get("reason", "")
+        
+        # If reason exists, convert it to the right format based on insight type
+        if reason:
+            if key.startswith("business_stage:"):
+                # Reason is like "at the Pre Revenue stage" -> "You're in the Pre-revenue stage"
+                if reason.startswith("at the "):
+                    stage_part = reason[7:]  # "Pre Revenue stage"
+                    # Normalize the stage part
+                    stage_value = extract_insight_value(key)
+                    stage_display = normalize_stage(stage_value)
+                    return f"You're in the {stage_display} stage"
+                return f"You're in the {reason}."
+            elif key.startswith("business_model:"):
+                # Reason is like "building a saas business" -> "This fits a SaaS-style business"
+                if reason.startswith("building a "):
+                    model_part = reason[10:]  # "saas business"
+                    model_display = model_part.replace(" business", "").title()
+                    return f"This fits a {model_display}-style business"
+                return f"This fits a {reason}."
+            elif key.startswith("focus_area:"):
+                # Reason is like "focused on Marketing" -> "It strengthens your Marketing"
+                if reason.startswith("focused on "):
+                    area_part = reason[11:]  # "Marketing"
+                    return f"It strengthens your {area_part}"
+                return f"It strengthens your {reason}."
+            elif key.startswith("bottleneck:"):
+                # Reason is like "facing pricing challenges" -> "It helps with Pricing Challenges"
+                if reason.startswith("facing "):
+                    bottleneck_part = reason[7:]  # "pricing challenges"
+                    # Clean up: title case, trim to ~6 words
+                    words = bottleneck_part.split()[:6]
+                    bottleneck_display = " ".join(words).title()
+                    return f"It helps with {bottleneck_display}"
+                return f"It helps with {reason}."
+            # If reason doesn't match expected patterns, use it as-is
+            return reason
+        
+        # Fallback: parse from key if no reason
+        if key.startswith("business_stage:"):
+            value = extract_insight_value(key)
+            stage_display = normalize_stage(value)
+            return f"You're in the {stage_display} stage"
+        elif key.startswith("business_model:"):
+            value = extract_insight_value(key)
+            model_display = value.replace("-", " ").replace("_", " ").title()
+            return f"This fits a {model_display}-style business"
+        elif key.startswith("focus_area:"):
+            value = extract_insight_value(key)
+            area_display = value.replace("-", " ").replace("_", " ").title()
+            return f"It strengthens your {area_display}"
+        elif key.startswith("bottleneck:"):
+            value = extract_insight_value(key)
+            # Clean up bottleneck: remove punctuation, trim to ~6 words
+            words = value.replace("-", " ").replace("_", " ").split()[:6]
+            bottleneck_display = " ".join(words).title()
+            return f"It helps with {bottleneck_display}"
+        return ""
+    
+    # Helper: Get book promise clause
+    def get_book_promise() -> Optional[str]:
+        """Get a single book promise clause if available."""
+        if book.promise and book.promise.strip():
+            promise = book.promise.strip()
+            # Remove trailing period if present, we'll add it later
+            if promise.endswith("."):
+                promise = promise[:-1]
+            return promise
+        return None
+    
+    # Helper: Get book category/functional tag for fallback
+    def get_book_category_fallback() -> Optional[str]:
+        """Get a single category or functional tag for fallback."""
+        if book.categories and len(book.categories) > 0:
+            return book.categories[0]
+        if book.functional_tags and len(book.functional_tags) > 0:
+            return book.functional_tags[0]
+        return None
+    
+    # PRIORITY A: If matched_insights exist
+    if matched_insights and len(matched_insights) > 0:
+        # Sort by weight (descending) and take top 1-2
+        sorted_insights = sorted(matched_insights, key=lambda x: x.get("weight", 0.0), reverse=True)
+        top_insights = sorted_insights[:2]
+        
+        insight_phrases = []
+        for insight in top_insights:
+            phrase = insight_to_phrase(insight)
+            if phrase:
+                insight_phrases.append(phrase)
+        
+        if insight_phrases:
+            # Combine insights naturally
+            if len(insight_phrases) == 1:
+                parts.append(insight_phrases[0] + ".")
+            else:
+                # For multiple insights, combine them more naturally
+                # First insight gets full sentence, second gets "and" prefix
+                first = insight_phrases[0]
+                second = insight_phrases[1]
+                # Remove "You're" or "This" from second if present to avoid repetition
+                if second.startswith("You're "):
+                    second = second[7:]
+                elif second.startswith("This "):
+                    second = second[5:]
+                combined = f"{first} and {second}"
+                parts.append(combined + ".")
+            
+            # Add book promise if available
+            promise = get_book_promise()
+            if promise:
+                parts.append(promise + ".")
+            
+            # Build result
+            result = " ".join(parts).strip()
+            if result:
+                # Enforce length limit
+                if len(result) > 240:
+                    # Truncate at last space before 240 chars
+                    truncated = result[:237]
+                    last_space = truncated.rfind(" ")
+                    if last_space > 180:  # Only truncate if we have enough content
+                        result = truncated[:last_space] + "..."
+                    else:
+                        result = truncated + "..."
+                # Clean up: remove double spaces, ensure ends with period
+                result = " ".join(result.split())
+                if not result.endswith("."):
+                    result += "."
+                return result
+    
+    # PRIORITY B: Else if dominant_insight exists
+    if dominant_insight:
+        # Parse dominant_insight (it's a key like "business_stage:pre-revenue")
+        # Create a mock insight to reuse insight_to_phrase
+        mock_insight: Insight = {
+            "key": dominant_insight,
+            "weight": 0.0,
+            "reason": "",
+        }
+        phrase = insight_to_phrase(mock_insight)
+        if phrase:
+            parts.append(phrase + ".")
+        
+        # Add supporting clause from book categories/functional tags
+        category = get_book_category_fallback()
+        if category:
+            parts.append(f"This book focuses on {category}.")
+        
+        result = " ".join(parts).strip()
+        if result:
+            # Enforce length limit
+            if len(result) > 240:
+                truncated = result[:237]
+                last_space = truncated.rfind(" ")
+                if last_space > 180:
+                    result = truncated[:last_space] + "..."
+                else:
+                    result = truncated + "..."
+            result = " ".join(result.split())
+            if not result.endswith("."):
+                result += "."
+            return result
+    
+    # PRIORITY C: Fallback (no insight signals)
+    if user_ctx:
+        business_stage = user_ctx.get("business_stage")
+        if business_stage:
+            stage_display = normalize_stage(business_stage)
+            parts.append(f"You're in the {stage_display} stage.")
+        
+        category = get_book_category_fallback()
+        if category:
+            parts.append(f"This book focuses on {category}.")
+        
+        result = " ".join(parts).strip()
+        if result:
+            # Enforce length limit
+            if len(result) > 240:
+                truncated = result[:237]
+                last_space = truncated.rfind(" ")
+                if last_space > 180:
+                    result = truncated[:last_space] + "..."
+                else:
+                    result = truncated + "..."
+            result = " ".join(result.split())
+            if not result.endswith("."):
+                result += "."
+            return result
+    
+    # Ultimate fallback
+    promise = get_book_promise()
+    if promise:
+        result = promise + "."
+        if len(result) > 240:
+            truncated = result[:237]
+            last_space = truncated.rfind(" ")
+            if last_space > 180:
+                result = truncated[:last_space] + "..."
+            else:
+                result = truncated + "..."
+        return result
+    
+    return "This is a solid foundational pick to build clarity and execution momentum."
 
 
 def _build_why_signals(
@@ -1894,7 +2148,8 @@ def get_personalized_recommendations(
         # Build why_this_book paragraph from score factors and matched insights
         score_factors = book_score_factors.get(book_id, ScoreFactors())
         matched_insights = book_matched_insights.get(book_id, [])
-        why_this_book_text = build_why_this_book(score_factors, onboarding, book, matched_insights)
+        dominant_insight = book_dominant_insights.get(book_id)
+        why_this_book_text = build_why_this_book_v2(user_ctx, book, matched_insights, dominant_insight)
         
         # Build why_signals (reason chips)
         why_signals = _build_why_signals(onboarding, book)
@@ -2223,7 +2478,8 @@ def get_recommendations_from_payload(
         # Build why_this_book paragraph from score factors and matched insights
         score_factors = book_score_factors.get(book_id, ScoreFactors())
         matched_insights = book_matched_insights.get(book_id, [])
-        why_this_book_text = build_why_this_book(score_factors, onboarding, book, matched_insights)
+        dominant_insight = book_dominant_insights.get(book_id)
+        why_this_book_text = build_why_this_book_v2(user_ctx, book, matched_insights, dominant_insight)
         
         # Build why_signals (reason chips)
         why_signals = _build_why_signals(onboarding, book)
@@ -2540,9 +2796,11 @@ def get_recommendations_for_user(
     
     # Build RecommendationItem objects
     items: List[RecommendationItem] = []
+    # Build user_ctx for v2 function
+    user_ctx = _build_user_context(onboarding)
     for book, score, why, factors in top:
         # Build why_this_book paragraph from score factors
-        why_this_book_text = build_why_this_book(factors, onboarding, book)
+        why_this_book_text = build_why_this_book_v2(user_ctx, book, None, None)
         
         # Build why_signals (reason chips)
         why_signals = _build_why_signals(onboarding, book)
