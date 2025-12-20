@@ -30,16 +30,11 @@ logging.basicConfig(
 # Server fingerprint for debugging
 SERVER_BOOT_ID = f"readar-backend::{os.getpid()}::{datetime.utcnow().isoformat()}"
 
-app = FastAPI(debug=True)
+app = FastAPI(debug=settings.DEBUG)
 
-# CORS configuration for local dev
+# CORS configuration - reads from FRONTEND_ORIGINS or CORS_ORIGINS env vars
 # Note: allow_headers=["*"] includes Authorization header needed for Bearer tokens
-ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:4173",   # vite preview
-    "http://127.0.0.1:4173",   # vite preview
-]
+ALLOWED_ORIGINS = settings.cors_origins_list
 
 app.add_middleware(
     CORSMiddleware,
@@ -68,6 +63,10 @@ app.include_router(admin_debug.router, prefix="/admin")
 def on_startup() -> None:
     print(f"[BOOT] {SERVER_BOOT_ID}")
     init_db()
+    
+    # Log CORS allowed origins when DEBUG is enabled
+    if settings.DEBUG:
+        print(f"[CORS] Allowed origins: {ALLOWED_ORIGINS}")
     
     # Dev-only: Print registered routes for debugging
     if settings.DEBUG:
