@@ -5,13 +5,14 @@ Revises: ee4e43888fe6
 Create Date: 2025-12-10
 
 """
+from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
 revision: str = "d26b8527d18d"
-down_revision: str = "ee4e43888fe6"
+down_revision: Union[str, Sequence[str], None] = ("ee4e43888fe6", "6fb58de6fce8")  # Merge point: depends on both branches
 branch_labels = None
 depends_on = None
 
