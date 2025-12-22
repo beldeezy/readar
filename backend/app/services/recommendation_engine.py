@@ -2014,21 +2014,41 @@ def get_personalized_recommendations(
         # Store base score before insight and status adjustments
         base_scores[book.id] = total_scores[book.id]
         
+        # Store original score BEFORE status adjustments (for debug tracking)
+        # This must happen before status adjustments so we can reference it safely
+        original_scores[book.id] = total_scores[book.id]
+        
         # Apply score adjustments based on user_book_status
         if status == "interested":
+            # Store score before adjustment
+            score_before_adjustment = total_scores[book.id]
             total_scores[book.id] += 0.3
+            # Safe access: original_score should already be set above, but use .get() as fallback
+            original_score = original_scores.get(book.id)
+            if original_score is None:
+                # Fallback: use the score we just stored before adjustment
+                original_score = score_before_adjustment
+                logger.warning("original_scores missing key for book_id=%s user_id=%s, using score_before_adjustment as fallback", book.id, user_id)
             status_adjustments[book.id] = {
                 "status": status,
                 "adjustment": 0.3,
-                "original_score": original_scores[book.id],
+                "original_score": original_score,
                 "adjusted_score": total_scores[book.id],
             }
         elif status == "read_liked":
+            # Store score before adjustment
+            score_before_adjustment = total_scores[book.id]
             total_scores[book.id] += 0.5
+            # Safe access: original_score should already be set above, but use .get() as fallback
+            original_score = original_scores.get(book.id)
+            if original_score is None:
+                # Fallback: use the score we just stored before adjustment
+                original_score = score_before_adjustment
+                logger.warning("original_scores missing key for book_id=%s user_id=%s, using score_before_adjustment as fallback", book.id, user_id)
             status_adjustments[book.id] = {
                 "status": status,
                 "adjustment": 0.5,
-                "original_score": original_scores[book.id],
+                "original_score": original_score,
                 "adjusted_score": total_scores[book.id],
             }
         
@@ -2045,9 +2065,6 @@ def get_personalized_recommendations(
         
         # Add insight score to total
         total_scores[book.id] += insight_score_total
-        
-        # Store original score before status adjustments (after insights)
-        original_scores[book.id] = total_scores[book.id]
 
         # Collect reasons for why_this_book explanation
         reasons: List[str] = []
@@ -2189,6 +2206,11 @@ def get_personalized_recommendations(
     for book_id in top_ids:
         book = books_by_id.get(book_id)
         if not book:
+            continue
+        
+        # Defensive check: ensure book has expected attributes
+        if not hasattr(book, "id"):
+            logger.error("Expected book object with .id attribute, got: %r (type: %s)", book, type(book))
             continue
 
         # Build why_this_book paragraph from score factors and matched insights

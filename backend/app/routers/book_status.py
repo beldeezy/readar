@@ -1,11 +1,11 @@
 """
 Book status endpoints for persisting user book status and powering Profile dashboard.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Literal
 from uuid import UUID
 from datetime import datetime
 import logging
@@ -151,9 +151,12 @@ async def set_book_status(
         )
 
 
+StatusLiteral = Literal["interested", "read_liked", "read_disliked", "not_for_me", "not_interested"]
+
 @router.get("/profile/book-status", response_model=List[BookStatusResponse])
 async def get_book_status_list(
-    status_filter: Optional[str] = None,
+    status: Optional[StatusLiteral] = Query(default=None),
+    status_filter_legacy: Optional[str] = Query(default=None, alias="status_filter"),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -161,7 +164,8 @@ async def get_book_status_list(
     Get list of books with their statuses for the Profile dashboard.
     
     Query params:
-    - status: optional filter (interested|read_liked|read_disliked|not_for_me)
+    - status: optional filter (interested|read_liked|read_disliked|not_for_me|not_interested)
+    - status_filter: legacy alias for status (backwards compatibility)
     
     Returns array of book statuses, optionally joined with book titles/authors if available.
     """
@@ -169,12 +173,13 @@ async def get_book_status_list(
         UserBookStatusModel.user_id == user.id
     )
     
-    # Apply status filter if provided
-    if status_filter:
-        # Map "not_for_me" to handle both frontend and backend naming
-        if status_filter == "not_interested":
-            status_filter = "not_for_me"
-        query = query.filter(UserBookStatusModel.status == status_filter)
+    # Apply status filter if provided (support both new 'status' and legacy 'status_filter')
+    status_val = status or status_filter_legacy
+    if status_val:
+        # Map "not_interested" to "not_for_me" to handle both frontend and backend naming
+        if status_val == "not_interested":
+            status_val = "not_for_me"
+        query = query.filter(UserBookStatusModel.status == status_val)
     
     # Order by most recently updated
     query = query.order_by(UserBookStatusModel.updated_at.desc())
