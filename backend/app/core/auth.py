@@ -56,10 +56,15 @@ def _decode_supabase_jwt(token: str) -> Dict[str, Any]:
     Assumes HS256 using SUPABASE_JWT_SECRET (common for Supabase projects).
     Validates issuer and audience.
     """
-    if not settings.SUPABASE_JWT_SECRET:
-        # Fail loudly if config is missing
-        logger.error("SUPABASE_JWT_SECRET is not set")
-        raise _unauthorized("Server auth configuration missing")
+    # Check Supabase configuration before attempting to decode
+    try:
+        settings.require_supabase()
+    except RuntimeError as e:
+        logger.error(f"Supabase configuration missing: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Supabase environment variables not configured. Authentication is not available.",
+        )
 
     try:
         payload = jwt.decode(

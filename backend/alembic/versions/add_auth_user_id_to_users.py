@@ -1,7 +1,7 @@
 """add_auth_user_id_to_users
 
 Revision ID: add_auth_user_id
-Revises: f1a2b3c4d5e6
+Revises: 6fb58de6fce8
 Create Date: 2025-01-20
 
 """
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = "add_auth_user_id"
-down_revision: str = "f1a2b3c4d5e6"
+down_revision: str = "6fb58de6fce8"  # Linear chain: comes after enum update
 branch_labels = None
 depends_on = None
 

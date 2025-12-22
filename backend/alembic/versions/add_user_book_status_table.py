@@ -12,7 +12,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = "add_user_book_status_table"
-down_revision: str = "add_event_logs_table"
+down_revision: str = "add_event_logs_table"  # Linear chain after add_event_logs_table
 branch_labels = None
 depends_on = None
 

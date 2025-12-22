@@ -1,7 +1,7 @@
 """add book insight fields
 
 Revision ID: cb17facfbf15
-Revises: f1a2b3c4d5e6
+Revises: add_auth_user_id
 Create Date: 2025-12-15 12:16:05.499701
 
 """
@@ -14,7 +14,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = 'cb17facfbf15'
-down_revision: Union[str, None] = 'f1a2b3c4d5e6'
+down_revision: Union[str, None] = 'add_auth_user_id'  # Linear chain: comes after add_auth_user_id
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

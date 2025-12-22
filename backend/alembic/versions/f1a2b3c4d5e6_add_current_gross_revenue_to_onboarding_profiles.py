@@ -1,7 +1,7 @@
 """add current_gross_revenue to onboarding_profiles
 
 Revision ID: f1a2b3c4d5e6
-Revises: aeba55c429cd
+Revises: 000000000000
 Create Date: 2025-01-15
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = "f1a2b3c4d5e6"
-down_revision: str = "aeba55c429cd"
+down_revision: str = "000000000000"  # Depends on baseline that creates onboarding_profiles table
 branch_labels = None
 depends_on = None
 

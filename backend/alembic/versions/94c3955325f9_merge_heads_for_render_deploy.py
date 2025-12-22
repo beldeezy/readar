@@ -1,11 +1,11 @@
-"""merge auth_user_id and book_insight_fields
+"""merge heads for render deploy
 
-Revision ID: 9b0a1aada2ec
-Revises: cb17facfbf15
-Create Date: 2025-12-18 16:47:43.773947
+Revision ID: 94c3955325f9
+Revises: merge_heads_book_status_auth
+Create Date: 2025-12-20 09:01:53.183963
 
 Note: This was originally a merge migration, but we've linearized the chain.
-add_auth_user_id -> cb17facfbf15, so this now just follows cb17facfbf15.
+This now just follows merge_heads_book_status_auth.
 """
 from typing import Sequence, Union
 
@@ -14,8 +14,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '9b0a1aada2ec'
-down_revision: Union[str, None] = 'cb17facfbf15'  # Linear chain: comes after cb17facfbf15 (which comes after add_auth_user_id)
+revision: str = '94c3955325f9'
+down_revision: Union[str, None] = 'merge_heads_book_status_auth'  # Linear chain: comes after merge_heads_book_status_auth
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -495,18 +495,74 @@ The `POST /recommendations/preview` endpoint:
 
 ## Deployment
 
-### Backend
+### Backend (Render)
 
-1. Set up PostgreSQL database (Supabase, Railway, Neon, etc.)
-2. Set environment variables on your hosting platform
-3. Deploy to Render/Railway/Fly.io/Heroku
-4. Configure Stripe webhook URL: `https://your-backend.com/billing/webhook`
+The backend can be deployed to Render using the `render.yaml` blueprint at the repo root.
+
+#### Prerequisites
+
+1. **Create a Render account** and connect your GitHub repository
+2. **Create a PostgreSQL database** in Render (or use an existing one)
+3. **Get your database connection string** from Render dashboard
+
+#### Deploy Steps
+
+1. **Import Blueprint**:
+   - Go to Render Dashboard → New → Blueprint
+   - Connect your GitHub repository
+   - Render will detect `render.yaml` and create the `readar-backend` service
+
+2. **Set Environment Variables** in Render Dashboard:
+   
+   **Required:**
+   - `DATABASE_URL` - PostgreSQL connection string from Render Postgres
+     - **Note:** Render needs `DATABASE_URL`; Supabase vars required for magic link auth
+     - Alembic migrations will run successfully with only `DATABASE_URL` set
+     - The backend will start without Supabase vars, but authentication features will return errors
+   
+   **Required for Authentication (Magic Link Auth):**
+   - `SUPABASE_URL` - Your Supabase project URL
+   - `SUPABASE_ANON_KEY` - Supabase anonymous/public key
+   - `SUPABASE_JWT_SECRET` - Supabase JWT secret (from Project Settings → API)
+   
+   **Optional (if using Stripe):**
+   - `STRIPE_SECRET_KEY` - Stripe secret key
+   - `STRIPE_PUBLISHABLE_KEY` - Stripe publishable key
+   - `STRIPE_WEBHOOK_SECRET` - Stripe webhook secret
+   - `STRIPE_PRICE_ID` - Stripe price ID
+   
+   **CORS Configuration:**
+   - `FRONTEND_ORIGINS` - Comma-separated list of allowed origins (e.g., `https://app.example.com,https://www.example.com`)
+     - Defaults to `http://localhost:5173` if not set
+     - Add your Vercel frontend domain here after deploying frontend
+
+3. **Deploy**:
+   - Render will automatically build and deploy when you push to your main branch
+   - The deployment runs `alembic upgrade head` automatically before starting the server
+   - Health checks are performed at `/health`
+
+4. **Configure Stripe Webhook** (if using Stripe):
+   - Set webhook URL in Stripe Dashboard: `https://your-backend.onrender.com/api/billing/webhook`
+
+#### Notes
+
+- The `render.yaml` blueprint configures:
+  - Automatic Alembic migrations on deploy (`alembic upgrade head`)
+  - Health check endpoint at `/health`
+  - Production-safe start command (binds to `0.0.0.0` and uses `$PORT`)
+  - Environment: `ENV=production`, `DEBUG=false`
+- **Render needs `DATABASE_URL`; Supabase vars required for magic link auth**
+  - Alembic migrations will run successfully with only `DATABASE_URL` set
+  - The backend will start without Supabase vars, but authentication features will return a 500 error with a clear message
+- Local development (`make dev-backend`) remains unchanged and unaffected
+- All secrets should be set in Render Dashboard, not committed to git
 
 ### Frontend
 
 1. Build the app: `npm run build`
 2. Deploy to Vercel/Netlify
 3. Set environment variables in deployment settings
+4. Update `FRONTEND_ORIGINS` in Render backend with your frontend domain
 
 ## Environment Variables Summary
 
