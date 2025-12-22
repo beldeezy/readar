@@ -1,16 +1,11 @@
 """merge heads for book status + auth fields
 
 Revision ID: 80a813719b89
-Revises: 9b0a1aada2ec, add_user_book_status_table
+Revises: add_user_book_status_table
 Create Date: 2025-01-XX
 
-This merge migration combines two parallel branches:
-- 9b0a1aada2ec: merge of auth_user_id and book_insight_fields
-- add_user_book_status_table: adds user_book_status table
-
-After this merge, both branches are unified into a single head.
-The DB is already stamped at this revision, so this migration file
-restores the missing revision that the database expects.
+Note: This was originally a merge migration, but we've linearized the chain.
+9b0a1aada2ec -> add_event_logs_table -> add_user_book_status_table, so this now just follows add_user_book_status_table.
 """
 from typing import Sequence, Union
 
@@ -20,7 +15,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '80a813719b89'
-down_revision: Union[str, Sequence[str], None] = ('9b0a1aada2ec', 'add_user_book_status_table')
+down_revision: Union[str, Sequence[str], None] = 'add_user_book_status_table'  # Linear chain: comes after add_user_book_status_table
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

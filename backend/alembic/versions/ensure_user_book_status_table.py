@@ -18,7 +18,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = "ensure_user_book_status_table"
-down_revision: str = "80a813719b89"
+down_revision: str = "80a813719b89"  # Linear chain: comes after 80a813719b89
 branch_labels = None
 depends_on = None
 

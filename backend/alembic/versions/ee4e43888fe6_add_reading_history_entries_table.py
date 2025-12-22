@@ -1,7 +1,7 @@
 """create reading_history_entries table
 
 Revision ID: ee4e43888fe6
-Revises: 6fb58de6fce8
+Revises: aeba55c429cd
 Create Date: 2025-12-10
 
 """
@@ -12,7 +12,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = "ee4e43888fe6"  # Keep existing revision ID to maintain migration chain
-down_revision: str = "f1a2b3c4d5e6"  # Changed to ensure users table exists (add_auth_user_id modifies users and depends on f1a2b3c4d5e6)
+down_revision: str = "aeba55c429cd"  # Linear chain: comes after onboarding_profiles modifications
 branch_labels = None
 depends_on = None
 

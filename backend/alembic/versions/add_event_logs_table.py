@@ -1,7 +1,7 @@
 """add event_logs table
 
 Revision ID: add_event_logs_table
-Revises: ee4e43888fe6
+Revises: 9b0a1aada2ec
 Create Date: 2025-01-XX
 
 """
@@ -12,7 +12,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = "add_event_logs_table"
-down_revision: str = "ee4e43888fe6"
+down_revision: str = "9b0a1aada2ec"  # Linear chain: comes after 9b0a1aada2ec
 branch_labels = None
 depends_on = None
 

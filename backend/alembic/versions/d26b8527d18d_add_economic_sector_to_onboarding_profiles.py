@@ -1,7 +1,7 @@
 """add economic_sector to onboarding_profiles
 
 Revision ID: d26b8527d18d
-Revises: ee4e43888fe6
+Revises: f1a2b3c4d5e6
 Create Date: 2025-12-10
 
 """
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = "d26b8527d18d"
-down_revision: Union[str, Sequence[str], None] = ("ee4e43888fe6", "6fb58de6fce8")  # Merge point: depends on both branches
+down_revision: Union[str, Sequence[str], None] = "f1a2b3c4d5e6"  # Linear chain: comes after f1a2b3c4d5e6
 branch_labels = None
 depends_on = None
 
