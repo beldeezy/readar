@@ -817,12 +817,19 @@ def build_why_this_book_v2(
     dominant_insight: Optional[str] = None,
 ) -> str:
     """
-    Build a concise, human-readable "Why this book?" explanation.
+    Build a concise, personal "Why this book?" explanation.
+    
+    Requirements:
+    - Limit to 1-2 sentences
+    - Explicitly reference: the user's stated challenge OR business stage OR what the book helps them stop doing
+    - Remove generic phrases and tag lists
+    - Keep all logic deterministic. No new data sources.
     
     Priority order:
-    1. If matched_insights exist: use top 1-2 insights by weight + book promise
-    2. Else if dominant_insight exists: use it + book categories/functional tags
-    3. Else: simple fallback (stage fit + categories)
+    1. If matched_insights exist: use top insight + book promise (personalized to user challenge/stage)
+    2. Else if user_ctx has biggest_challenge: reference challenge + book promise
+    3. Else if user_ctx has business_stage: reference stage + book promise
+    4. Else: simple fallback with book promise
     
     Returns 1-2 sentences, max 240 chars. Never shows raw tags.
     
@@ -940,114 +947,151 @@ def build_why_this_book_v2(
     
     # PRIORITY A: If matched_insights exist
     if matched_insights and len(matched_insights) > 0:
-        # Sort by weight (descending) and take top 1-2
+        # Sort by weight (descending) and take top 1
         sorted_insights = sorted(matched_insights, key=lambda x: x.get("weight", 0.0), reverse=True)
-        top_insights = sorted_insights[:2]
+        top_insight = sorted_insights[0]
         
-        insight_phrases = []
-        for insight in top_insights:
-            phrase = insight_to_phrase(insight)
+        # Get user context for personalization
+        biggest_challenge = user_ctx.get("biggest_challenge") if user_ctx else None
+        business_stage = user_ctx.get("business_stage") if user_ctx else None
+        
+        # Build personalized opening based on insight type
+        insight_key = top_insight.get("key", "")
+        if insight_key.startswith("bottleneck:") and biggest_challenge:
+            # Reference the user's stated challenge directly
+            challenge_text = biggest_challenge.strip()
+            # Capitalize first letter
+            if challenge_text:
+                challenge_text = challenge_text[0].upper() + challenge_text[1:] if len(challenge_text) > 1 else challenge_text.upper()
+            parts.append(f"Since you're facing {challenge_text.lower()}, this book")
+        elif insight_key.startswith("business_stage:") and business_stage:
+            # Reference the user's business stage
+            stage_display = normalize_stage(business_stage)
+            parts.append(f"As you're in the {stage_display} stage, this book")
+        else:
+            # Use insight phrase as opening
+            phrase = insight_to_phrase(top_insight)
             if phrase:
-                insight_phrases.append(phrase)
+                # Make it more personal - convert "You're" to "Since you're" or similar
+                if phrase.startswith("You're "):
+                    phrase = "Since " + phrase.lower()
+                elif phrase.startswith("This "):
+                    phrase = "This book " + phrase[5:].lower()
+                parts.append(phrase)
         
-        if insight_phrases:
-            # Combine insights naturally
-            if len(insight_phrases) == 1:
-                parts.append(insight_phrases[0] + ".")
+        # Add book promise - make it actionable
+        promise = get_book_promise()
+        if promise:
+            # Ensure promise references what it helps them stop doing or achieve
+            promise_lower = promise.lower()
+            if "help" not in promise_lower and "stop" not in promise_lower and "avoid" not in promise_lower:
+                # Add a connector if promise doesn't already have action words
+                if parts:
+                    parts[-1] = parts[-1].rstrip(".") + " helps you " + promise.lower()
+                else:
+                    parts.append(f"This book helps you {promise.lower()}")
             else:
-                # For multiple insights, combine them more naturally
-                # First insight gets full sentence, second gets "and" prefix
-                first = insight_phrases[0]
-                second = insight_phrases[1]
-                # Remove "You're" or "This" from second if present to avoid repetition
-                if second.startswith("You're "):
-                    second = second[7:]
-                elif second.startswith("This "):
-                    second = second[5:]
-                combined = f"{first} and {second}"
-                parts.append(combined + ".")
-            
-            # Add book promise if available
-            promise = get_book_promise()
-            if promise:
-                parts.append(promise + ".")
-            
-            # Build result
-            result = " ".join(parts).strip()
-            if result:
-                # Enforce length limit
-                if len(result) > 240:
-                    # Truncate at last space before 240 chars
+                if parts:
+                    parts[-1] = parts[-1].rstrip(".") + ", " + promise.lower()
+                else:
+                    parts.append(promise)
+        else:
+            # Fallback if no promise
+            if not parts:
+                parts.append("This book directly addresses your current needs.")
+        
+        # Build result - limit to 1-2 sentences
+        result = " ".join(parts).strip()
+        if result:
+            # Enforce length limit (1-2 sentences, ~240 chars max)
+            if len(result) > 240:
+                # Truncate at last sentence boundary before 240 chars
+                sentences = result.split(". ")
+                if len(sentences) > 1:
+                    # Take first sentence if it's reasonable length
+                    first_sentence = sentences[0] + "."
+                    if len(first_sentence) <= 240:
+                        result = first_sentence
+                    else:
+                        # Truncate first sentence
+                        truncated = first_sentence[:237]
+                        last_space = truncated.rfind(" ")
+                        if last_space > 180:
+                            result = truncated[:last_space] + "..."
+                        else:
+                            result = truncated + "..."
+                else:
+                    # Single sentence - truncate at word boundary
                     truncated = result[:237]
                     last_space = truncated.rfind(" ")
-                    if last_space > 180:  # Only truncate if we have enough content
+                    if last_space > 180:
                         result = truncated[:last_space] + "..."
                     else:
                         result = truncated + "..."
-                # Clean up: remove double spaces, ensure ends with period
-                result = " ".join(result.split())
+            # Clean up: remove double spaces, ensure ends with period
+            result = " ".join(result.split())
+            if not result.endswith("."):
+                result += "."
+            return result
+    
+    # PRIORITY B: Reference user's biggest challenge directly
+    if user_ctx:
+        biggest_challenge = user_ctx.get("biggest_challenge")
+        if biggest_challenge:
+            challenge_text = biggest_challenge.strip()
+            # Capitalize first letter
+            if challenge_text:
+                challenge_text = challenge_text[0].upper() + challenge_text[1:] if len(challenge_text) > 1 else challenge_text.upper()
+            parts.append(f"Since you're facing {challenge_text.lower()}, this book")
+            
+            # Add book promise
+            promise = get_book_promise()
+            if promise:
+                promise_lower = promise.lower()
+                if "help" not in promise_lower and "stop" not in promise_lower:
+                    parts[-1] = parts[-1].rstrip(".") + " helps you " + promise.lower()
+                else:
+                    parts[-1] = parts[-1].rstrip(".") + ", " + promise.lower()
+            else:
+                parts[-1] = parts[-1] + " directly addresses this challenge."
+            
+            result = " ".join(parts).strip()
+            if result and len(result) <= 240:
                 if not result.endswith("."):
                     result += "."
                 return result
     
-    # PRIORITY B: Else if dominant_insight exists
-    if dominant_insight:
-        # Parse dominant_insight (it's a key like "business_stage:pre-revenue")
-        # Create a mock insight to reuse insight_to_phrase
-        mock_insight: Insight = {
-            "key": dominant_insight,
-            "weight": 0.0,
-            "reason": "",
-        }
-        phrase = insight_to_phrase(mock_insight)
-        if phrase:
-            parts.append(phrase + ".")
-        
-        # Add supporting clause from book categories/functional tags
-        category = get_book_category_fallback()
-        if category:
-            parts.append(f"This book focuses on {category}.")
-        
-        result = " ".join(parts).strip()
-        if result:
-            # Enforce length limit
-            if len(result) > 240:
-                truncated = result[:237]
-                last_space = truncated.rfind(" ")
-                if last_space > 180:
-                    result = truncated[:last_space] + "..."
-                else:
-                    result = truncated + "..."
-            result = " ".join(result.split())
-            if not result.endswith("."):
-                result += "."
-            return result
-    
-    # PRIORITY C: Fallback (no insight signals)
+    # PRIORITY C: Reference business stage
     if user_ctx:
         business_stage = user_ctx.get("business_stage")
         if business_stage:
             stage_display = normalize_stage(business_stage)
-            parts.append(f"You're in the {stage_display} stage.")
-        
-        category = get_book_category_fallback()
-        if category:
-            parts.append(f"This book focuses on {category}.")
-        
-        result = " ".join(parts).strip()
-        if result:
-            # Enforce length limit
-            if len(result) > 240:
-                truncated = result[:237]
-                last_space = truncated.rfind(" ")
-                if last_space > 180:
-                    result = truncated[:last_space] + "..."
+            parts.append(f"As you're in the {stage_display} stage, this book")
+            
+            # Add book promise
+            promise = get_book_promise()
+            if promise:
+                promise_lower = promise.lower()
+                if "help" not in promise_lower and "stop" not in promise_lower:
+                    parts[-1] = parts[-1].rstrip(".") + " helps you " + promise.lower()
                 else:
-                    result = truncated + "..."
-            result = " ".join(result.split())
-            if not result.endswith("."):
-                result += "."
-            return result
+                    parts[-1] = parts[-1].rstrip(".") + ", " + promise.lower()
+            else:
+                parts[-1] = parts[-1] + " is tailored to your current needs."
+            
+            result = " ".join(parts).strip()
+            if result:
+                if len(result) > 240:
+                    truncated = result[:237]
+                    last_space = truncated.rfind(" ")
+                    if last_space > 180:
+                        result = truncated[:last_space] + "..."
+                    else:
+                        result = truncated + "..."
+                result = " ".join(result.split())
+                if not result.endswith("."):
+                    result += "."
+                return result
     
     # Ultimate fallback
     promise = get_book_promise()
@@ -1936,6 +1980,8 @@ def get_personalized_recommendations(
     base_scores: Dict[UUID, float] = {}
 
     # D) Scoring loop
+    # NOTE: User feedback is collected in v1 but not applied to recommendation scoring yet.
+    # Feedback is stored in user_book_feedback table for future use.
     if settings.DEBUG:
         t_scoring_start = now_ms()
     scored_count = 0

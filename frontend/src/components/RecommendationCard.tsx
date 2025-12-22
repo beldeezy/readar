@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import type { RecommendationItem, BookPreferenceStatus } from '../api/types';
 import { logRecommendationClick, apiClient } from '../api/client';
+import { submitFeedback } from '../services/feedbackApi';
 import Card from './Card';
 import Badge from './Badge';
 import Button from './Button';
@@ -35,6 +36,7 @@ export default function RecommendationCard({
 }: RecommendationCardProps) {
   const navigate = useNavigate();
   const [savingStatus, setSavingStatus] = useState<string | null>(null);
+  const [showConfirmation, setShowConfirmation] = useState(false);
 
   const handleClick = (e: React.MouseEvent) => {
     // Log click event (best-effort, non-blocking)
@@ -67,30 +69,50 @@ export default function RecommendationCard({
     
     setSavingStatus(status);
     
+    // Map status to feedback action
+    const actionMap: Record<BookPreferenceStatus, string> = {
+      'interested': 'save_interested',
+      'read_liked': 'read_liked',
+      'read_disliked': 'read_disliked',
+      'not_interested': 'not_for_me',
+    };
+    const feedbackAction = actionMap[status];
+    
     try {
-      // Call the new setBookStatus API
-      await apiClient.setBookStatus({
-        book_id: book.book_id,
-        status: status,
-        request_id: requestId || undefined,
-        position: position,
-        source: 'recommendations',
-      });
+      // Submit feedback (best-effort, non-blocking)
+      await submitFeedback(book.book_id, feedbackAction);
+      
+      // Also call the existing setBookStatus API for backward compatibility
+      try {
+        await apiClient.setBookStatus({
+          book_id: book.book_id,
+          status: status,
+          request_id: requestId || undefined,
+          position: position,
+          source: 'recommendations',
+        });
+      } catch (err: any) {
+        // Non-fatal - feedback was already submitted
+        console.warn('Failed to save book status:', err);
+      }
       
       // Also call the existing onAction callback for backward compatibility
       if (onAction) {
         onAction(book.book_id, status);
       }
       
-      // Show brief "saved" state
+      // Show confirmation message
+      setShowConfirmation(true);
       setTimeout(() => {
-        setSavingStatus(null);
-      }, 1000);
+        setShowConfirmation(false);
+      }, 2000);
+      
+      // Keep button disabled after success
+      // Don't reset savingStatus to keep button disabled
     } catch (err: any) {
-      console.warn('Failed to save book status:', err);
+      console.warn('Failed to submit feedback:', err);
       // Re-enable buttons on error
       setSavingStatus(null);
-      // Show non-blocking error (optional - could add toast here)
     }
   };
 
@@ -165,7 +187,7 @@ export default function RecommendationCard({
               variant="ghost"
               size="sm"
               onClick={() => handleStatusClick('interested')}
-              disabled={savingStatus !== null}
+              disabled={savingStatus === 'interested' || savingStatus !== null}
               className="readar-book-action"
             >
               {savingStatus === 'interested' ? 'Saved' : 'Save as Interested'}
@@ -174,7 +196,7 @@ export default function RecommendationCard({
               variant="ghost"
               size="sm"
               onClick={() => handleStatusClick('read_liked')}
-              disabled={savingStatus !== null}
+              disabled={savingStatus === 'read_liked' || savingStatus !== null}
               className="readar-book-action"
             >
               {savingStatus === 'read_liked' ? 'Saved' : 'Mark as Read (Liked)'}
@@ -183,7 +205,7 @@ export default function RecommendationCard({
               variant="ghost"
               size="sm"
               onClick={() => handleStatusClick('read_disliked')}
-              disabled={savingStatus !== null}
+              disabled={savingStatus === 'read_disliked' || savingStatus !== null}
               className="readar-book-action"
             >
               {savingStatus === 'read_disliked' ? 'Saved' : 'Mark as Read (Disliked)'}
@@ -192,11 +214,23 @@ export default function RecommendationCard({
               variant="ghost"
               size="sm"
               onClick={() => handleStatusClick('not_interested')}
-              disabled={savingStatus !== null}
+              disabled={savingStatus === 'not_interested' || savingStatus !== null}
               className="readar-book-action readar-book-action--muted"
             >
               {savingStatus === 'not_interested' ? 'Noted' : 'Not for me'}
             </Button>
+            {showConfirmation && (
+              <p style={{
+                fontSize: '0.75rem',
+                color: 'var(--rd-muted)',
+                marginTop: '0.5rem',
+                marginBottom: 0,
+                opacity: showConfirmation ? 1 : 0,
+                transition: 'opacity 0.3s ease-out',
+              }}>
+                Got it — this helps refine future recommendations.
+              </p>
+            )}
           </div>
         </div>
 

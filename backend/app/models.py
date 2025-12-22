@@ -200,3 +200,34 @@ class UserBookStatusModel(Base):
         UniqueConstraint('user_id', 'book_id', name='uq_user_book_status_user_book'),
     )
 
+
+class FeedbackSentiment(str, enum.Enum):
+    POSITIVE = "positive"
+    NEGATIVE = "negative"
+
+
+class FeedbackState(str, enum.Enum):
+    INTERESTED = "interested"
+    READ_COMPLETED = "read_completed"
+    DISMISSED = "dismissed"
+
+
+class UserBookFeedback(Base):
+    """
+    Append-only feedback table to capture user intent without affecting recommendations yet.
+    This is a normalized, immutable record of user feedback actions.
+    """
+    __tablename__ = "user_book_feedback"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    book_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    sentiment = Column(SQLEnum(FeedbackSentiment), nullable=False)
+    state = Column(SQLEnum(FeedbackState), nullable=False)
+    source = Column(String, nullable=False, default="recommendations_v1")
+    created_at = Column(DateTime(timezone=True), server_default=sa.func.now(), nullable=False)
+    
+    __table_args__ = (
+        sa.Index('idx_user_book_feedback_user_book', 'user_id', 'book_id'),
+    )
+

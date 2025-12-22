@@ -18,6 +18,7 @@ from app.routers import (
     me,
     events,
     book_status,
+    feedback,
 )
 from app.database import init_db
 
@@ -55,6 +56,7 @@ app.include_router(billing.router, prefix="/api")
 app.include_router(reading_history.router, prefix="/api")
 app.include_router(events.router, prefix="/api")
 app.include_router(book_status.router, prefix="/api")
+app.include_router(feedback.router, prefix="/api")
 app.include_router(debug.router, prefix="/api")
 app.include_router(admin_debug.router, prefix="/admin")
 

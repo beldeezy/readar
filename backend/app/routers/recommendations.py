@@ -14,7 +14,7 @@ from app.schemas.recommendation import RecommendationItem, RecommendationRequest
 from app.schemas.onboarding import OnboardingPayload
 from app.core.auth import get_current_user
 from app.models import User
-from app.utils.instrumentation import log_event
+from app.utils.instrumentation import log_event, log_event_best_effort
 from app.utils.timing import now_ms, log_elapsed
 from app.core.config import settings
 
@@ -213,6 +213,21 @@ async def get_recommendations_post(
         request_id=request_id,
     )
     db.commit()
+    
+    # Log recommendation_viewed event (best-effort, non-blocking)
+    try:
+        log_event_best_effort(
+            event_name="recommendation_viewed",
+            user_id=user_id,
+            properties={
+                "request_id": request_id,
+                "count": len(items),
+            },
+            request_id=request_id,
+        )
+    except Exception:
+        # Silently ignore instrumentation failures
+        pass
     
     return RecommendationsResponse(request_id=request_id, items=items)
 
