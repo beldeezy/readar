@@ -446,6 +446,11 @@ The backend can be deployed to Render using the `render.yaml` blueprint at the r
    
    **Required:**
    - `DATABASE_URL` - PostgreSQL connection string from Render Postgres
+     - **Note:** Render needs `DATABASE_URL`; Supabase vars required for magic link auth
+     - Alembic migrations will run successfully with only `DATABASE_URL` set
+     - The backend will start without Supabase vars, but authentication features will return errors
+   
+   **Required for Authentication (Magic Link Auth):**
    - `SUPABASE_URL` - Your Supabase project URL
    - `SUPABASE_ANON_KEY` - Supabase anonymous/public key
    - `SUPABASE_JWT_SECRET` - Supabase JWT secret (from Project Settings → API)
@@ -476,6 +481,9 @@ The backend can be deployed to Render using the `render.yaml` blueprint at the r
   - Health check endpoint at `/health`
   - Production-safe start command (binds to `0.0.0.0` and uses `$PORT`)
   - Environment: `ENV=production`, `DEBUG=false`
+- **Render needs `DATABASE_URL`; Supabase vars required for magic link auth**
+  - Alembic migrations will run successfully with only `DATABASE_URL` set
+  - The backend will start without Supabase vars, but authentication features will return a 500 error with a clear message
 - Local development (`make dev-backend`) remains unchanged and unaffected
 - All secrets should be set in Render Dashboard, not committed to git
 

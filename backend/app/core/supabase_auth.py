@@ -47,6 +47,16 @@ async def get_supabase_user(request: Request) -> Dict[str, Any]:
 
     Validates JWT locally using SUPABASE_JWT_SECRET, expected issuer and audience.
     """
+    # Check Supabase configuration before attempting to decode
+    try:
+        settings.require_supabase()
+    except RuntimeError as e:
+        logger.error(f"Supabase configuration missing: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Supabase environment variables not configured. Authentication is not available.",
+        )
+    
     token = _extract_bearer_token(request)
 
     try:
