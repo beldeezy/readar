@@ -11,11 +11,8 @@ export const AUTH_DISABLED = true;
 /**
  * Test user ID used when AUTH_DISABLED is true.
  * This should match any test user ID used in the backend if applicable.
- * 
- * @deprecated Use DEV_TEST_USER_ID from '../api/constants' instead
  */
-import { DEV_TEST_USER_ID } from '../api/constants';
-export const TEST_USER_ID = DEV_TEST_USER_ID;
+export const TEST_USER_ID = 'test-user-id';
 
 /**
  * Test user object used when AUTH_DISABLED is true.

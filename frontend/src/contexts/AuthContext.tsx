@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { apiClient } from '../api/client';
 import type { User } from '../api/types';
 import { AUTH_DISABLED, TEST_USER } from '../config/auth';
+import { clearAccessToken } from '../auth/auth';
 
 interface AuthContextType {
   user: User | null;
@@ -49,7 +50,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      await apiClient.login(email, password);
+      // TODO: Implement login when auth is re-enabled
+      // await apiClient.login(email, password);
       const currentUser = await apiClient.getCurrentUser();
       setUser(currentUser);
     } catch (error) {
@@ -66,7 +68,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      await apiClient.signup(email, password);
+      // TODO: Implement signup when auth is re-enabled
+      // await apiClient.signup(email, password);
       const currentUser = await apiClient.getCurrentUser();
       setUser(currentUser);
     } catch (error) {
@@ -82,7 +85,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    apiClient.logout();
+    // TODO: Implement logout when auth is re-enabled
+    // apiClient.logout();
+    clearAccessToken();
     setUser(null);
   };
 

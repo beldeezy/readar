@@ -131,7 +131,7 @@ export function BookCalibrationStep({
   const [showNudge, setShowNudge] = useState(false);
 
   const selectedCount = useMemo(
-    () => Object.values(statusByBookId).filter((s) => s && s !== "").length,
+    () => Object.values(statusByBookId).filter((s): s is BookStatus => s !== "").length,
     [statusByBookId]
   );
 
@@ -140,7 +140,10 @@ export function BookCalibrationStep({
   // helper: convert map -> BookPreference[]
   const mapToPreferences = (map: StatusMap): BookPreference[] =>
     Object.entries(map)
-      .filter(([, status]) => status && status !== "")
+      .filter((entry): entry is [string, BookStatus] => {
+        const [, status] = entry;
+        return status !== "";
+      })
       .map(([book_id, status]) => ({
         book_id,
         status: status as BookStatus,

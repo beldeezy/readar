@@ -74,7 +74,7 @@ export default function OnboardingPage() {
     ? INDUSTRIES.filter((i) => allowedIndustryValues.includes(i.value))
     : [];
 
-  const updateField = (field: keyof OnboardingPayload, value: any) => {
+  const updateField = (field: keyof typeof formData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -341,7 +341,7 @@ export default function OnboardingPage() {
             <h2 className="readar-step-title">Business Basics</h2>
             <MultiSelect
               label="Business Model *"
-              options={BUSINESS_MODELS}
+              options={[...BUSINESS_MODELS]}
               selectedValues={formData.business_models || []}
               onChange={(values) => updateArrayField('business_models', values)}
               placeholder="Select business model(s)..."
@@ -404,7 +404,7 @@ export default function OnboardingPage() {
             <h2 className="readar-step-title">Work Focus & Challenges</h2>
             <MultiSelect
               label="Areas of Business Focus"
-              options={AREAS_OF_BUSINESS}
+              options={[...AREAS_OF_BUSINESS]}
               selectedValues={formData.areas_of_business || []}
               onChange={(values) => updateArrayField('areas_of_business', values)}
               placeholder="Select areas of focus..."
@@ -432,7 +432,7 @@ export default function OnboardingPage() {
               <textarea
                 className="readar-input readar-textarea"
                 value={formData.challenges_and_blockers || ''}
-                onChange={(e) => updateField('challenges_and_blockers', e.target.value)}
+                onChange={(e) => updateField('challenges_and_blockers' as keyof typeof formData, e.target.value)}
                 placeholder="What are your biggest challenges and blockers right now?"
                 rows={4}
                 required

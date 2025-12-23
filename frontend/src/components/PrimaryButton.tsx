@@ -3,7 +3,7 @@ import Button from "./Button";
 
 interface PrimaryButtonProps {
   children: React.ReactNode;
-  onClick?: () => void;
+  onClick?: React.MouseEventHandler<HTMLButtonElement>;
   isDisabled?: boolean;
   type?: "button" | "submit" | "reset";
   className?: string;
@@ -22,7 +22,7 @@ export default function PrimaryButton({
     <Button
       type={type}
       disabled={isDisabled}
-      onClick={onClick ? () => onClick() : undefined}
+      onClick={onClick}
       delayMs={delayMs}
       variant="mint"
       size="md"

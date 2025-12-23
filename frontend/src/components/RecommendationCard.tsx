@@ -1,3 +1,4 @@
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import type { RecommendationItem, BookPreferenceStatus } from '../api/types';
@@ -51,7 +52,7 @@ export default function RecommendationCard({
     navigate(`/book/${book.book_id}`);
   };
 
-  const handleCtaClick = (e: React.MouseEvent) => {
+  const handleCtaClick = () => {
     // Log click event (best-effort, non-blocking)
     if (requestId) {
       logRecommendationClick({
