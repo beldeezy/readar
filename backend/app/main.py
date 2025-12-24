@@ -1,9 +1,11 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, Response, JSONResponse
 import logging
 import os
+import re
 from datetime import datetime
+from pathlib import Path
 from app.core.config import settings
 from app.routers import (
     auth,
@@ -33,17 +35,87 @@ SERVER_BOOT_ID = f"readar-backend::{os.getpid()}::{datetime.utcnow().isoformat()
 
 app = FastAPI(debug=settings.DEBUG)
 
-# CORS configuration - reads from FRONTEND_ORIGINS or CORS_ORIGINS env vars
-# Note: allow_headers=["*"] includes Authorization header needed for Bearer tokens
-ALLOWED_ORIGINS = settings.cors_origins_list
+BUILD_ID = os.getenv("BUILD_ID", "missing")
 
+
+@app.middleware("http")
+async def add_build_header(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Readar-Build"] = BUILD_ID
+    return response
+
+
+@app.get("/__debug")
+def __debug():
+    return {
+        "build_id": BUILD_ID,
+        "cors_origins_raw": os.getenv("CORS_ORIGINS", "missing"),
+        "file": str(Path(__file__).resolve()),
+    }
+
+
+# CORS configuration - robust parsing of CORS_ORIGINS env var
+# Read CORS_ORIGINS from environment (string of comma-separated origins)
+raw = os.getenv("CORS_ORIGINS", "").strip()
+
+# Split by commas, strip whitespace, discard empties
+cors_origins = []
+if raw:
+    cors_origins = [o.strip() for o in raw.split(",") if o.strip()]
+
+# Temporary startup log to verify what Render is reading
+print("CORS_ORIGINS(raw) =", raw)
+print("CORS_ORIGINS(list) =", cors_origins)
+
+# Vercel regex pattern for origin matching
+vercel_re = re.compile(r"^https://.*\.vercel\.app$")
+
+
+def is_allowed_origin(origin: str) -> bool:
+    """Check if an origin is allowed based on cors_origins list or Vercel regex."""
+    if not origin:
+        return False
+    if origin in cors_origins:
+        return True
+    if vercel_re.match(origin):
+        return True
+    return False
+
+
+# CORSMiddleware (belt + suspenders approach)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=cors_origins,
+    allow_origin_regex=r"^https://.*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],  # must include Authorization
+    allow_headers=["*"],
 )
+
+# CORS safety-net middleware (runs AFTER CORSMiddleware to patch missing headers)
+@app.middleware("http")
+async def cors_safety_net(request: Request, call_next):
+    """Safety-net middleware to ensure CORS headers are always set correctly."""
+    origin = request.headers.get("origin")
+    
+    if request.method == "OPTIONS":
+        # Preflight request - return 204 quickly with headers
+        resp = Response(status_code=204)
+    else:
+        resp = await call_next(request)
+    
+    # Only set CORS headers if origin is allowed
+    if is_allowed_origin(origin):
+        resp.headers["Access-Control-Allow-Origin"] = origin
+        resp.headers["Access-Control-Allow-Credentials"] = "true"
+        resp.headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+        resp.headers["Access-Control-Allow-Headers"] = request.headers.get(
+            "access-control-request-headers", "*"
+        )
+        resp.headers["Vary"] = "Origin"
+    
+    return resp
+
 
 # Routers
 app.include_router(auth.router, prefix="/api")
@@ -65,10 +137,6 @@ app.include_router(admin_debug.router, prefix="/admin")
 def on_startup() -> None:
     print(f"[BOOT] {SERVER_BOOT_ID}")
     init_db()
-    
-    # Log CORS allowed origins when DEBUG is enabled
-    if settings.DEBUG:
-        print(f"[CORS] Allowed origins: {ALLOWED_ORIGINS}")
     
     # Dev-only: Print registered routes for debugging
     if settings.DEBUG:
