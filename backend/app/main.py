@@ -77,12 +77,16 @@ logger.info("CORS vercel_origin_regex=%s", vercel_origin_regex)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
-    allow_origin_regex=vercel_origin_regex,
+    allow_origins=[
+        "http://localhost:5173",
+        "https://readar-chi.vercel.app",
+        "https://readar.ai",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 
 # ----------------------------
