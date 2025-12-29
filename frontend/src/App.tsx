@@ -43,7 +43,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   
   // Public routes that don't require authentication
   const publicRoutes = ['/', '/onboarding', '/recommendations/loading', '/login', '/auth/callback'];
-  const isPublicRoute = publicRoutes.includes(location.pathname);
+  // Normalize pathname by removing trailing slash (except root)
+  const path = location.pathname.replace(/\/+$/, '') || '/';
+  // Use prefix matching with startsWith
+  const isPublicRoute = publicRoutes.some((r) => path === r || path.startsWith(r + '/'));
   
   // If it's a public route, allow access
   if (isPublicRoute) {

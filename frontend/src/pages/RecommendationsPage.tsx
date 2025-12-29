@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { apiClient, fetchRecommendations } from '../api/client';
+import { apiClient, fetchRecommendations, API_BASE_URL } from '../api/client';
 import type { RecommendationItem, BookPreferenceStatus } from '../api/types';
 import RecommendationCard from '../components/RecommendationCard';
 import Card from '../components/Card';
@@ -8,6 +8,8 @@ import { useAuth } from '../auth/AuthProvider';
 import './RecommendationsPage.css';
 
 const PREVIEW_RECS_KEY = 'readar_preview_recs';
+const PREVIEW_READY_KEY = 'readar_preview_ready';
+const PREVIEW_ONBOARDING_KEY = 'readar_preview_onboarding';
 
 export default function RecommendationsPage() {
   const [recommendations, setRecommendations] = useState<RecommendationItem[]>([]);
@@ -25,10 +27,6 @@ export default function RecommendationsPage() {
   }
 
   useEffect(() => {
-    // Liveness check: verify backend is reachable
-    const rawBase = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
-    const apiBaseUrl = rawBase.endsWith('/api') ? rawBase : `${rawBase}/api`;
-    
     // Check if we have prefetched recommendations from the loading page
     const prefetchedData = (location.state as any)?.prefetchedRecommendations;
     const prefetchedRecs = Array.isArray(prefetchedData) 
@@ -46,13 +44,46 @@ export default function RecommendationsPage() {
       return;
     }
 
+    // Check for preview recommendations in localStorage (from preview flow)
+    const previewRecsStr = localStorage.getItem(PREVIEW_RECS_KEY);
+    const previewReady = localStorage.getItem(PREVIEW_READY_KEY) === 'true';
+    
+    if (previewRecsStr && previewReady) {
+      try {
+        const previewRecs = JSON.parse(previewRecsStr);
+        // Show preview recs immediately (fast win)
+        setRecommendations(previewRecs);
+        setLoading(false);
+        
+        // Then fetch authenticated recommendations in background
+        // This will replace preview recs once successful
+        fetchRecommendations({ limit: 5 })
+          .then((response) => {
+            setRecommendations(response.items);
+            setRequestId(response.request_id);
+            // Clear all preview storage keys after successful authenticated fetch
+            localStorage.removeItem(PREVIEW_RECS_KEY);
+            localStorage.removeItem(PREVIEW_READY_KEY);
+            localStorage.removeItem(PREVIEW_ONBOARDING_KEY);
+          })
+          .catch((err) => {
+            // If authenticated fetch fails, keep preview recs visible
+            console.warn('Failed to fetch authenticated recommendations, keeping preview:', err);
+          });
+        return;
+      } catch (parseErr) {
+        console.error('Failed to parse preview recs:', parseErr);
+        // Fall through to normal flow
+      }
+    }
+
     // Otherwise, check backend health first, then fetch recommendations
     let cancelled = false;
 
     async function checkHealthAndLoad() {
       // First, check backend health
       try {
-        const healthRes = await fetch(`${apiBaseUrl}/health`, {
+        const healthRes = await fetch(`${API_BASE_URL}/health`, {
           method: 'GET',
           credentials: 'include', // Include credentials for CORS
         });
@@ -68,15 +99,13 @@ export default function RecommendationsPage() {
         const errorMsg = err?.message || 'Unknown error';
         
         // If backend is down, try to fall back to preview recs from localStorage
-        const previewRecsStr = localStorage.getItem(PREVIEW_RECS_KEY);
-        if (previewRecsStr) {
+        const fallbackPreviewRecsStr = localStorage.getItem(PREVIEW_RECS_KEY);
+        if (fallbackPreviewRecsStr) {
           try {
-            const previewRecs = JSON.parse(previewRecsStr);
+            const fallbackPreviewRecs = JSON.parse(fallbackPreviewRecsStr);
             if (!cancelled) {
-              setRecommendations(previewRecs);
+              setRecommendations(fallbackPreviewRecs);
               setLoading(false);
-              // Clear preview recs after using them
-              localStorage.removeItem(PREVIEW_RECS_KEY);
             }
             return;
           } catch (parseErr) {
@@ -87,7 +116,7 @@ export default function RecommendationsPage() {
         if (!cancelled) {
           setError(
             `Backend is offline (${errorMsg}). Please ensure FastAPI is running. ` +
-            `API_BASE_URL=${apiBaseUrl}. Check browser console for details.`
+            `API_BASE_URL=${API_BASE_URL}. Check browser console for details.`
           );
           setLoading(false);
         }
@@ -107,20 +136,20 @@ export default function RecommendationsPage() {
           setRequestId(response.request_id);
           // Clear preview recs if we successfully fetched from backend
           localStorage.removeItem(PREVIEW_RECS_KEY);
+          localStorage.removeItem(PREVIEW_READY_KEY);
+          localStorage.removeItem(PREVIEW_ONBOARDING_KEY);
         }
       } catch (err: any) {
         if (!cancelled) {
           console.error("Failed to load recommendations", err);
           
           // Fall back to preview recs if backend errors
-          const previewRecsStr = localStorage.getItem(PREVIEW_RECS_KEY);
-          if (previewRecsStr) {
+          const fallbackPreviewRecsStr = localStorage.getItem(PREVIEW_RECS_KEY);
+          if (fallbackPreviewRecsStr) {
             try {
-              const previewRecs = JSON.parse(previewRecsStr);
-              setRecommendations(previewRecs);
+              const fallbackPreviewRecs = JSON.parse(fallbackPreviewRecsStr);
+              setRecommendations(fallbackPreviewRecs);
               setLoading(false);
-              // Clear preview recs after using them
-              localStorage.removeItem(PREVIEW_RECS_KEY);
               return;
             } catch (parseErr) {
               console.error('Failed to parse preview recs:', parseErr);
