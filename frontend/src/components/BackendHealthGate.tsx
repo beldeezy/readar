@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getApiBaseUrlDebug } from "../api/client";
+import { API_BASE_URL } from "../api/client";
 
 type Status = "checking" | "ok" | "down";
 
@@ -12,10 +12,7 @@ export default function BackendHealthGate() {
 
     async function check() {
       try {
-        const { API_BASE_URL } = getApiBaseUrlDebug();
-        // API_BASE_URL includes /api; health is at root, so strip trailing /api
-        const base = API_BASE_URL.replace(/\/api\/?$/, "");
-        const url = `${base}/health`;
+        const url = `${API_BASE_URL}/health`;
 
         const res = await fetch(url, { method: "GET" });
         if (!res.ok) throw new Error(`Health check failed (status ${res.status})`);

@@ -17,6 +17,7 @@ import Engine from './pages/admin/Engine';
 import InsightReview from './pages/admin/InsightReview';
 import RecommendationsDebug from './pages/admin/RecommendationsDebug';
 import EnvCheckPage from './pages/EnvCheckPage';
+import SmokeTestPage from './pages/SmokeTestPage';
 import Header from './components/Header';
 import ScrollToTop from './components/ScrollToTop';
 import BackendHealthGate from './components/BackendHealthGate';
@@ -42,8 +43,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
   
   // Public routes that don't require authentication
-  const publicRoutes = ['/', '/onboarding', '/recommendations/loading', '/login', '/auth/callback'];
-  const isPublicRoute = publicRoutes.includes(location.pathname);
+  const publicRoutes = ['/', '/onboarding', '/recommendations/loading', '/login', '/auth/callback', '/smoke'];
+  // Normalize pathname by removing trailing slash (except root)
+  const path = location.pathname.replace(/\/+$/, '') || '/';
+  // Use prefix matching with startsWith
+  const isPublicRoute = publicRoutes.some((r) => path === r || path.startsWith(r + '/'));
   
   // If it's a public route, allow access
   if (isPublicRoute) {
@@ -80,6 +84,7 @@ function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route path="/env" element={<EnvCheckPage />} />
+      <Route path="/smoke" element={<SmokeTestPage />} />
       <Route
         path="/onboarding"
         element={<OnboardingPage />}

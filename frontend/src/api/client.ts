@@ -16,7 +16,7 @@ import { getAccessToken, clearAccessToken } from '../auth/auth';
 
 // Require VITE_API_BASE_URL and make it deterministic
 const envApiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
-const API_BASE_URL = envApiBaseUrl.endsWith("/api") ? envApiBaseUrl : `${envApiBaseUrl}/api`;
+export const API_BASE_URL = envApiBaseUrl.endsWith("/api") ? envApiBaseUrl : `${envApiBaseUrl}/api`;
 console.log("[API] baseURL =", API_BASE_URL);
 
 // Debug helper for error messages
@@ -100,9 +100,12 @@ class ApiClient {
           clearAccessToken();
 
           const path = window.location.pathname;
+          // Public paths that should not trigger redirect to login
+          const publicPaths = ['/onboarding', '/recommendations/loading', '/login', '/auth/callback', '/'];
+          const isPublicPath = publicPaths.includes(path) || path.startsWith('/auth/');
           const isAuthPage = path === '/login' || path === '/auth' || path === '/auth/callback';
 
-          if (!isAuthPage && !redirectingToLogin) {
+          if (!isPublicPath && !isAuthPage && !redirectingToLogin) {
             redirectingToLogin = true;
             window.location.href = '/login';
           }

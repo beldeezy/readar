@@ -21,9 +21,10 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const origin = window.location.origin;
+      // Use VITE_SITE_URL in production, fallback to window.location.origin for dev
+      const canonicalOrigin = import.meta.env.VITE_SITE_URL?.replace(/\/$/, '') || window.location.origin;
       const next = searchParams.get('next') || '/recommendations';
-      const callbackUrl = `${origin}/auth/callback?next=${encodeURIComponent(next)}`;
+      const callbackUrl = `${canonicalOrigin}/auth/callback?next=${encodeURIComponent(next)}`;
       
       const { error } = await supabase.auth.signInWithOtp({
         email,

@@ -5,11 +5,14 @@ import type { OnboardingPayload } from '../api/types';
 import { setPostAuthRedirect } from '../auth/postAuthRedirect';
 import { useAuth } from '../auth/AuthProvider';
 import RadarIcon from '../components/RadarIcon';
+import PrimaryButton from '../components/PrimaryButton';
 import './RecommendationsPage.css';
 
 const PENDING_ONBOARDING_KEY = 'readar_pending_onboarding';
 const PREVIEW_RECS_KEY = 'readar_preview_recs';
 const HAS_ONBOARDING_KEY = 'readar_has_onboarding';
+const PREVIEW_READY_KEY = 'readar_preview_ready';
+const PREVIEW_ONBOARDING_KEY = 'readar_preview_onboarding';
 
 async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
   const timeoutPromise = new Promise<T>((_, reject) =>
@@ -51,6 +54,7 @@ export default function RecommendationsLoadingPage() {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<'fetching' | 'finalizing'>('fetching');
+  const [status, setStatus] = useState<'loading' | 'error'>('loading');
 
   const { user: authUser, hasVerifiedMagicLink, setHasVerifiedMagicLink, refreshOnboardingStatus } =
     useAuth();
@@ -66,9 +70,18 @@ export default function RecommendationsLoadingPage() {
 
   // Guard to prevent spam/re-runs
   const lastRunKeyRef = useRef<string | null>(null);
+  // Guard to prevent repeat preview requests
+  const startedRef = useRef(false);
 
   // Helper to check whether onboarding exists for the authenticated user
+  // SKIP this entirely when pending onboarding exists (preview flow)
   async function checkExistingOnboarding(): Promise<boolean> {
+    const pendingOnboardingStr = localStorage.getItem(PENDING_ONBOARDING_KEY);
+    // DO NOT call /onboarding endpoint when pending onboarding exists
+    if (pendingOnboardingStr) {
+      return false;
+    }
+
     const cached = localStorage.getItem(HAS_ONBOARDING_KEY);
     if (cached === '1') return true;
 
@@ -96,13 +109,61 @@ export default function RecommendationsLoadingPage() {
         console.log('RecommendationsLoadingPage mounted');
 
         const pendingOnboardingStr = localStorage.getItem(PENDING_ONBOARDING_KEY);
-        const userId = authUser?.id ?? 'anon';
+        
+        // EARLY RETURN: If pending onboarding exists AND user is NOT verified, ONLY run preview flow - NO onboarding API calls
+        // This prevents /api/onboarding calls during preview flow
+        if (pendingOnboardingStr && (!authUser || (authUser && !hasVerifiedMagicLink))) {
+          // Guard to prevent repeat requests
+          if (startedRef.current) return;
+          startedRef.current = true;
 
-        const runKey = `${userId}|limit=${limit}|pending=${pendingOnboardingStr ? '1' : '0'}`;
+          try {
+            setStatus('loading');
+            setError(null);
+            setPhase('fetching');
+
+            const pendingOnboarding = JSON.parse(pendingOnboardingStr);
+            const payload = normalizePendingOnboardingToPayload(pendingOnboarding);
+
+            // Generate preview recommendations (works without auth) - call exactly once
+            const recs = await withTimeout(
+              apiClient.getPreviewRecommendations(payload),
+              20000,
+              'Fetching preview recommendations took too long. Backend may be down or stuck.'
+            );
+            if (cancelled) return;
+
+            // Store preview results and markers
+            localStorage.setItem(PREVIEW_RECS_KEY, JSON.stringify(recs));
+            localStorage.setItem(PREVIEW_READY_KEY, 'true');
+            localStorage.setItem(PREVIEW_ONBOARDING_KEY, pendingOnboardingStr);
+            setPhase('finalizing');
+
+            await sleep(1200);
+            if (cancelled) return;
+
+            // After preview is ready, redirect to login
+            navigate(`/login?next=${encodeURIComponent('/recommendations')}`);
+            return;
+          } catch (e: any) {
+            if (cancelled) return;
+            setStatus('error');
+            setError(e?.message || 'Failed to generate preview recommendations.');
+            // Reset startedRef so "Try again" can work
+            startedRef.current = false;
+            return;
+          }
+        }
+
+        // If no pending onboarding, reset startedRef for next time
+        startedRef.current = false;
+
+        const runKey = `${userId}|limit=${limit}|pending=0`;
         if (lastRunKeyRef.current === runKey) return;
         lastRunKeyRef.current = runKey;
 
         // Check if we can skip magic link verification (user already has onboarding in backend)
+        // NOTE: This only runs when NO pending onboarding exists
         let canSkipMagicLink = false;
 
         if (authUser && !hasVerifiedMagicLink) {
@@ -127,46 +188,13 @@ export default function RecommendationsLoadingPage() {
           }
         }
 
-        // CASE 1: pending exists AND NOT authenticated => preview flow => login
-        if (pendingOnboardingStr && !authUser) {
-          try {
-            const pendingOnboarding = JSON.parse(pendingOnboardingStr);
-            const payload = normalizePendingOnboardingToPayload(pendingOnboarding);
-
-            const recs = await withTimeout(
-              apiClient.getPreviewRecommendations(payload),
-              20000,
-              'Fetching preview recommendations took too long. Backend may be down or stuck.'
-            );
-            if (cancelled) return;
-
-            localStorage.setItem(PREVIEW_RECS_KEY, JSON.stringify(recs));
-            setPhase('finalizing');
-
-            await sleep(1200);
-            if (cancelled) return;
-
-            setPostAuthRedirect('/recommendations');
-            navigate('/login');
-            return;
-          } catch (e: any) {
-            if (cancelled) return;
-            setError(e?.message || 'Failed to generate preview recommendations.');
-            return;
-          }
-        }
-
-        // Force login when user is authenticated but not verified AND cannot skip (no existing onboarding)
-        if (pendingOnboardingStr && authUser && !hasVerifiedMagicLink && !canSkipMagicLink) {
-          setPostAuthRedirect('/recommendations');
-          navigate('/login');
-          return;
-        }
-
         // CASE 2: authenticated AND pending exists AND (verified OR can skip) => finalize pending into backend, then fetch real recs
-        if (pendingOnboardingStr && authUser && (hasVerifiedMagicLink || canSkipMagicLink)) {
+        // NOTE: This case should only run AFTER user has verified via magic link (after auth callback)
+        // During preview flow, this should NOT run - the early return above prevents it
+        const currentPendingOnboardingStr = localStorage.getItem(PENDING_ONBOARDING_KEY);
+        if (currentPendingOnboardingStr && authUser && (hasVerifiedMagicLink || canSkipMagicLink)) {
           try {
-            const pendingOnboarding = JSON.parse(pendingOnboardingStr);
+            const pendingOnboarding = JSON.parse(currentPendingOnboardingStr);
             const payload = normalizePendingOnboardingToPayload(pendingOnboarding);
 
             await withTimeout(
@@ -175,10 +203,16 @@ export default function RecommendationsLoadingPage() {
               'Saving onboarding took too long. Backend may be down or stuck.'
             );
 
-            await refreshRef.current?.();
+            // Only refresh onboarding status if no pending onboarding exists (to avoid calling /onboarding during preview)
+            const stillPending = localStorage.getItem(PENDING_ONBOARDING_KEY);
+            if (!stillPending) {
+              await refreshRef.current?.();
+            }
 
             localStorage.removeItem(PENDING_ONBOARDING_KEY);
             localStorage.removeItem(PREVIEW_RECS_KEY);
+            localStorage.removeItem(PREVIEW_READY_KEY);
+            localStorage.removeItem(PREVIEW_ONBOARDING_KEY);
             localStorage.setItem(HAS_ONBOARDING_KEY, '1');
 
             const recs = await withTimeout(
@@ -209,10 +243,15 @@ export default function RecommendationsLoadingPage() {
           }
         }
 
-        // If user is authenticated but not magic-link-verified AND onboarding does not exist yet, require login
+        // If user is authenticated but not magic-link-verified AND no pending onboarding, send to onboarding
         if (!pendingOnboardingStr && authUser && !hasVerifiedMagicLink && !canSkipMagicLink) {
-          setPostAuthRedirect('/recommendations');
-          navigate('/login');
+          navigate('/onboarding');
+          return;
+        }
+
+        // If no pending onboarding and not authenticated, send to onboarding
+        if (!pendingOnboardingStr && !authUser) {
+          navigate('/onboarding');
           return;
         }
 
@@ -257,7 +296,15 @@ export default function RecommendationsLoadingPage() {
     };
   }, [limit, navigate, authUser, hasVerifiedMagicLink, setHasVerifiedMagicLink]);
 
-  if (error) {
+  const handleTryAgain = () => {
+    setError(null);
+    setStatus('loading');
+    startedRef.current = false;
+    // Trigger re-run by clearing lastRunKey
+    lastRunKeyRef.current = null;
+  };
+
+  if (status === 'error' && error) {
     return (
       <div className="readar-recommendations-page">
         <div className="container">
@@ -269,9 +316,14 @@ export default function RecommendationsLoadingPage() {
               marginBottom: '0.5rem',
             }}
           >
-            Error loading recommendations
+            Couldn't generate recommendations
           </h1>
-          <p style={{ fontSize: 'var(--rd-font-size-sm)', color: 'var(--readar-warm)' }}>{error}</p>
+          <p style={{ fontSize: 'var(--rd-font-size-sm)', color: 'var(--readar-warm)', marginBottom: '1.5rem' }}>
+            {error}
+          </p>
+          <PrimaryButton onClick={handleTryAgain}>
+            Try again
+          </PrimaryButton>
         </div>
       </div>
     );
