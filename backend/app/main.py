@@ -59,29 +59,28 @@ def __debug():
 
 
 # ----------------------------
-# CORS
+# CORS - Render + Vercel production origins
 # ----------------------------
-raw = os.getenv("CORS_ORIGINS", "").strip()
-cors_origins = [o.strip() for o in raw.split(",") if o.strip()] if raw else []
+def _parse_cors_origins(raw: str | None) -> list[str]:
+    if not raw:
+        return []
+    return [o.strip() for o in raw.split(",") if o.strip()]
 
-# Local dev fallback (only if env var missing)
-if not cors_origins:
-    cors_origins = ["http://localhost:5173"]
 
-# Allow all Vercel preview/prod domains
-vercel_origin_regex = r"^https://.*\.vercel\.app$"
+default_origins = [
+    "http://localhost:5173",
+    "https://readar-chi.vercel.app",
+    "https://readar.ai",
+    "https://www.readar.ai",
+]
 
-logger.info("CORS_ORIGINS(raw)=%s", raw)
-logger.info("CORS_ORIGINS(list)=%s", cors_origins)
-logger.info("CORS vercel_origin_regex=%s", vercel_origin_regex)
+raw = os.getenv("CORS_ORIGINS")
+cors_origins = _parse_cors_origins(raw) or default_origins
+logger.info("[CORS] allow_origins=%s (raw=%s)", cors_origins, raw)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "https://readar-chi.vercel.app",
-        "https://readar.ai",
-    ],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
