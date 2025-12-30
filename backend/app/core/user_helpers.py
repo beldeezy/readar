@@ -2,7 +2,7 @@
 Helper functions for user management with Supabase auth.
 """
 from sqlalchemy.orm import Session
-from app.models import User
+from app.models import User, SubscriptionStatus
 from uuid import UUID
 import logging
 
@@ -36,6 +36,7 @@ def get_or_create_user_by_auth_id(
     new_user = User(
         auth_user_id=auth_user_id,
         email=email or f"user_{auth_user_id}@readar.local",
+        subscription_status=SubscriptionStatus.FREE.value,
     )
     
     db.add(new_user)
