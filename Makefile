@@ -36,7 +36,13 @@ dev:
 	@echo "Tip: open two terminals and run the two commands above."
 
 dev-backend:
-	cd backend && .venv/bin/python -m uvicorn app.main:app --reload --port 8000
+	@echo "Starting backend..."
+	@cd backend && \
+		source .venv/bin/activate && \
+		set -a && [ -f .env ] && source .env && set +a && \
+		python -c "import socket; s=socket.socket(); r=s.connect_ex(('127.0.0.1',8000)); print('port 8000 in use?' , r==0)" && \
+		python -c "import os, re; db_url=os.environ.get('DATABASE_URL', ''); print('DATABASE_URL set:', bool(db_url)); print('DATABASE_URL (redacted):', re.sub(r':([^:@]+)@', r':***@', db_url) if db_url else '(not set)'); print('Bind address: http://127.0.0.1:8000')" && \
+		python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 
 dev-frontend:
 	@if [ ! -d "frontend/node_modules" ]; then \

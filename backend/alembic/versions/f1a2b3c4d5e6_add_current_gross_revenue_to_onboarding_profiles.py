@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = "f1a2b3c4d5e6"
-down_revision: str = "000000000000"  # Depends on baseline that creates onboarding_profiles table
+down_revision: str = "1a2b3c4d5e6f"  # Depends on widen_alembic_version migration
 branch_labels = None
 depends_on = None
 
