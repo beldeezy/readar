@@ -36,7 +36,13 @@ def get_or_create_user_by_auth_id(
     new_user = User(
         auth_user_id=auth_user_id,
         email=email or f"user_{auth_user_id}@readar.local",
-        subscription_status=SubscriptionStatus.FREE.value,
+        subscription_status=SubscriptionStatus.FREE,
+    )
+    
+    # Log subscription_status before commit to surface enum values
+    logger.info(
+        f"Creating user: subscription_status={new_user.subscription_status}, "
+        f"type={type(new_user.subscription_status).__name__}"
     )
     
     db.add(new_user)

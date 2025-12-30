@@ -115,6 +115,8 @@ app.include_router(admin_debug.router, prefix="/admin")
 @app.on_event("startup")
 def on_startup() -> None:
     logger.info("[BOOT] %s", SERVER_BOOT_ID)
+    logger.info("Backend starting. DATABASE_URL set=%s", bool(os.environ.get("DATABASE_URL")))
+    logger.info("Expecting to serve on http://127.0.0.1:8000")
     init_db()
 
 

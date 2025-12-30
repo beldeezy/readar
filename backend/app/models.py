@@ -43,7 +43,15 @@ class User(Base):
     password_hash = Column(String, nullable=True)  # Made nullable for Supabase users (no password needed)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    subscription_status = Column(SQLEnum(SubscriptionStatus), default=SubscriptionStatus.FREE)
+    subscription_status = Column(
+        SQLEnum(
+            SubscriptionStatus,
+            name="subscriptionstatus",
+            values_callable=lambda enum: [e.value for e in enum],
+        ),
+        nullable=False,
+        default=SubscriptionStatus.FREE,
+    )
     stripe_customer_id = Column(String, nullable=True)
     stripe_subscription_id = Column(String, nullable=True)
     
