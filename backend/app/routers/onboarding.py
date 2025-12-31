@@ -10,6 +10,7 @@ from datetime import datetime
 import uuid
 import logging
 import traceback
+import os
 
 
 def is_uuid(s: str) -> bool:
@@ -26,50 +27,40 @@ def normalize_business_stage(value) -> BusinessStage:
     Normalize business_stage to the correct enum value.
     
     Converts inbound enum-like strings to DB-safe values:
+    - Trims whitespace
     - Lowercases
-    - Converts underscores to hyphens (e.g., "PRE_REVENUE" -> "pre-revenue")
-    - If value is already valid enum, returns it
+    - Converts underscores to hyphens
+    - Converts spaces to hyphens
     
-    Examples:
-    - "PRE_REVENUE" -> BusinessStage.PRE_REVENUE (value: "pre-revenue")
-    - "pre_revenue" -> BusinessStage.PRE_REVENUE (value: "pre-revenue")
-    - "pre-revenue" -> BusinessStage.PRE_REVENUE (value: "pre-revenue")
-    - BusinessStage.PRE_REVENUE -> BusinessStage.PRE_REVENUE
+    Raises ValueError if value cannot be normalized to a valid BusinessStage.
     """
     if isinstance(value, BusinessStage):
         return value
     
-    if isinstance(value, str):
-        # Normalize the string: lowercase and convert underscores to hyphens
-        normalized_str = value.lower().replace("_", "-")
-        
-        # Try to match by enum value first (e.g., "pre-revenue")
-        for stage in BusinessStage:
-            if stage.value == normalized_str:
-                return stage
-        
-        # Try to match by enum name (e.g., "PRE_REVENUE" -> PRE_REVENUE)
-        value_upper = value.upper()
-        for stage in BusinessStage:
-            if stage.name == value_upper:
-                return stage
-        
-        # Try partial matching: "PRE_REVENUE" -> "pre-revenue"
-        # Map common variations
-        stage_map = {
-            "pre_revenue": BusinessStage.PRE_REVENUE,
-            "pre-revenue": BusinessStage.PRE_REVENUE,
-            "early_revenue": BusinessStage.EARLY_REVENUE,
-            "early-revenue": BusinessStage.EARLY_REVENUE,
-            "idea": BusinessStage.IDEA,
-            "scaling": BusinessStage.SCALING,
-        }
-        if normalized_str in stage_map:
-            return stage_map[normalized_str]
+    if not isinstance(value, str):
+        raise ValueError(f"business_stage must be a string or BusinessStage enum, got {type(value).__name__}")
     
-    # Default to IDEA if we can't normalize
-    logger.warning(f"Could not normalize business_stage={value} (type={type(value)}), defaulting to IDEA")
-    return BusinessStage.IDEA
+    # Normalize the string: trim, lowercase, convert underscores/spaces to hyphens
+    normalized_str = value.strip().lower().replace("_", "-").replace(" ", "-")
+    
+    # Try to match by enum value first (e.g., "pre-revenue")
+    for stage in BusinessStage:
+        if stage.value == normalized_str:
+            return stage
+    
+    # Try to match by enum name (e.g., "PRE_REVENUE" -> PRE_REVENUE)
+    # After normalization, enum names like "PRE_REVENUE" become "pre-revenue" which matches the value
+    value_upper = value.strip().upper()
+    for stage in BusinessStage:
+        if stage.name == value_upper:
+            return stage
+    
+    # If we get here, the value is invalid
+    allowed_values = [stage.value for stage in BusinessStage]
+    raise ValueError(
+        f"Invalid business_stage value: {value!r}. "
+        f"Allowed values are: {', '.join(allowed_values)}"
+    )
 
 
 logger = logging.getLogger(__name__)
@@ -85,7 +76,18 @@ async def create_or_update_onboarding(
     """
     Create or update onboarding profile for the authenticated user.
     """
+    # Debug logging (only when DEBUG env var is set)
+    DEBUG = os.getenv("DEBUG", "false").lower() == "true"
+    
     user_id = user.id
+    if DEBUG:
+        logger.info(
+            "[DEBUG POST /api/onboarding] "
+            f"user_id={user_id}, "
+            f"payload_keys={list(payload.model_dump().keys())}, "
+            f"business_stage={getattr(payload, 'business_stage', 'N/A')}, "
+            f"entrepreneur_status={getattr(payload, 'entrepreneur_status', 'N/A')}"
+        )
     
     try:
         # Extract book_preferences before creating profile (since OnboardingProfile doesn't have this field)
@@ -95,7 +97,18 @@ async def create_or_update_onboarding(
         # Normalize enum fields to ensure DB-safe values
         # business_stage: normalize from "PRE_REVENUE" -> BusinessStage.PRE_REVENUE (value: "pre-revenue")
         if "business_stage" in payload_dict:
-            payload_dict["business_stage"] = normalize_business_stage(payload_dict["business_stage"])
+            try:
+                payload_dict["business_stage"] = normalize_business_stage(payload_dict["business_stage"])
+            except ValueError as e:
+                # Return 400 for invalid enum values (not 500)
+                allowed_values = [stage.value for stage in BusinessStage]
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "detail": str(e),
+                        "allowed_values": allowed_values,
+                    },
+                )
         
         # Check if profile already exists
         existing_profile = db.query(OnboardingProfile).filter(
@@ -186,13 +199,25 @@ async def create_or_update_onboarding(
         raise
     except Exception as e:
         db.rollback()
-        traceback.print_exc()
-        logger.exception("Failed to save onboarding for user %s", user_id)
-        # Return a readable error message instead of 500
+        error_type = type(e).__name__
         error_message = str(e) if str(e) else "An unexpected error occurred"
+        
+        # Debug logging with full stacktrace
+        logger.exception(
+            f"[DEBUG POST /api/onboarding ERROR] "
+            f"user_id={user_id}, "
+            f"error_type={error_type}, "
+            f"error={error_message}"
+        )
+        
+        # Return JSON response with error details (safe, no secrets)
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to save onboarding: {error_message}",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "detail": "internal_error",
+                "error_type": error_type,
+                "error": error_message,
+            },
         )
 
 
@@ -204,15 +229,27 @@ async def get_onboarding(
     """
     Get onboarding profile for the authenticated user.
     """
+    # Debug logging (only when DEBUG env var is set)
+    DEBUG = os.getenv("DEBUG", "false").lower() == "true"
+    
+    user_id = user.id
+    if DEBUG:
+        logger.info(f"[DEBUG GET /api/onboarding] user_id={user_id}")
+    
     profile = db.query(OnboardingProfile).filter(
         OnboardingProfile.user_id == user.id
     ).first()
     
     if not profile:
+        if DEBUG:
+            logger.warning(f"[DEBUG GET /api/onboarding] user_id={user_id} - profile not found (404)")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Onboarding profile not found",
         )
+    
+    if DEBUG:
+        logger.info(f"[DEBUG GET /api/onboarding] user_id={user_id} - profile found (200)")
     
     return OnboardingProfileResponse.model_validate(profile)
 

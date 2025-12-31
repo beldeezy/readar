@@ -119,14 +119,45 @@ class ApiClient {
   }
 
   async saveOnboarding(payload: OnboardingPayload): Promise<OnboardingProfile> {
+    // Debug logging (only in dev or when VITE_DEBUG=true)
+    const DEBUG = import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true';
+    const url = `${API_BASE_URL}/onboarding`;
+    const hasAuth = !!getAuthHeader();
+    
+    if (DEBUG) {
+      console.log('[DEBUG saveOnboarding]', {
+        method: 'POST',
+        url,
+        payloadKeys: Object.keys(payload),
+        hasAuthorization: hasAuth,
+      });
+    }
+
     const attempt = async () => {
       const response = await this.client.post<OnboardingProfile>("/onboarding", payload);
+      
+      if (DEBUG) {
+        console.log('[DEBUG saveOnboarding response]', {
+          status: response.status,
+          statusText: response.statusText,
+          body: JSON.stringify(response.data),
+        });
+      }
+      
       return response.data;
     };
 
     try {
       return await attempt();
     } catch (error: any) {
+      if (DEBUG) {
+        console.log('[DEBUG saveOnboarding error]', {
+          status: error?.response?.status,
+          statusText: error?.response?.statusText,
+          body: error?.response?.data ? JSON.stringify(error.response.data) : 'no body',
+          message: error?.message,
+        });
+      }
       const status = error?.response?.status as number | undefined;
 
       // Do NOT retry auth/permission/validation-style failures
@@ -155,8 +186,42 @@ class ApiClient {
   }
 
   async getOnboarding(): Promise<OnboardingProfile> {
-    const response = await this.client.get<OnboardingProfile>('/onboarding');
-    return response.data;
+    // Debug logging (only in dev or when VITE_DEBUG=true)
+    const DEBUG = import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true';
+    const url = `${API_BASE_URL}/onboarding`;
+    const hasAuth = !!getAuthHeader();
+    
+    if (DEBUG) {
+      console.log('[DEBUG getOnboarding]', {
+        method: 'GET',
+        url,
+        hasAuthorization: hasAuth,
+      });
+    }
+
+    try {
+      const response = await this.client.get<OnboardingProfile>('/onboarding');
+      
+      if (DEBUG) {
+        console.log('[DEBUG getOnboarding response]', {
+          status: response.status,
+          statusText: response.statusText,
+          body: JSON.stringify(response.data),
+        });
+      }
+      
+      return response.data;
+    } catch (error: any) {
+      if (DEBUG) {
+        console.log('[DEBUG getOnboarding error]', {
+          status: error?.response?.status,
+          statusText: error?.response?.statusText,
+          body: error?.response?.data ? JSON.stringify(error.response.data) : 'no body',
+          message: error?.message,
+        });
+      }
+      throw error;
+    }
   }
 
   async getBooks(params?: {

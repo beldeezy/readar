@@ -126,11 +126,29 @@ app.include_router(feedback.router, prefix="/api")
 app.include_router(debug.router, prefix="/api")
 app.include_router(admin_debug.router, prefix="/admin")
 
+# Debug: Print registered routes containing "onboarding" (only when DEBUG=true)
+# Note: This runs at module import time, so routes are registered
+DEBUG_ROUTES = os.getenv("DEBUG", "false").lower() == "true"
+if DEBUG_ROUTES:
+    logger.info("[DEBUG] Registered routes containing 'onboarding':")
+    for route in app.routes:
+        if hasattr(route, "path") and "onboarding" in route.path.lower():
+            methods = getattr(route, "methods", set())
+            logger.info(f"  {', '.join(methods)} {route.path}")
+
 
 @app.on_event("startup")
 def on_startup() -> None:
     logger.info("[BOOT] %s", SERVER_BOOT_ID)
     init_db()
+    
+    # Debug: Print enum values for onboarding-related enums (only when DEBUG=true)
+    DEBUG_ENUMS = os.getenv("DEBUG", "false").lower() == "true"
+    if DEBUG_ENUMS:
+        from app.models import BusinessStage
+        logger.info("[DEBUG] BusinessStage enum values:")
+        for stage in BusinessStage:
+            logger.info(f"  {stage.name} = {stage.value!r}")
 
 
 @app.get("/health")
