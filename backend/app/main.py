@@ -42,29 +42,6 @@ app = FastAPI(debug=settings.DEBUG)
 BUILD_ID = os.getenv("BUILD_ID", "missing")
 
 
-@app.middleware("http")
-async def add_build_header(request: Request, call_next):
-    response = await call_next(request)
-    response.headers["X-Readar-Build"] = BUILD_ID
-    return response
-
-
-@app.exception_handler(Exception)
-async def unhandled_exception_handler(request: Request, exc: Exception):
-    logger.exception("[UNHANDLED] %s %s", request.method, request.url.path)
-    return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
-
-
-@app.get("/__debug")
-def __debug():
-    return {
-        "build_id": BUILD_ID,
-        "cors_origins_raw": os.getenv("CORS_ORIGINS", "missing"),
-        "file": str(Path(__file__).resolve()),
-        "server_boot_id": SERVER_BOOT_ID,
-    }
-
-
 # ----------------------------
 # CORS - Render + Vercel production origins
 # ----------------------------
@@ -75,10 +52,10 @@ def _parse_cors_origins(raw: str | None) -> list[str]:
 
 
 default_origins = [
-    "http://localhost:5173",
-    "https://readar-chi.vercel.app",
     "https://readar.ai",
     "https://www.readar.ai",
+    "https://readar-chi.vercel.app",
+    "http://localhost:5173",
 ]
 
 raw = os.getenv("CORS_ORIGINS")
@@ -92,6 +69,44 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def add_build_header(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Readar-Build"] = BUILD_ID
+    return response
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception("[UNHANDLED] %s %s", request.method, request.url.path)
+    
+    # Create response with CORS headers
+    response = JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error"}
+    )
+    
+    # Ensure CORS headers are present in error responses
+    origin = request.headers.get("origin")
+    if origin and origin in cors_origins:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "*"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+    
+    return response
+
+
+@app.get("/__debug")
+def __debug():
+    return {
+        "build_id": BUILD_ID,
+        "cors_origins_raw": os.getenv("CORS_ORIGINS", "missing"),
+        "file": str(Path(__file__).resolve()),
+        "server_boot_id": SERVER_BOOT_ID,
+    }
 
 
 # ----------------------------

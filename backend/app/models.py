@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Text, Boolean, DateTime, ForeignKey, Enum as SQLEnum, JSON, ARRAY, Float, UniqueConstraint
+from sqlalchemy import Column, String, Integer, Text, Boolean, DateTime, ForeignKey, Enum as SQLEnum, JSON, ARRAY, Float, UniqueConstraint, event
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 import uuid
@@ -6,6 +6,9 @@ from datetime import datetime
 import enum
 import sqlalchemy as sa
 from app.database import Base
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class SubscriptionStatus(str, enum.Enum):
@@ -230,4 +233,70 @@ class UserBookFeedback(Base):
     __table_args__ = (
         sa.Index('idx_user_book_feedback_user_book', 'user_id', 'book_id'),
     )
+
+
+# ----------------------------
+# SQLAlchemy Event Listeners for subscription_status normalization
+# ----------------------------
+def _normalize_subscription_status_for_db(value) -> SubscriptionStatus:
+    """
+    Normalize subscription_status before database insert/update.
+    This is a safety net to catch any code path that passes "FREE" or other invalid values.
+    """
+    if value is None:
+        return SubscriptionStatus.FREE
+    
+    if isinstance(value, SubscriptionStatus):
+        # Verify the enum value is correct (should be "free", "active", or "canceled")
+        if value.value not in ["free", "active", "canceled"]:
+            logger.warning(f"Invalid enum value: {value.value}, normalizing to FREE")
+            return SubscriptionStatus.FREE
+        return value
+    
+    if isinstance(value, str):
+        value_upper = value.upper()
+        value_lower = value.lower()
+        
+        # Try to match by enum name (e.g., "FREE" -> SubscriptionStatus.FREE)
+        for status in SubscriptionStatus:
+            if status.name == value_upper:
+                return status
+        
+        # Try to match by enum value (e.g., "free" -> SubscriptionStatus.FREE)
+        for status in SubscriptionStatus:
+            if status.value == value_lower:
+                return status
+    
+    # Default to FREE if we can't normalize
+    logger.warning(f"Could not normalize subscription_status={value} (type={type(value)}), defaulting to FREE")
+    return SubscriptionStatus.FREE
+
+
+@event.listens_for(User, "before_insert", propagate=True)
+@event.listens_for(User, "before_update", propagate=True)
+def normalize_subscription_status_before_db(mapper, connection, target):
+    """
+    Event listener that normalizes subscription_status before insert/update.
+    This ensures "FREE" string is converted to SubscriptionStatus.FREE ("free") before hitting the DB.
+    """
+    if hasattr(target, 'subscription_status') and target.subscription_status is not None:
+        original = target.subscription_status
+        normalized = _normalize_subscription_status_for_db(original)
+        
+        if original != normalized:
+            logger.warning(
+                f"[DB NORMALIZATION] Normalizing subscription_status from {original} "
+                f"(type={type(original)}, value={getattr(original, 'value', original)}) "
+                f"to {normalized} (value={normalized.value})"
+            )
+            target.subscription_status = normalized
+        
+        # Final safety check: ensure the value is lowercase "free", "active", or "canceled"
+        final_value = target.subscription_status.value if isinstance(target.subscription_status, SubscriptionStatus) else str(target.subscription_status)
+        if final_value not in ["free", "active", "canceled"]:
+            logger.error(
+                f"[CRITICAL DB CHECK] subscription_status has invalid value: {final_value}. "
+                f"Force-setting to FREE."
+            )
+            target.subscription_status = SubscriptionStatus.FREE
 
