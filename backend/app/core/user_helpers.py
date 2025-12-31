@@ -9,6 +9,7 @@ from app.models import User, SubscriptionStatus
 from uuid import UUID
 import logging
 import os
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -58,79 +59,114 @@ def get_or_create_user_by_auth_id(
     """
     Get or create a local User record from Supabase auth_user_id.
     
-    This creates a stable mapping between Supabase users and local database users.
-    On first request from a Supabase user, creates a local user row.
+    Supabase Auth is the source of truth. This function ensures our app-level users row
+    is always keyed by auth_user_id (Supabase "sub").
     
-    Idempotent and safe under concurrent requests:
-    1. First tries to find by auth_user_id
-    2. If not found, tries to find by email (case-insensitive)
-    3. If not found, creates new user with race condition handling
+    Logic:
+    1. Find user by auth_user_id first (primary lookup)
+    2. If found, update email if changed (handling conflicts by orphaning)
+    3. If not found, create new user or link existing email-based row
+    
+    Idempotent and safe under concurrent requests with IntegrityError handling.
     """
     DEBUG = os.getenv("DEBUG", "false").lower() == "true"
-    ALLOW_EMAIL_RELINK = os.getenv("ALLOW_EMAIL_RELINK", "false").lower() == "true"
     
-    # Step A: Try to find existing user by auth_user_id
+    # Normalize email to lowercase and strip
+    normalized_email = email.lower().strip() if email else None
+    
+    # Step A: Try to find existing user by auth_user_id (primary lookup)
     user = db.query(User).filter(User.auth_user_id == auth_user_id).one_or_none()
     
     if user:
         if DEBUG:
             logger.info(f"[get_or_create_user_by_auth_id] found_by_auth_user_id: auth_user_id={auth_user_id}, user_id={user.id}")
         
-        # Update email if provided and different (normalize to lowercase)
-        if email:
-            normalized_email = email.lower().strip()
-            if user.email != normalized_email:
-                user.email = normalized_email
+        # Update email if provided and different
+        if normalized_email and user.email != normalized_email:
+            # Check if another row exists with that email and different auth_user_id
+            other = db.query(User).filter(
+                func.lower(User.email) == normalized_email,
+                User.auth_user_id != auth_user_id,
+                User.auth_user_id.isnot(None)
+            ).one_or_none()
+            
+            if other:
+                # Merge strategy: orphan the other row's email
+                # Since email is nullable, we can set it to NULL
+                other_email_backup = other.email
+                other.email = None
+                db.flush()  # Flush to apply the change
+                
+                logger.warning(
+                    f"[EMAIL_ORPHAN] Orphaned email from conflicting row: "
+                    f"email={other_email_backup}, other_user_id={other.id}, "
+                    f"other_auth_user_id={other.auth_user_id}, target_auth_user_id={auth_user_id}"
+                )
+            
+            # Now set the email on the correct user
+            user.email = normalized_email
+            try:
                 db.commit()
                 db.refresh(user)
+            except IntegrityError:
+                # Race condition: another thread may have set this email
+                db.rollback()
+                # Re-fetch by auth_user_id and return
+                user = db.query(User).filter(User.auth_user_id == auth_user_id).one_or_none()
+                if user:
+                    return user
+                raise
+        
         return user
     
-    # Step B: If not found, try to find by email (case-insensitive)
-    if email:
-        user = db.query(User).filter(func.lower(User.email) == func.lower(email)).one_or_none()
-        
-        if user:
-            if DEBUG:
-                logger.info(f"[get_or_create_user_by_auth_id] found_by_email_linked: email={email}, user_id={user.id}, existing_auth_user_id={user.auth_user_id}")
-            
-            # Link this existing account to the auth user id
-            if not user.auth_user_id:
-                user.auth_user_id = auth_user_id
+    # Step B: User does NOT exist by auth_user_id
+    # Check if a row exists by email
+    existing_by_email = None
+    if normalized_email:
+        existing_by_email = db.query(User).filter(
+            func.lower(User.email) == normalized_email
+        ).one_or_none()
+    
+    if existing_by_email:
+        if not existing_by_email.auth_user_id:
+            # Legacy row: link it to this auth_user_id
+            existing_by_email.auth_user_id = auth_user_id
+            try:
                 db.commit()
-                db.refresh(user)
+                db.refresh(existing_by_email)
                 if DEBUG:
-                    logger.info(f"[get_or_create_user_by_auth_id] linked_existing_user: user_id={user.id}, auth_user_id={auth_user_id}")
-            elif user.auth_user_id != auth_user_id:
-                # Email is linked to a different auth_user_id
-                if ALLOW_EMAIL_RELINK:
-                    # Relink: update auth_user_id to current value
-                    old_auth_user_id = user.auth_user_id
-                    user.auth_user_id = auth_user_id
-                    db.commit()
-                    db.refresh(user)
-                    logger.warning(
-                        f"[EMAIL_RELINK] Relinked email: email={user.email}, "
-                        f"old_auth_user_id={old_auth_user_id}, new_auth_user_id={auth_user_id}, user_id={user.id}"
-                    )
-                else:
-                    # Do NOT overwrite a different auth_user_id; raise 409 with safe message
-                    raise HTTPException(
-                        status_code=409,
-                        detail="email_already_linked_to_different_account"
-                    )
-            return user
+                    logger.info(f"[get_or_create_user_by_auth_id] linked_legacy_user: user_id={existing_by_email.id}, auth_user_id={auth_user_id}")
+                return existing_by_email
+            except IntegrityError:
+                # Race condition: another thread may have set this auth_user_id
+                db.rollback()
+                # Re-fetch by auth_user_id
+                user = db.query(User).filter(User.auth_user_id == auth_user_id).one_or_none()
+                if user:
+                    return user
+                raise
+        elif existing_by_email.auth_user_id != auth_user_id:
+            # True drift: email is linked to a different auth_user_id
+            logger.error(
+                f"[EMAIL_DRIFT] Email already linked to different account: "
+                f"email={normalized_email}, existing_auth_user_id={existing_by_email.auth_user_id}, "
+                f"requested_auth_user_id={auth_user_id}, user_id={existing_by_email.id}"
+            )
+            raise HTTPException(
+                status_code=409,
+                detail="email_already_linked_to_different_account"
+            )
     
     # Step C: Create new user row
-    # Normalize subscription_status to ensure it's the correct enum value
     normalized_status = _normalize_subscription_status(SubscriptionStatus.FREE)
     
-    # Normalize email to lowercase for consistency
-    normalized_email = (email.lower().strip() if email else f"user_{auth_user_id}@readar.local")
+    # Use normalized email or generate placeholder
+    final_email = normalized_email or f"user_{auth_user_id}@readar.local"
     
     new_user = User(
         auth_user_id=auth_user_id,
-        email=normalized_email,
-        subscription_status=normalized_status,  # Use normalized enum, not raw value
+        email=final_email,
+        subscription_status=normalized_status,
     )
     
     # Runtime safety assertion: verify the value before commit
@@ -141,7 +177,6 @@ def get_or_create_user_by_auth_id(
         else:
             actual_str = str(actual_value)
         
-        # Assert that we have the correct enum value (lowercase "free")
         if actual_str != "free":
             logger.error(
                 f"[SAFETY CHECK FAILED] subscription_status has wrong value: "
@@ -165,54 +200,24 @@ def get_or_create_user_by_auth_id(
         db.rollback()
         
         if DEBUG:
-            logger.info(f"[get_or_create_user_by_auth_id] race_refetch: IntegrityError on create, re-fetching by email={email}")
+            logger.info(f"[get_or_create_user_by_auth_id] race_refetch: IntegrityError on create, re-fetching")
         
-        # Race condition safety: re-fetch by email then by auth_user_id and return if found
-        if email:
-            normalized_email = email.lower().strip()
-            user = db.query(User).filter(func.lower(User.email) == func.lower(email)).one_or_none()
-            
-            if user:
-                # Normalize email if needed
-                if user.email != normalized_email:
-                    user.email = normalized_email
-                
-                if not user.auth_user_id:
-                    user.auth_user_id = auth_user_id
-                    db.commit()
-                    db.refresh(user)
-                    if DEBUG:
-                        logger.info(f"[get_or_create_user_by_auth_id] race_refetch_linked: user_id={user.id}, auth_user_id={auth_user_id}")
-                elif user.auth_user_id != auth_user_id:
-                    # Conflict: email already linked to different auth_user_id
-                    if ALLOW_EMAIL_RELINK:
-                        # Relink: update auth_user_id to current value
-                        old_auth_user_id = user.auth_user_id
-                        user.auth_user_id = auth_user_id
-                        db.commit()
-                        db.refresh(user)
-                        logger.warning(
-                            f"[EMAIL_RELINK] Relinked email (race condition): email={user.email}, "
-                            f"old_auth_user_id={old_auth_user_id}, new_auth_user_id={auth_user_id}, user_id={user.id}"
-                        )
-                    else:
-                        raise HTTPException(
-                            status_code=409,
-                            detail="email_already_linked_to_different_account"
-                        )
-                else:
-                    # Email already normalized, just commit if we changed it
-                    if user.email != normalized_email:
-                        db.commit()
-                        db.refresh(user)
-                return user
-        
-        # Also try by auth_user_id in case another thread created it
+        # Race condition safety: re-fetch by auth_user_id first (primary)
         user = db.query(User).filter(User.auth_user_id == auth_user_id).one_or_none()
         if user:
             if DEBUG:
                 logger.info(f"[get_or_create_user_by_auth_id] race_refetch_by_auth: auth_user_id={auth_user_id}, user_id={user.id}")
             return user
+        
+        # Also try by email as fallback
+        if normalized_email:
+            user = db.query(User).filter(
+                func.lower(User.email) == normalized_email
+            ).one_or_none()
+            if user:
+                if DEBUG:
+                    logger.info(f"[get_or_create_user_by_auth_id] race_refetch_by_email: email={normalized_email}, user_id={user.id}")
+                return user
         
         # If we still can't find it, re-raise the original error
         raise

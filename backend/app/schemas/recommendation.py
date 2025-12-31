@@ -49,4 +49,5 @@ class RecommendationsResponse(BaseModel):
     """Response wrapper for recommendations that includes request_id for event tracking."""
     request_id: str
     items: List[RecommendationItem]
+    debug: Optional[Dict[str, Any]] = None  # Only included when DEBUG=true
 

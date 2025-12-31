@@ -1,6 +1,7 @@
 from uuid import UUID
-from typing import List
+from typing import List, Optional, Dict, Any
 import uuid as uuid_lib
+import os
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -13,7 +14,7 @@ from app.services.recommendation_engine import NotEnoughSignalError
 from app.schemas.recommendation import RecommendationItem, RecommendationRequest, RecommendationsResponse
 from app.schemas.onboarding import OnboardingPayload
 from app.core.auth import get_current_user
-from app.models import User
+from app.models import User, UserBookFeedback, UserBookInteraction, UserBookStatusModel, ReadingHistoryEntry, Book
 from app.utils.instrumentation import log_event, log_event_best_effort
 from app.utils.timing import now_ms, log_elapsed
 from app.core.config import settings
@@ -38,6 +39,33 @@ async def get_recommendations(
     
     user_id = user.id
     request_id = str(uuid_lib.uuid4())
+    DEBUG = os.getenv("DEBUG", "false").lower() == "true"
+    
+    # DEBUG: Collect diagnostic counts
+    debug_info: Optional[Dict[str, Any]] = None
+    if DEBUG:
+        feedback_count = db.query(UserBookFeedback).filter(UserBookFeedback.user_id == user_id).count()
+        interactions_count = db.query(UserBookInteraction).filter(UserBookInteraction.user_id == user_id).count()
+        status_count = db.query(UserBookStatusModel).filter(UserBookStatusModel.user_id == user_id).count()
+        reading_history_count = db.query(ReadingHistoryEntry).filter(ReadingHistoryEntry.user_id == user_id).count()
+        candidates_count = db.query(Book).count()
+        
+        logger.info(
+            f"[DEBUG GET /api/recommendations] user_id={user_id} "
+            f"feedback={feedback_count} interactions={interactions_count} "
+            f"status_rows={status_count} reading_history={reading_history_count} "
+            f"candidates={candidates_count}"
+        )
+        
+        debug_info = {
+            "feedback": feedback_count,
+            "interactions": interactions_count,
+            "status_rows": status_count,
+            "reading_history": reading_history_count,
+            "candidates": candidates_count,
+            "returned": 0,  # Will be set after items are returned
+            "reason": None,  # Will be set if empty
+        }
     
     # Timing: after auth/user lookup
     if settings.DEBUG:
@@ -72,6 +100,11 @@ async def get_recommendations(
             "User %s has no signal, falling back to generic recommendations: %s",
             user_id, str(e)
         )
+        
+        # DEBUG: Update reason for fallback
+        if DEBUG and debug_info is not None:
+            debug_info["reason"] = "no_signal"
+        
         if settings.DEBUG:
             t_fallback = log_elapsed(t2, f"req_id={request_id} user={user_id} before_fallback", logger.debug)
         items = recommendation_engine.get_generic_recommendations(
@@ -133,7 +166,34 @@ async def get_recommendations(
         total = now_ms() - t0
         logger.debug(f"req_id={request_id} user={user_id} total={total:.2f}ms limit={limit} count={len(items)}")
     
-    return RecommendationsResponse(request_id=request_id, items=items)
+    # DEBUG: Update debug info and determine reason if empty
+    if DEBUG and debug_info is not None:
+        debug_info["returned"] = len(items)
+        if len(items) == 0:
+            # Determine reason for empty results
+            if debug_info["candidates"] == 0:
+                debug_info["reason"] = "no_catalog"
+            elif debug_info["interactions"] == 0 and debug_info["reading_history"] == 0 and debug_info["status_rows"] == 0:
+                debug_info["reason"] = "no_signal"
+            else:
+                debug_info["reason"] = "no_matches"
+            
+            logger.info(
+                f"[DEBUG GET /api/recommendations] user_id={user_id} "
+                f"returned={len(items)} reason={debug_info['reason']}"
+            )
+        else:
+            logger.info(
+                f"[DEBUG GET /api/recommendations] user_id={user_id} "
+                f"returned={len(items)}"
+            )
+    
+    # Build response with optional debug object
+    return RecommendationsResponse(
+        request_id=request_id,
+        items=items,
+        debug=debug_info if DEBUG else None,
+    )
 
 
 @router.post("/recommendations", response_model=RecommendationsResponse)

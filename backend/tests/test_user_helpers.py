@@ -185,3 +185,99 @@ def test_email_relink_default_behavior_is_disabled(db: Session):
     assert exc_info.value.status_code == 409
     assert exc_info.value.detail == "email_already_linked_to_different_account"
 
+
+def test_email_conflict_orphans_other_row(db: Session):
+    """Test that when updating email on existing user, conflicting email is orphaned."""
+    auth_user_id_1 = str(uuid4())
+    auth_user_id_2 = str(uuid4())
+    email_1 = "user1@example.com"
+    email_2 = "user2@example.com"
+    
+    # Create user1 with email_1
+    user1 = get_or_create_user_by_auth_id(
+        db=db,
+        auth_user_id=auth_user_id_1,
+        email=email_1,
+    )
+    
+    # Create user2 with email_2
+    user2 = get_or_create_user_by_auth_id(
+        db=db,
+        auth_user_id=auth_user_id_2,
+        email=email_2,
+    )
+    
+    assert user1.email == email_1.lower()
+    assert user2.email == email_2.lower()
+    
+    # Update user1's email to email_2 (which is already taken by user2)
+    # This should orphan user2's email (set to NULL) and assign email_2 to user1
+    updated_user1 = get_or_create_user_by_auth_id(
+        db=db,
+        auth_user_id=auth_user_id_1,
+        email=email_2,
+    )
+    
+    assert updated_user1.id == user1.id
+    assert updated_user1.email == email_2.lower()
+    
+    # Verify user2's email was orphaned (set to NULL)
+    db.refresh(user2)
+    assert user2.email is None
+    assert user2.auth_user_id == auth_user_id_2  # auth_user_id should remain unchanged
+
+
+def test_legacy_user_linking(db: Session):
+    """Test that legacy user (email exists but no auth_user_id) gets linked."""
+    email = "legacy@example.com"
+    auth_user_id = str(uuid4())
+    
+    # Create a legacy user (no auth_user_id)
+    legacy_user = User(
+        email=email,
+        subscription_status=SubscriptionStatus.FREE,
+    )
+    db.add(legacy_user)
+    db.commit()
+    db.refresh(legacy_user)
+    
+    assert legacy_user.auth_user_id is None
+    
+    # Call get_or_create_user_by_auth_id - should link the legacy user
+    linked_user = get_or_create_user_by_auth_id(
+        db=db,
+        auth_user_id=auth_user_id,
+        email=email,
+    )
+    
+    assert linked_user.id == legacy_user.id
+    assert linked_user.auth_user_id == auth_user_id
+    assert linked_user.email == email.lower()
+
+
+def test_email_update_on_existing_user(db: Session):
+    """Test that email updates when user exists by auth_user_id."""
+    auth_user_id = str(uuid4())
+    email_1 = "old@example.com"
+    email_2 = "new@example.com"
+    
+    # Create user with email_1
+    user1 = get_or_create_user_by_auth_id(
+        db=db,
+        auth_user_id=auth_user_id,
+        email=email_1,
+    )
+    
+    assert user1.email == email_1.lower()
+    
+    # Update email to email_2
+    user2 = get_or_create_user_by_auth_id(
+        db=db,
+        auth_user_id=auth_user_id,
+        email=email_2,
+    )
+    
+    assert user2.id == user1.id
+    assert user2.email == email_2.lower()
+    assert user2.auth_user_id == auth_user_id
+

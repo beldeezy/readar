@@ -198,6 +198,106 @@ Traceback (most recent call last):
   ...
 ```
 
+## Testing Recommendations Endpoint
+
+### GET /api/recommendations
+
+Test the recommendations endpoint with authentication:
+
+```bash
+# Set your JWT token (get from Supabase auth or browser dev tools)
+TOKEN="your-jwt-token-here"
+
+# Test with limit=5
+curl -i https://readar-backend.onrender.com/api/recommendations?limit=5 \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+**Expected Response (when DEBUG=true):**
+```json
+{
+  "request_id": "uuid-here",
+  "items": [...],
+  "debug": {
+    "feedback": 0,
+    "interactions": 0,
+    "status_rows": 0,
+    "reading_history": 0,
+    "candidates": 120,
+    "returned": 5,
+    "reason": null
+  }
+}
+```
+
+**Expected Response (when DEBUG=false or not set):**
+```json
+{
+  "request_id": "uuid-here",
+  "items": [...]
+}
+```
+
+**Empty Results (when DEBUG=true):**
+```json
+{
+  "request_id": "uuid-here",
+  "items": [],
+  "debug": {
+    "feedback": 0,
+    "interactions": 0,
+    "status_rows": 0,
+    "reading_history": 0,
+    "candidates": 120,
+    "returned": 0,
+    "reason": "no_signal"
+  }
+}
+```
+
+**Debug Reason Values:**
+- `"no_signal"`: User has no interactions, reading history, or status rows
+- `"no_catalog"`: No books in catalog
+- `"no_matches"`: User has signal but no matching recommendations
+
+## User Authentication and Email Conflicts
+
+### Supabase Auth as Source of Truth
+
+The application uses Supabase Auth as the source of truth for user authentication. The `auth_user_id` (Supabase "sub" claim) is the primary key for user lookups.
+
+### Email Conflict Resolution
+
+If you see `email_already_linked_to_different_account` (409 error) during testing:
+
+1. **Delete the Supabase Auth user** in your Supabase dashboard
+2. **Delete the app database user rows** (if any exist with that email)
+3. **OR use a never-before-used email** for testing
+
+The system will automatically:
+- Orphan conflicting emails (set to NULL) when updating a user's email
+- Link legacy users (email exists but no auth_user_id) to the current auth_user_id
+- Raise 409 only when email is truly linked to a different Supabase auth account
+
+### Testing User Creation
+
+To test user creation without conflicts:
+
+```bash
+# Use a unique email each time
+TOKEN="your-jwt-token-here"
+curl -i https://readar-backend.onrender.com/api/onboarding \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "full_name": "Test User",
+    "business_model": "service",
+    "business_stage": "pre-revenue",
+    "biggest_challenge": "sales"
+  }'
+```
+
 ## Next Steps
 
 1. Deploy with `DEBUG=true` and `VITE_DEBUG=true` set
@@ -208,5 +308,6 @@ Traceback (most recent call last):
    - Render logs (exception stacktrace)
    - Render logs (startup enum validation)
    - Render logs (method/path from global exception handler)
+   - Render logs (DEBUG GET /api/recommendations diagnostic counts)
 4. Run curl commands and capture outputs
 
