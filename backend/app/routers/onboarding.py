@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from uuid import UUID
 from app.database import get_db
-from app.models import User, OnboardingProfile, UserBookInteraction, Book, UserBookStatus
+from app.models import User, OnboardingProfile, UserBookInteraction, Book, UserBookStatus, BusinessStage
 from app.schemas.onboarding import OnboardingPayload, OnboardingProfileResponse
 from app.core.auth import get_current_user
 from app.utils.instrumentation import log_event_best_effort
@@ -19,6 +19,58 @@ def is_uuid(s: str) -> bool:
         return True
     except (ValueError, TypeError):
         return False
+
+
+def normalize_business_stage(value) -> BusinessStage:
+    """
+    Normalize business_stage to the correct enum value.
+    
+    Converts inbound enum-like strings to DB-safe values:
+    - Lowercases
+    - Converts underscores to hyphens (e.g., "PRE_REVENUE" -> "pre-revenue")
+    - If value is already valid enum, returns it
+    
+    Examples:
+    - "PRE_REVENUE" -> BusinessStage.PRE_REVENUE (value: "pre-revenue")
+    - "pre_revenue" -> BusinessStage.PRE_REVENUE (value: "pre-revenue")
+    - "pre-revenue" -> BusinessStage.PRE_REVENUE (value: "pre-revenue")
+    - BusinessStage.PRE_REVENUE -> BusinessStage.PRE_REVENUE
+    """
+    if isinstance(value, BusinessStage):
+        return value
+    
+    if isinstance(value, str):
+        # Normalize the string: lowercase and convert underscores to hyphens
+        normalized_str = value.lower().replace("_", "-")
+        
+        # Try to match by enum value first (e.g., "pre-revenue")
+        for stage in BusinessStage:
+            if stage.value == normalized_str:
+                return stage
+        
+        # Try to match by enum name (e.g., "PRE_REVENUE" -> PRE_REVENUE)
+        value_upper = value.upper()
+        for stage in BusinessStage:
+            if stage.name == value_upper:
+                return stage
+        
+        # Try partial matching: "PRE_REVENUE" -> "pre-revenue"
+        # Map common variations
+        stage_map = {
+            "pre_revenue": BusinessStage.PRE_REVENUE,
+            "pre-revenue": BusinessStage.PRE_REVENUE,
+            "early_revenue": BusinessStage.EARLY_REVENUE,
+            "early-revenue": BusinessStage.EARLY_REVENUE,
+            "idea": BusinessStage.IDEA,
+            "scaling": BusinessStage.SCALING,
+        }
+        if normalized_str in stage_map:
+            return stage_map[normalized_str]
+    
+    # Default to IDEA if we can't normalize
+    logger.warning(f"Could not normalize business_stage={value} (type={type(value)}), defaulting to IDEA")
+    return BusinessStage.IDEA
+
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
@@ -39,6 +91,11 @@ async def create_or_update_onboarding(
         # Extract book_preferences before creating profile (since OnboardingProfile doesn't have this field)
         book_preferences = payload.book_preferences
         payload_dict = payload.model_dump(exclude={"book_preferences"})
+        
+        # Normalize enum fields to ensure DB-safe values
+        # business_stage: normalize from "PRE_REVENUE" -> BusinessStage.PRE_REVENUE (value: "pre-revenue")
+        if "business_stage" in payload_dict:
+            payload_dict["business_stage"] = normalize_business_stage(payload_dict["business_stage"])
         
         # Check if profile already exists
         existing_profile = db.query(OnboardingProfile).filter(
