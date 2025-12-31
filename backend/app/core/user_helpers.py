@@ -67,6 +67,7 @@ def get_or_create_user_by_auth_id(
     3. If not found, creates new user with race condition handling
     """
     DEBUG = os.getenv("DEBUG", "false").lower() == "true"
+    ALLOW_EMAIL_RELINK = os.getenv("ALLOW_EMAIL_RELINK", "false").lower() == "true"
     
     # Step A: Try to find existing user by auth_user_id
     user = db.query(User).filter(User.auth_user_id == auth_user_id).one_or_none()
@@ -100,11 +101,23 @@ def get_or_create_user_by_auth_id(
                 if DEBUG:
                     logger.info(f"[get_or_create_user_by_auth_id] linked_existing_user: user_id={user.id}, auth_user_id={auth_user_id}")
             elif user.auth_user_id != auth_user_id:
-                # Do NOT overwrite a different auth_user_id; raise 409 with safe message
-                raise HTTPException(
-                    status_code=409,
-                    detail="email_already_linked_to_different_account"
-                )
+                # Email is linked to a different auth_user_id
+                if ALLOW_EMAIL_RELINK:
+                    # Relink: update auth_user_id to current value
+                    old_auth_user_id = user.auth_user_id
+                    user.auth_user_id = auth_user_id
+                    db.commit()
+                    db.refresh(user)
+                    logger.warning(
+                        f"[EMAIL_RELINK] Relinked email: email={user.email}, "
+                        f"old_auth_user_id={old_auth_user_id}, new_auth_user_id={auth_user_id}, user_id={user.id}"
+                    )
+                else:
+                    # Do NOT overwrite a different auth_user_id; raise 409 with safe message
+                    raise HTTPException(
+                        status_code=409,
+                        detail="email_already_linked_to_different_account"
+                    )
             return user
     
     # Step C: Create new user row
@@ -172,10 +185,21 @@ def get_or_create_user_by_auth_id(
                         logger.info(f"[get_or_create_user_by_auth_id] race_refetch_linked: user_id={user.id}, auth_user_id={auth_user_id}")
                 elif user.auth_user_id != auth_user_id:
                     # Conflict: email already linked to different auth_user_id
-                    raise HTTPException(
-                        status_code=409,
-                        detail="email_already_linked_to_different_account"
-                    )
+                    if ALLOW_EMAIL_RELINK:
+                        # Relink: update auth_user_id to current value
+                        old_auth_user_id = user.auth_user_id
+                        user.auth_user_id = auth_user_id
+                        db.commit()
+                        db.refresh(user)
+                        logger.warning(
+                            f"[EMAIL_RELINK] Relinked email (race condition): email={user.email}, "
+                            f"old_auth_user_id={old_auth_user_id}, new_auth_user_id={auth_user_id}, user_id={user.id}"
+                        )
+                    else:
+                        raise HTTPException(
+                            status_code=409,
+                            detail="email_already_linked_to_different_account"
+                        )
                 else:
                     # Email already normalized, just commit if we changed it
                     if user.email != normalized_email:

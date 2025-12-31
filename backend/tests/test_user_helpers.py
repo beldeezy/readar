@@ -1,7 +1,9 @@
 """Tests for user helper functions."""
 import pytest
+import os
 from uuid import uuid4
 from sqlalchemy.orm import Session
+from fastapi import HTTPException
 from app.models import User, SubscriptionStatus
 from app.core.user_helpers import get_or_create_user_by_auth_id, _normalize_subscription_status
 
@@ -82,4 +84,104 @@ def test_normalize_subscription_status_with_enum_name():
     result = _normalize_subscription_status("ACTIVE")
     assert result == SubscriptionStatus.ACTIVE
     assert result.value == "active"
+
+
+def test_email_relink_when_flag_enabled(db: Session, monkeypatch):
+    """Test that email relink works when ALLOW_EMAIL_RELINK is enabled."""
+    # Enable email relink
+    monkeypatch.setenv("ALLOW_EMAIL_RELINK", "true")
+    
+    email = "relink@example.com"
+    auth_user_id_1 = str(uuid4())
+    auth_user_id_2 = str(uuid4())
+    
+    # Create user with first auth_user_id
+    user1 = get_or_create_user_by_auth_id(
+        db=db,
+        auth_user_id=auth_user_id_1,
+        email=email,
+    )
+    
+    assert user1.auth_user_id == auth_user_id_1
+    assert user1.email == email.lower()  # Email should be normalized to lowercase
+    
+    # Try to get/create with different auth_user_id but same email
+    # Should relink the email to the new auth_user_id
+    user2 = get_or_create_user_by_auth_id(
+        db=db,
+        auth_user_id=auth_user_id_2,
+        email=email,
+    )
+    
+    # Should be the same user, but with updated auth_user_id
+    assert user2.id == user1.id
+    assert user2.auth_user_id == auth_user_id_2
+    assert user2.email == email.lower()
+    
+    # Verify in database
+    db.refresh(user2)
+    assert user2.auth_user_id == auth_user_id_2
+
+
+def test_email_relink_raises_409_when_flag_disabled(db: Session, monkeypatch):
+    """Test that email relink raises 409 when ALLOW_EMAIL_RELINK is disabled."""
+    # Disable email relink (default)
+    monkeypatch.setenv("ALLOW_EMAIL_RELINK", "false")
+    
+    email = "norelink@example.com"
+    auth_user_id_1 = str(uuid4())
+    auth_user_id_2 = str(uuid4())
+    
+    # Create user with first auth_user_id
+    user1 = get_or_create_user_by_auth_id(
+        db=db,
+        auth_user_id=auth_user_id_1,
+        email=email,
+    )
+    
+    assert user1.auth_user_id == auth_user_id_1
+    
+    # Try to get/create with different auth_user_id but same email
+    # Should raise 409
+    with pytest.raises(HTTPException) as exc_info:
+        get_or_create_user_by_auth_id(
+            db=db,
+            auth_user_id=auth_user_id_2,
+            email=email,
+        )
+    
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail == "email_already_linked_to_different_account"
+    
+    # Verify original user is unchanged
+    db.refresh(user1)
+    assert user1.auth_user_id == auth_user_id_1
+
+
+def test_email_relink_default_behavior_is_disabled(db: Session):
+    """Test that email relink is disabled by default (no env var set)."""
+    email = "default@example.com"
+    auth_user_id_1 = str(uuid4())
+    auth_user_id_2 = str(uuid4())
+    
+    # Create user with first auth_user_id
+    user1 = get_or_create_user_by_auth_id(
+        db=db,
+        auth_user_id=auth_user_id_1,
+        email=email,
+    )
+    
+    assert user1.auth_user_id == auth_user_id_1
+    
+    # Try to get/create with different auth_user_id but same email
+    # Should raise 409 (default behavior, no env var)
+    with pytest.raises(HTTPException) as exc_info:
+        get_or_create_user_by_auth_id(
+            db=db,
+            auth_user_id=auth_user_id_2,
+            email=email,
+        )
+    
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail == "email_already_linked_to_different_account"
 

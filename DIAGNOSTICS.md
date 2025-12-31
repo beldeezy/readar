@@ -54,6 +54,46 @@
 **Backend:**
 - Set `DEBUG=true` in environment variables
 
+## Email Relink Feature
+
+### Overview
+
+The email relink feature allows the system to automatically update a user's `auth_user_id` when an email is already linked to a different Supabase auth user. This is useful during testing when you need to reuse the same email with different auth accounts.
+
+### Configuration
+
+**Environment Variable:** `ALLOW_EMAIL_RELINK`
+
+- **Default:** `false` (disabled)
+- **When enabled:** `ALLOW_EMAIL_RELINK=true`
+
+### Behavior
+
+**When `ALLOW_EMAIL_RELINK=false` (default):**
+- If a user exists with the same email but a different `auth_user_id`, the system raises a `409 Conflict` error with detail `"email_already_linked_to_different_account"`.
+- This prevents accidental account linking in production.
+
+**When `ALLOW_EMAIL_RELINK=true`:**
+- If a user exists with the same email but a different `auth_user_id`, the system automatically updates the existing user's `auth_user_id` to the current value.
+- A warning is logged with the email, old `auth_user_id`, and new `auth_user_id`.
+- The existing user record is returned (no new user is created).
+
+### Use Cases
+
+- **Testing:** Allows reusing the same email address with different Supabase auth accounts during development/testing.
+- **Account Recovery:** Can help recover accounts when auth providers change user IDs.
+
+### Security Note
+
+⚠️ **Warning:** Only enable this feature in development/testing environments. In production, this could allow unauthorized account access if an attacker gains control of an email address.
+
+### Example Log Output
+
+When email relink occurs (with `ALLOW_EMAIL_RELINK=true`):
+```
+[EMAIL_RELINK] Relinked email: email=test@example.com, old_auth_user_id=abc-123, new_auth_user_id=xyz-789, user_id=user-uuid
+```
+
 ## Curl Commands for Testing
 
 ### 1. Health Check (No Auth)
