@@ -212,12 +212,21 @@ class ApiClient {
       
       return response.data;
     } catch (error: any) {
-      if (DEBUG) {
-        console.log('[DEBUG getOnboarding error]', {
+      // Enhanced error logging (only when VITE_DEBUG=true in production, or in dev)
+      const shouldLog = DEBUG || import.meta.env.VITE_DEBUG === 'true';
+      if (shouldLog) {
+        console.error('[DEBUG getOnboarding error]', {
+          url,
+          method: 'GET',
           status: error?.response?.status,
           statusText: error?.response?.statusText,
-          body: error?.response?.data ? JSON.stringify(error.response.data) : 'no body',
+          headers: error?.response?.headers ? {
+            'content-type': error.response.headers['content-type'],
+          } : 'no headers',
+          responseData: error?.response?.data ? JSON.stringify(error.response.data) : 'no response data',
+          responseText: error?.response?.data ? String(error.response.data) : 'no response text',
           message: error?.message,
+          stack: error?.stack,
         });
       }
       throw error;
@@ -246,17 +255,84 @@ class ApiClient {
   }
 
   async getRecommendations(maxResults?: number): Promise<RecommendationsResponse> {
-    const response = await this.client.post<RecommendationsResponse>('/recommendations', {
-      max_results: maxResults,
-    });
-    return response.data;
+    // Debug logging (only when VITE_DEBUG=true in production, or in dev)
+    const DEBUG = import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true';
+    const url = `${API_BASE_URL}/recommendations`;
+    const hasAuth = !!getAuthHeader();
+    
+    if (DEBUG) {
+      console.log('[DEBUG getRecommendations]', {
+        method: 'POST',
+        url,
+        hasAuthorization: hasAuth,
+        maxResults,
+      });
+    }
+
+    try {
+      const response = await this.client.post<RecommendationsResponse>('/recommendations', {
+        max_results: maxResults,
+      });
+      
+      if (DEBUG) {
+        console.log('[DEBUG getRecommendations response]', {
+          status: response.status,
+          statusText: response.statusText,
+        });
+      }
+      
+      return response.data;
+    } catch (error: any) {
+      if (DEBUG) {
+        console.error('[DEBUG getRecommendations error]', {
+          url,
+          method: 'POST',
+          status: error?.response?.status,
+          statusText: error?.response?.statusText,
+          headers: error?.response?.headers ? {
+            'content-type': error.response.headers['content-type'],
+          } : 'no headers',
+          responseData: error?.response?.data ? JSON.stringify(error.response.data) : 'no response data',
+          responseText: error?.response?.data ? String(error.response.data) : 'no response text',
+          message: error?.message,
+        });
+      }
+      throw error;
+    }
   }
 
   async getPreviewRecommendations(payload: OnboardingPayload): Promise<RecommendationItem[]> {
+    // Debug logging (only when VITE_DEBUG=true in production, or in dev)
+    const DEBUG = import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true';
+    const url = `${API_BASE_URL}/recommendations/preview`;
+    const hasAuth = !!getAuthHeader();
+    
+    if (DEBUG) {
+      console.log('[DEBUG getPreviewRecommendations]', {
+        method: 'POST',
+        url,
+        hasAuthorization: hasAuth,
+      });
+    }
+
     try {
       const response = await this.client.post<RecommendationItem[]>('/recommendations/preview', payload);
       return response.data;
     } catch (error: any) {
+      if (DEBUG) {
+        console.error('[DEBUG getPreviewRecommendations error]', {
+          url,
+          method: 'POST',
+          status: error?.response?.status,
+          statusText: error?.response?.statusText,
+          headers: error?.response?.headers ? {
+            'content-type': error.response.headers['content-type'],
+          } : 'no headers',
+          responseData: error?.response?.data ? JSON.stringify(error.response.data) : 'no response data',
+          responseText: error?.response?.data ? String(error.response.data) : 'no response text',
+          message: error?.message,
+        });
+      }
       if (error.response?.data?.detail) {
         throw new Error(error.response.data.detail);
       }

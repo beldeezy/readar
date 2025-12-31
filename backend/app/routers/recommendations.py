@@ -83,12 +83,24 @@ async def get_recommendations(
         else:
             t3 = now_ms()
     except Exception as e:
-        # Log full traceback to server console
-        logger.exception("Error while generating recommendations for user %s", user_id)
+        # Log full traceback to server console with detailed context
+        error_type = type(e).__name__
+        error_message = str(e) if str(e) else "An unexpected error occurred"
+        logger.exception(
+            "[DEBUG GET /api/recommendations ERROR] "
+            f"user_id={user_id}, "
+            f"auth_user_id={user.auth_user_id}, "
+            f"error_type={error_type}, "
+            f"error={error_message}"
+        )
         # Surface detail to the client
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to get recommendations: {e}",
+            detail={
+                "detail": "internal_error",
+                "error_type": error_type,
+                "error": error_message,
+            },
         )
     
     # Timing: before event logging

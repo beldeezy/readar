@@ -22,47 +22,6 @@ def is_uuid(s: str) -> bool:
         return False
 
 
-def normalize_business_stage(value) -> BusinessStage:
-    """
-    Normalize business_stage to the correct enum value.
-    
-    Converts inbound enum-like strings to DB-safe values:
-    - Trims whitespace
-    - Lowercases
-    - Converts underscores to hyphens
-    - Converts spaces to hyphens
-    
-    Raises ValueError if value cannot be normalized to a valid BusinessStage.
-    """
-    if isinstance(value, BusinessStage):
-        return value
-    
-    if not isinstance(value, str):
-        raise ValueError(f"business_stage must be a string or BusinessStage enum, got {type(value).__name__}")
-    
-    # Normalize the string: trim, lowercase, convert underscores/spaces to hyphens
-    normalized_str = value.strip().lower().replace("_", "-").replace(" ", "-")
-    
-    # Try to match by enum value first (e.g., "pre-revenue")
-    for stage in BusinessStage:
-        if stage.value == normalized_str:
-            return stage
-    
-    # Try to match by enum name (e.g., "PRE_REVENUE" -> PRE_REVENUE)
-    # After normalization, enum names like "PRE_REVENUE" become "pre-revenue" which matches the value
-    value_upper = value.strip().upper()
-    for stage in BusinessStage:
-        if stage.name == value_upper:
-            return stage
-    
-    # If we get here, the value is invalid
-    allowed_values = [stage.value for stage in BusinessStage]
-    raise ValueError(
-        f"Invalid business_stage value: {value!r}. "
-        f"Allowed values are: {', '.join(allowed_values)}"
-    )
-
-
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 
@@ -81,12 +40,14 @@ async def create_or_update_onboarding(
     
     user_id = user.id
     if DEBUG:
+        payload_dict_debug = payload.model_dump()
         logger.info(
             "[DEBUG POST /api/onboarding] "
             f"user_id={user_id}, "
-            f"payload_keys={list(payload.model_dump().keys())}, "
-            f"business_stage={getattr(payload, 'business_stage', 'N/A')}, "
-            f"entrepreneur_status={getattr(payload, 'entrepreneur_status', 'N/A')}"
+            f"payload_keys={list(payload_dict_debug.keys())}, "
+            f"business_stage={payload_dict_debug.get('business_stage', 'N/A')}, "
+            f"entrepreneur_status={payload_dict_debug.get('entrepreneur_status', 'N/A')}, "
+            f"subscription_status={user.subscription_status.value if hasattr(user, 'subscription_status') else 'N/A'}"
         )
     
     try:
@@ -94,21 +55,7 @@ async def create_or_update_onboarding(
         book_preferences = payload.book_preferences
         payload_dict = payload.model_dump(exclude={"book_preferences"})
         
-        # Normalize enum fields to ensure DB-safe values
-        # business_stage: normalize from "PRE_REVENUE" -> BusinessStage.PRE_REVENUE (value: "pre-revenue")
-        if "business_stage" in payload_dict:
-            try:
-                payload_dict["business_stage"] = normalize_business_stage(payload_dict["business_stage"])
-            except ValueError as e:
-                # Return 400 for invalid enum values (not 500)
-                allowed_values = [stage.value for stage in BusinessStage]
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail={
-                        "detail": str(e),
-                        "allowed_values": allowed_values,
-                    },
-                )
+        # Note: business_stage is already normalized by Pydantic validator in OnboardingPayload schema
         
         # Check if profile already exists
         existing_profile = db.query(OnboardingProfile).filter(
@@ -236,20 +183,31 @@ async def get_onboarding(
     if DEBUG:
         logger.info(f"[DEBUG GET /api/onboarding] user_id={user_id}")
     
-    profile = db.query(OnboardingProfile).filter(
-        OnboardingProfile.user_id == user.id
-    ).first()
-    
-    if not profile:
+    try:
+        profile = db.query(OnboardingProfile).filter(
+            OnboardingProfile.user_id == user.id
+        ).first()
+        
+        if not profile:
+            if DEBUG:
+                logger.warning(f"[DEBUG GET /api/onboarding] user_id={user_id} - profile not found (404)")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Onboarding profile not found",
+            )
+        
         if DEBUG:
-            logger.warning(f"[DEBUG GET /api/onboarding] user_id={user_id} - profile not found (404)")
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Onboarding profile not found",
+            logger.info(f"[DEBUG GET /api/onboarding] user_id={user_id} - profile found (200)")
+        
+        return OnboardingProfileResponse.model_validate(profile)
+    except HTTPException:
+        # Re-raise HTTPExceptions as-is
+        raise
+    except Exception as e:
+        # Log any unexpected DB errors
+        logger.exception(
+            f"[DEBUG GET /api/onboarding ERROR] user_id={user_id}, "
+            f"error_type={type(e).__name__}, error={str(e)}"
         )
-    
-    if DEBUG:
-        logger.info(f"[DEBUG GET /api/onboarding] user_id={user_id} - profile found (200)")
-    
-    return OnboardingProfileResponse.model_validate(profile)
+        raise
 

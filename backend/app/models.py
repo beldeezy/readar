@@ -81,7 +81,15 @@ class OnboardingProfile(Base):
     business_model = Column(String, nullable=False)
     business_experience = Column(String, nullable=True)
     areas_of_business = Column(ARRAY(String), nullable=True)
-    business_stage = Column(SQLEnum(BusinessStage), nullable=False)
+    business_stage = Column(
+        PostgresEnum(
+            BusinessStage,
+            values_callable=lambda x: [e.value for e in x],
+            name="businessstage",
+            create_type=False,  # Type already exists in DB
+        ),
+        nullable=False,
+    )
     org_size = Column(String, nullable=True)
     is_student = Column(Boolean, nullable=True)
     biggest_challenge = Column(Text, nullable=False)

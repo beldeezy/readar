@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 from typing import Optional, List, Literal
 from datetime import datetime
 from uuid import UUID
@@ -30,6 +30,16 @@ RevenueRange = Literal[
 ]
 
 
+def normalize_business_stage_string(value: str) -> str:
+    """
+    Normalize a string to match BusinessStage enum values.
+    - Strips whitespace
+    - Lowercases
+    - Replaces underscores and spaces with hyphens (since enum values use hyphens)
+    """
+    return value.strip().lower().replace("_", "-").replace(" ", "-")
+
+
 class OnboardingPayload(BaseModel):
     full_name: str
     age: Optional[int] = None
@@ -50,6 +60,46 @@ class OnboardingPayload(BaseModel):
     current_gross_revenue: Optional[RevenueRange] = None
     has_prior_reading_history: Optional[bool] = None
     book_preferences: Optional[List[OnboardingBookPreference]] = None
+
+    @field_validator("business_stage", mode="before")
+    @classmethod
+    def normalize_business_stage(cls, value):
+        """
+        Normalize business_stage input to accept case-insensitive strings.
+        Accepts: "PRE_REVENUE", "pre_revenue", "pre-revenue", " Pre Revenue " -> BusinessStage.PRE_REVENUE (value: "pre-revenue")
+        """
+        if value is None:
+            return None
+        
+        # If already an Enum instance, return it
+        if isinstance(value, BusinessStage):
+            return value
+        
+        # If string, normalize and match against enum values
+        if isinstance(value, str):
+            normalized = normalize_business_stage_string(value)
+            
+            # Try to match by enum value first (e.g., "pre-revenue")
+            for stage in BusinessStage:
+                if stage.value == normalized:
+                    return stage
+            
+            # Try to match by enum name (e.g., "PRE_REVENUE" -> "pre-revenue" after normalization)
+            # This handles cases where the input is the enum name
+            value_upper = value.strip().upper()
+            for stage in BusinessStage:
+                if stage.name == value_upper:
+                    return stage
+            
+            # If no match, raise ValueError with allowed values
+            allowed_values = [stage.value for stage in BusinessStage]
+            raise ValueError(
+                f"Invalid business_stage value: {value!r}. "
+                f"Allowed values are: {', '.join(allowed_values)}"
+            )
+        
+        # For any other type, try to convert to string and normalize
+        return cls.normalize_business_stage(str(value))
 
 
 class OnboardingProfileResponse(BaseModel):

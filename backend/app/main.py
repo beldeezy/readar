@@ -80,12 +80,25 @@ async def add_build_header(request: Request, call_next):
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
-    logger.exception("[UNHANDLED] %s %s", request.method, request.url.path)
+    # Always log full exception with stacktrace
+    error_type = type(exc).__name__
+    error_message = str(exc) if str(exc) else "An unexpected error occurred"
+    logger.exception(
+        "[UNHANDLED EXCEPTION] %s %s - %s: %s",
+        request.method,
+        request.url.path,
+        error_type,
+        error_message
+    )
     
-    # Create response with CORS headers
+    # Create response with detailed error info (safe, no secrets)
     response = JSONResponse(
         status_code=500,
-        content={"detail": "Internal Server Error"}
+        content={
+            "detail": "internal_error",
+            "error_type": error_type,
+            "error": error_message,
+        }
     )
     
     # Ensure CORS headers are present in error responses
@@ -145,10 +158,31 @@ def on_startup() -> None:
     # Debug: Print enum values for onboarding-related enums (only when DEBUG=true)
     DEBUG_ENUMS = os.getenv("DEBUG", "false").lower() == "true"
     if DEBUG_ENUMS:
-        from app.models import BusinessStage
-        logger.info("[DEBUG] BusinessStage enum values:")
+        from app.models import BusinessStage, SubscriptionStatus, User, OnboardingProfile
+        import sqlalchemy as sa
+        
+        logger.info("[DEBUG] Enum values for onboarding-related types:")
+        
+        # BusinessStage enum
+        logger.info("BusinessStage enum values:")
         for stage in BusinessStage:
             logger.info(f"  {stage.name} = {stage.value!r}")
+        
+        # SubscriptionStatus enum
+        logger.info("SubscriptionStatus enum values:")
+        for status in SubscriptionStatus:
+            logger.info(f"  {status.name} = {status.value!r}")
+        
+        # SQLAlchemy column types
+        logger.info("[DEBUG] SQLAlchemy column types:")
+        logger.info(f"  User.subscription_status type: {User.subscription_status.type}")
+        logger.info(f"  OnboardingProfile.business_stage type: {OnboardingProfile.business_stage.type}")
+        
+        # Check if using PostgresEnum or SQLEnum
+        if hasattr(User.subscription_status.type, 'enums'):
+            logger.info(f"  User.subscription_status.enums: {User.subscription_status.type.enums}")
+        if hasattr(OnboardingProfile.business_stage.type, 'enums'):
+            logger.info(f"  OnboardingProfile.business_stage.enums: {OnboardingProfile.business_stage.type.enums}")
 
 
 @app.get("/health")
