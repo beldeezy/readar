@@ -108,14 +108,22 @@ class ApiClient {
           }
         }
 
-        // Handle 409 email conflict errors
+        // Handle 409 auth conflict errors (only unsafe conflicts trigger logout)
         if (error.response?.status === 409) {
           const detail = error.response?.data?.detail;
           const errorCode = typeof detail === 'string' ? detail : 
                            (typeof detail === 'object' && detail?.code) ? detail.code : null;
           
-          if (errorCode === 'email_already_linked_to_different_account' || 
-              errorCode === 'email_mismatch') {
+          // Only logout on truly unsafe conflicts (not on safe relinks which now succeed)
+          const unsafeErrorCodes = [
+            'auth_user_id_already_linked_to_different_email',
+            'email_mismatch_cannot_link',
+            'email_claim_missing_cannot_link',
+            // Legacy code (should not occur with new implementation, but handle for safety)
+            'email_already_linked_to_different_account'
+          ];
+          
+          if (errorCode && unsafeErrorCodes.includes(errorCode)) {
             // Clear onboarding draft state and localStorage
             localStorage.removeItem('pending_onboarding');
             localStorage.removeItem('readar_preview_recs');
@@ -130,11 +138,17 @@ class ApiClient {
             if (!isAuthPage && !redirectingToLogin) {
               redirectingToLogin = true;
               // Store error message in sessionStorage to show on login page
-              sessionStorage.setItem('auth_error', 
-                'Your email is linked to a different account. Please log in with the correct account.');
+              let errorMessage = 'Authentication conflict detected. Please log in again.';
+              if (errorCode === 'auth_user_id_already_linked_to_different_email') {
+                errorMessage = 'Your account is linked to a different email. Please contact support.';
+              } else if (errorCode === 'email_claim_missing_cannot_link') {
+                errorMessage = 'Email verification required. Please log in again.';
+              }
+              sessionStorage.setItem('auth_error', errorMessage);
               window.location.href = '/login';
             }
           }
+          // If 409 with unrecognized code, let it propagate (don't auto-logout to prevent loops)
         }
 
         return Promise.reject(error);
@@ -189,17 +203,26 @@ class ApiClient {
       }
       const status = error?.response?.status as number | undefined;
 
-      // Handle 409 email conflict - don't retry, let interceptor handle logout
+      // Handle 409 auth conflicts - don't retry, let interceptor handle unsafe cases
       if (status === 409) {
         const detail = error.response?.data?.detail;
         const errorCode = typeof detail === 'string' ? detail : 
                          (typeof detail === 'object' && detail?.code) ? detail.code : null;
         
-        if (errorCode === 'email_already_linked_to_different_account' || 
-            errorCode === 'email_mismatch') {
+        // Only let interceptor handle truly unsafe conflicts
+        const unsafeErrorCodes = [
+          'auth_user_id_already_linked_to_different_email',
+          'email_mismatch_cannot_link',
+          'email_claim_missing_cannot_link',
+          'email_already_linked_to_different_account'  // Legacy
+        ];
+        
+        if (errorCode && unsafeErrorCodes.includes(errorCode)) {
           // Let the interceptor handle the logout/redirect
           throw error;
         }
+        // For other 409s (shouldn't happen with new implementation), just throw
+        throw error;
       }
 
       // Do NOT retry auth/permission/validation-style failures

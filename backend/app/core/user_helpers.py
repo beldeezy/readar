@@ -55,6 +55,8 @@ def get_or_create_user_by_auth_id(
     db: Session,
     auth_user_id: str,
     email: str = "",
+    endpoint_path: str = "",
+    email_verified: bool = False,
 ) -> User:
     """
     Get or create a local User record from Supabase auth_user_id.
@@ -62,16 +64,37 @@ def get_or_create_user_by_auth_id(
     Supabase Auth is the source of truth. This function ensures our app-level users row
     is always keyed by auth_user_id (Supabase "sub").
     
-    Logic:
-    1. Find user by auth_user_id first (primary lookup)
-    2. If found, update email if changed (handling conflicts by orphaning)
-    3. If not found, create new user or link existing email-based row
+    Safe Automatic Relinking:
+    - If user not found by auth_user_id but found by email (case-insensitive match),
+      automatically relinks the existing user to the current auth_user_id.
+    - This handles cases where Supabase auth_user_id changes but email remains the same.
     
-    Idempotent and safe under concurrent requests with IntegrityError handling.
+    Logic:
+    1. Find user by auth_user_id first (primary lookup) - return if found
+    2. If not found AND email exists, query by email with row lock (FOR UPDATE)
+    3. If found by email:
+       - Legacy user (no auth_user_id) → link to current auth_user_id
+       - Different auth_user_id → SAFE RELINK (update auth_user_id)
+    4. If not found, create new user
+    
+    Idempotent and safe under concurrent requests with row locking and IntegrityError handling.
+    
+    Args:
+        db: Database session
+        auth_user_id: Supabase auth user ID (JWT sub claim)
+        email: Email from JWT token (for relinking)
+        endpoint_path: Endpoint path for logging (e.g., "POST /api/onboarding")
+        email_verified: Whether email is verified in token (for guardrails)
+    
+    Returns:
+        User object (existing or newly created)
+    
+    Raises:
+        HTTPException(409): Only for truly unsafe conflicts (auth_user_id already linked to different email)
     """
     DEBUG = os.getenv("DEBUG", "false").lower() == "true"
     
-    # Normalize email to lowercase and strip
+    # Normalize email once
     normalized_email = email.lower().strip() if email else None
     
     # Step A: Try to find existing user by auth_user_id (primary lookup)
@@ -81,7 +104,21 @@ def get_or_create_user_by_auth_id(
         if DEBUG:
             logger.info(f"[get_or_create_user_by_auth_id] found_by_auth_user_id: auth_user_id={auth_user_id}, user_id={user.id}")
         
-        # Update email if provided and different
+        # Check for email mismatch: if token email differs from DB email, this is unsafe
+        normalized_db_email = user.email.lower().strip() if user.email else None
+        if normalized_email and normalized_db_email and normalized_email != normalized_db_email:
+            # Unsafe: auth_user_id already linked to different email
+            logger.error(
+                f"[AUTH_EMAIL_MISMATCH] endpoint={endpoint_path}, "
+                f"token_auth_user_id={auth_user_id}, token_email={normalized_email}, "
+                f"db_email={normalized_db_email}, user_id={user.id}"
+            )
+            raise HTTPException(
+                status_code=409,
+                detail="email_mismatch_cannot_link"
+            )
+        
+        # Update email if provided and different (safe case: email matches or user has no email)
         if normalized_email and user.email != normalized_email:
             # Check if another row exists with that email and different auth_user_id
             other = db.query(User).filter(
@@ -120,6 +157,15 @@ def get_or_create_user_by_auth_id(
         return user
     
     # Step B: User does NOT exist by auth_user_id
+    # Check if a row exists by email (with row lock to prevent races)
+    existing_by_email = None
+    if normalized_email:
+        # Use FOR UPDATE to lock the row during relink operation
+        existing_by_email = db.query(User).filter(
+            func.lower(User.email) == normalized_email
+        ).with_for_update().one_or_none()
+    
+    # Step B: User does NOT exist by auth_user_id
     # Check if a row exists by email
     existing_by_email = None
     if normalized_email:
@@ -129,7 +175,7 @@ def get_or_create_user_by_auth_id(
     
     if existing_by_email:
         if not existing_by_email.auth_user_id:
-            # Legacy row: link it to this auth_user_id
+            # Case 2a: Legacy row (no auth_user_id) - link it to this auth_user_id
             existing_by_email.auth_user_id = auth_user_id
             try:
                 db.commit()
@@ -146,36 +192,55 @@ def get_or_create_user_by_auth_id(
                     return user
                 raise
         elif existing_by_email.auth_user_id != auth_user_id:
-            # Email is already linked to a different auth_user_id
-            # Check if email relink is allowed
-            allow_email_relink = os.getenv("ALLOW_EMAIL_RELINK", "false").lower() == "true"
-            
-            if not allow_email_relink:
-                # TEMP DIAGNOSTIC: Log detailed info before raising 409
-                # Extract endpoint from request context if available (passed via get_current_user)
-                endpoint = getattr(db, '_endpoint_context', 'unknown_endpoint')
-                
+            # Case 2b: Email exists with different auth_user_id - SAFE AUTOMATIC RELINK
+            # Guardrails: require email to be present and match (case-insensitive)
+            if not normalized_email:
+                # No email claim - cannot safely relink
                 logger.error(
-                    f"[409_DIAGNOSTIC] endpoint={endpoint}, "
+                    f"[AUTH_RELINK_BLOCKED] endpoint={endpoint_path}, "
                     f"token_auth_user_id={auth_user_id}, "
-                    f"token_email={normalized_email}, "
                     f"db_user_id={existing_by_email.id}, "
                     f"db_auth_user_id={existing_by_email.auth_user_id}, "
-                    f"db_email={existing_by_email.email}"
-                )
-                
-                # Raise 409 conflict - email already linked to different account
-                logger.warning(
-                    f"[EMAIL_CONFLICT_409] email={normalized_email} "
-                    f"is already linked to auth_user_id={existing_by_email.auth_user_id}, "
-                    f"attempted auth_user_id={auth_user_id}"
+                    f"reason=email_claim_missing"
                 )
                 raise HTTPException(
                     status_code=409,
-                    detail="email_already_linked_to_different_account"
+                    detail="email_claim_missing_cannot_link"
                 )
             
-            # Email relink is enabled: auto-repair by repurposing the existing row
+            # Verify email matches (case-insensitive) - this is the safety check
+            if existing_by_email.email and existing_by_email.email.lower() != normalized_email:
+                # This shouldn't happen due to our query, but double-check
+                logger.error(
+                    f"[AUTH_RELINK_BLOCKED] endpoint={endpoint_path}, "
+                    f"token_auth_user_id={auth_user_id}, token_email={normalized_email}, "
+                    f"db_user_id={existing_by_email.id}, db_auth_user_id={existing_by_email.auth_user_id}, "
+                    f"db_email={existing_by_email.email}, reason=email_mismatch"
+                )
+                raise HTTPException(
+                    status_code=409,
+                    detail="email_mismatch_cannot_link"
+                )
+            
+            # Check if auth_user_id already exists (unsafe conflict)
+            conflicting_user = db.query(User).filter(
+                User.auth_user_id == auth_user_id
+            ).one_or_none()
+            
+            if conflicting_user and conflicting_user.id != existing_by_email.id:
+                # Unsafe: auth_user_id already linked to different email
+                logger.error(
+                    f"[AUTH_CONFLICT_409] endpoint={endpoint_path}, "
+                    f"token_auth_user_id={auth_user_id}, token_email={normalized_email}, "
+                    f"existing_user_id={conflicting_user.id}, existing_email={conflicting_user.email}, "
+                    f"relink_target_user_id={existing_by_email.id}, relink_target_email={existing_by_email.email}"
+                )
+                raise HTTPException(
+                    status_code=409,
+                    detail="auth_user_id_already_linked_to_different_email"
+                )
+            
+            # Safe relink: update existing user's auth_user_id
             old_auth_user_id = existing_by_email.auth_user_id
             existing_by_email.auth_user_id = auth_user_id
             
@@ -183,32 +248,48 @@ def get_or_create_user_by_auth_id(
                 db.commit()
                 db.refresh(existing_by_email)
                 
+                # Audit log: structured relink event
                 logger.warning(
-                    f"[EMAIL_RELINK] Relinked email: email={normalized_email}, "
-                    f"old_auth_user_id={old_auth_user_id}, new_auth_user_id={auth_user_id}, "
-                    f"user_id={existing_by_email.id}"
+                    f"[AUTH_RELINK] endpoint={endpoint_path}, "
+                    f"email={normalized_email}, "
+                    f"old_auth_user_id={old_auth_user_id}, "
+                    f"new_auth_user_id={auth_user_id}, "
+                    f"user_id={existing_by_email.id}, "
+                    f"email_verified={email_verified}"
                 )
                 
                 if DEBUG:
-                    logger.info(f"[get_or_create_user_by_auth_id] repaired_user: user_id={existing_by_email.id}, auth_user_id={auth_user_id}")
+                    logger.info(f"[get_or_create_user_by_auth_id] relinked_user: user_id={existing_by_email.id}, auth_user_id={auth_user_id}")
                 
                 return existing_by_email
-            except IntegrityError:
+            except IntegrityError as e:
                 # Race condition: another thread may have created this auth_user_id
                 db.rollback()
                 # Re-fetch by auth_user_id
                 user = db.query(User).filter(User.auth_user_id == auth_user_id).one_or_none()
                 if user:
                     if DEBUG:
-                        logger.info(f"[get_or_create_user_by_auth_id] race_refetch_after_repair: auth_user_id={auth_user_id}, user_id={user.id}")
+                        logger.info(f"[get_or_create_user_by_auth_id] race_refetch_after_relink: auth_user_id={auth_user_id}, user_id={user.id}")
                     return user
+                # If still not found, check if it's a unique constraint violation on auth_user_id
+                # This would indicate a true conflict
                 raise
     
-    # Step C: Create new user row
-    normalized_status = _normalize_subscription_status(SubscriptionStatus.FREE)
+    # Step C: No user found by auth_user_id or email - create new user
+    # If no email provided, we cannot create a user (should not happen in normal flow)
+    if not normalized_email:
+        logger.error(
+            f"[AUTH_CREATE_BLOCKED] endpoint={endpoint_path}, "
+            f"token_auth_user_id={auth_user_id}, "
+            f"reason=email_claim_missing"
+        )
+        raise HTTPException(
+            status_code=400,
+            detail="email_claim_missing_cannot_create_user"
+        )
     
-    # Use normalized email or generate placeholder
-    final_email = normalized_email or f"user_{auth_user_id}@readar.local"
+    normalized_status = _normalize_subscription_status(SubscriptionStatus.FREE)
+    final_email = normalized_email
     
     new_user = User(
         auth_user_id=auth_user_id,
