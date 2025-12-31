@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, Integer, Text, Boolean, DateTime, ForeignKey, Enum as SQLEnum, JSON, ARRAY, Float, UniqueConstraint, event
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import UUID, JSONB, ENUM as PostgresEnum
 from sqlalchemy.orm import relationship
 import uuid
 from datetime import datetime
@@ -46,7 +46,17 @@ class User(Base):
     password_hash = Column(String, nullable=True)  # Made nullable for Supabase users (no password needed)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    subscription_status = Column(SQLEnum(SubscriptionStatus), default=SubscriptionStatus.FREE)
+    subscription_status = Column(
+        PostgresEnum(
+            SubscriptionStatus,
+            values_callable=lambda x: [e.value for e in x],
+            name="subscriptionstatus",
+            create_type=False,  # Type already exists in DB
+        ),
+        nullable=False,
+        server_default="free",  # DB-level default as string value
+        default=SubscriptionStatus.FREE,  # Python-level default as enum object
+    )
     stripe_customer_id = Column(String, nullable=True)
     stripe_subscription_id = Column(String, nullable=True)
     
