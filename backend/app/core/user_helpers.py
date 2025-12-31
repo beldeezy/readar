@@ -146,16 +146,63 @@ def get_or_create_user_by_auth_id(
                     return user
                 raise
         elif existing_by_email.auth_user_id != auth_user_id:
-            # True drift: email is linked to a different auth_user_id
-            logger.error(
-                f"[EMAIL_DRIFT] Email already linked to different account: "
-                f"email={normalized_email}, existing_auth_user_id={existing_by_email.auth_user_id}, "
-                f"requested_auth_user_id={auth_user_id}, user_id={existing_by_email.id}"
-            )
-            raise HTTPException(
-                status_code=409,
-                detail="email_already_linked_to_different_account"
-            )
+            # Email is already linked to a different auth_user_id
+            # Check if email relink is allowed
+            allow_email_relink = os.getenv("ALLOW_EMAIL_RELINK", "false").lower() == "true"
+            
+            if not allow_email_relink:
+                # TEMP DIAGNOSTIC: Log detailed info before raising 409
+                # Extract endpoint from request context if available (passed via get_current_user)
+                endpoint = getattr(db, '_endpoint_context', 'unknown_endpoint')
+                
+                logger.error(
+                    f"[409_DIAGNOSTIC] endpoint={endpoint}, "
+                    f"token_auth_user_id={auth_user_id}, "
+                    f"token_email={normalized_email}, "
+                    f"db_user_id={existing_by_email.id}, "
+                    f"db_auth_user_id={existing_by_email.auth_user_id}, "
+                    f"db_email={existing_by_email.email}"
+                )
+                
+                # Raise 409 conflict - email already linked to different account
+                logger.warning(
+                    f"[EMAIL_CONFLICT_409] email={normalized_email} "
+                    f"is already linked to auth_user_id={existing_by_email.auth_user_id}, "
+                    f"attempted auth_user_id={auth_user_id}"
+                )
+                raise HTTPException(
+                    status_code=409,
+                    detail="email_already_linked_to_different_account"
+                )
+            
+            # Email relink is enabled: auto-repair by repurposing the existing row
+            old_auth_user_id = existing_by_email.auth_user_id
+            existing_by_email.auth_user_id = auth_user_id
+            
+            try:
+                db.commit()
+                db.refresh(existing_by_email)
+                
+                logger.warning(
+                    f"[EMAIL_RELINK] Relinked email: email={normalized_email}, "
+                    f"old_auth_user_id={old_auth_user_id}, new_auth_user_id={auth_user_id}, "
+                    f"user_id={existing_by_email.id}"
+                )
+                
+                if DEBUG:
+                    logger.info(f"[get_or_create_user_by_auth_id] repaired_user: user_id={existing_by_email.id}, auth_user_id={auth_user_id}")
+                
+                return existing_by_email
+            except IntegrityError:
+                # Race condition: another thread may have created this auth_user_id
+                db.rollback()
+                # Re-fetch by auth_user_id
+                user = db.query(User).filter(User.auth_user_id == auth_user_id).one_or_none()
+                if user:
+                    if DEBUG:
+                        logger.info(f"[get_or_create_user_by_auth_id] race_refetch_after_repair: auth_user_id={auth_user_id}, user_id={user.id}")
+                    return user
+                raise
     
     # Step C: Create new user row
     normalized_status = _normalize_subscription_status(SubscriptionStatus.FREE)

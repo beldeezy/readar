@@ -3,6 +3,7 @@ import pytest
 import os
 from uuid import uuid4
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from fastapi import HTTPException
 from app.models import User, SubscriptionStatus
 from app.core.user_helpers import get_or_create_user_by_auth_id, _normalize_subscription_status
@@ -280,4 +281,49 @@ def test_email_update_on_existing_user(db: Session):
     assert user2.id == user1.id
     assert user2.email == email_2.lower()
     assert user2.auth_user_id == auth_user_id
+
+
+def test_auto_repair_email_drift(db: Session):
+    """Test that email drift is auto-repaired by repurposing existing row."""
+    email = "drift@example.com"
+    old_auth_user_id = str(uuid4())
+    new_auth_user_id = str(uuid4())
+    
+    # Create user with email and old_auth_user_id (simulating drift)
+    drifted_user = User(
+        email=email,
+        auth_user_id=old_auth_user_id,
+        subscription_status=SubscriptionStatus.FREE,
+    )
+    db.add(drifted_user)
+    db.commit()
+    db.refresh(drifted_user)
+    
+    assert drifted_user.auth_user_id == old_auth_user_id
+    assert drifted_user.email == email.lower()
+    
+    # Call get_or_create_user_by_auth_id with new_auth_user_id and same email
+    # Should auto-repair by updating the existing row's auth_user_id
+    repaired_user = get_or_create_user_by_auth_id(
+        db=db,
+        auth_user_id=new_auth_user_id,
+        email=email,
+    )
+    
+    # Assert returned user has new auth_user_id and same email
+    assert repaired_user.id == drifted_user.id
+    assert repaired_user.auth_user_id == new_auth_user_id
+    assert repaired_user.email == email.lower()
+    
+    # Assert only one row exists for this email
+    users_with_email = db.query(User).filter(
+        func.lower(User.email) == email.lower()
+    ).all()
+    assert len(users_with_email) == 1
+    assert users_with_email[0].id == repaired_user.id
+    assert users_with_email[0].auth_user_id == new_auth_user_id
+    
+    # Assert no row exists with old_auth_user_id
+    old_user = db.query(User).filter(User.auth_user_id == old_auth_user_id).one_or_none()
+    assert old_user is None
 

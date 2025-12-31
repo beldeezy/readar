@@ -108,6 +108,35 @@ class ApiClient {
           }
         }
 
+        // Handle 409 email conflict errors
+        if (error.response?.status === 409) {
+          const detail = error.response?.data?.detail;
+          const errorCode = typeof detail === 'string' ? detail : 
+                           (typeof detail === 'object' && detail?.code) ? detail.code : null;
+          
+          if (errorCode === 'email_already_linked_to_different_account' || 
+              errorCode === 'email_mismatch') {
+            // Clear onboarding draft state and localStorage
+            localStorage.removeItem('pending_onboarding');
+            localStorage.removeItem('readar_preview_recs');
+            
+            // Clear auth token and redirect to login
+            clearAccessToken();
+            
+            // Redirect to login with helpful message
+            const path = window.location.pathname;
+            const isAuthPage = path === '/login' || path === '/auth' || path === '/auth/callback';
+            
+            if (!isAuthPage && !redirectingToLogin) {
+              redirectingToLogin = true;
+              // Store error message in sessionStorage to show on login page
+              sessionStorage.setItem('auth_error', 
+                'Your email is linked to a different account. Please log in with the correct account.');
+              window.location.href = '/login';
+            }
+          }
+        }
+
         return Promise.reject(error);
       }
     );
@@ -159,6 +188,19 @@ class ApiClient {
         });
       }
       const status = error?.response?.status as number | undefined;
+
+      // Handle 409 email conflict - don't retry, let interceptor handle logout
+      if (status === 409) {
+        const detail = error.response?.data?.detail;
+        const errorCode = typeof detail === 'string' ? detail : 
+                         (typeof detail === 'object' && detail?.code) ? detail.code : null;
+        
+        if (errorCode === 'email_already_linked_to_different_account' || 
+            errorCode === 'email_mismatch') {
+          // Let the interceptor handle the logout/redirect
+          throw error;
+        }
+      }
 
       // Do NOT retry auth/permission/validation-style failures
       if (status === 401 || status === 403 || status === 422) {

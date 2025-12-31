@@ -153,6 +153,37 @@ if DEBUG_ROUTES:
 @app.on_event("startup")
 def on_startup() -> None:
     logger.info("[BOOT] %s", SERVER_BOOT_ID)
+    
+    # Log Supabase and database configuration (safe, no secrets)
+    from app.core.config import settings
+    from urllib.parse import urlparse
+    
+    # Log Supabase URL (safe - just hostname/project ref)
+    if settings.SUPABASE_URL:
+        try:
+            supabase_parsed = urlparse(settings.SUPABASE_URL)
+            supabase_host = supabase_parsed.netloc or supabase_parsed.path
+            # Extract project ref if it's a supabase.co URL
+            if '.supabase.co' in supabase_host:
+                project_ref = supabase_host.split('.supabase.co')[0]
+                logger.info(f"[CONFIG] SUPABASE_URL hostname={supabase_host}, project_ref={project_ref}")
+            else:
+                logger.info(f"[CONFIG] SUPABASE_URL hostname={supabase_host}")
+        except Exception as e:
+            logger.warning(f"[CONFIG] Could not parse SUPABASE_URL: {e}")
+    else:
+        logger.warning("[CONFIG] SUPABASE_URL not set")
+    
+    # Log database host (safe - no password)
+    try:
+        db_parsed = urlparse(settings.DATABASE_URL)
+        db_host = db_parsed.hostname or "unknown"
+        db_port = db_parsed.port or 5432
+        db_name = db_parsed.path.lstrip('/') if db_parsed.path else "unknown"
+        logger.info(f"[CONFIG] DATABASE_URL host={db_host}, port={db_port}, database={db_name}")
+    except Exception as e:
+        logger.warning(f"[CONFIG] Could not parse DATABASE_URL: {e}")
+    
     init_db()
     
     # Debug: Print enum values for onboarding-related enums (only when DEBUG=true)

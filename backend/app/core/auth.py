@@ -100,10 +100,27 @@ def get_current_user(
         raise _unauthorized("Token missing subject (sub)")
 
     email = payload.get("email") or ""
+    
+    # Extract endpoint info for logging
+    endpoint = f"{request.method} {request.url.path}"
+    
+    # Store endpoint in db session for diagnostic logging
+    db._endpoint_context = endpoint
 
-    user = get_or_create_user_by_auth_id(
-        db=db,
-        auth_user_id=str(auth_user_id),
-        email=str(email),
-    )
-    return user
+    try:
+        user = get_or_create_user_by_auth_id(
+            db=db,
+            auth_user_id=str(auth_user_id),
+            email=str(email),
+        )
+        return user
+    except HTTPException as e:
+        # Enhanced logging for 409 errors
+        if e.status_code == 409 and e.detail == "email_already_linked_to_different_account":
+            logger.error(
+                f"[409_EMAIL_CONFLICT] endpoint={endpoint}, "
+                f"auth_user_id={auth_user_id}, "
+                f"auth_email={email}, "
+                f"detail={e.detail}"
+            )
+        raise
