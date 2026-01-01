@@ -3,7 +3,7 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB, ENUM as PostgresEnum
 from sqlalchemy.orm import relationship
 import uuid
 from datetime import datetime
-import enum
+from enum import Enum
 import sqlalchemy as sa
 from app.database import Base
 import logging
@@ -11,20 +11,26 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class SubscriptionStatus(str, enum.Enum):
+class SubscriptionStatus(str, Enum):
     FREE = "free"
     ACTIVE = "active"
     CANCELED = "canceled"
 
 
-class BusinessStage(str, enum.Enum):
+class BusinessStage(str, Enum):
     IDEA = "idea"
     PRE_REVENUE = "pre-revenue"
     EARLY_REVENUE = "early-revenue"
     SCALING = "scaling"
 
 
-class BookDifficulty(str, enum.Enum):
+class BookDifficulty(str, Enum):
+    """
+    Book difficulty enum with lowercase values for Postgres compatibility.
+    
+    Values are lowercase ("light", "medium", "deep") so SQLAlchemy writes
+    values that Postgres accepts.
+    """
     LIGHT = "light"
     MEDIUM = "medium"
     DEEP = "deep"
