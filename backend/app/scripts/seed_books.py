@@ -66,50 +66,43 @@ def normalize_enum(value: Any) -> Optional[str]:
 
 def _coerce_difficulty(raw, title: str = ""):
     """
-    Map JSON difficulty string -> BookDifficulty enum (DB expects lowercase).
+    Map JSON difficulty string -> BookDifficulty enum.
 
-    Returns: "light" | "medium" | "deep" | None
+    Returns a BookDifficulty or None.
     """
     if raw is None:
         return None
 
-    s = str(raw).strip()
-    if not s:
+    normalized = normalize_enum(raw)  # whatever this does today
+
+    if not normalized:
         return None
 
-    normalized = s.lower().replace("-", "_").replace(" ", "_")
+    # Normalize to lowercase tokens that match DB enum labels
+    norm = str(normalized).strip().lower()
 
     difficulty_map = {
-        # canonical
-        "light": "light",
-        "medium": "medium",
-        "deep": "deep",
-
-        # common variants
         "easy": "light",
+        "light": "light",
         "beginner": "light",
-        "short": "light",
-        "intro": "light",
-
+        "medium": "medium",
         "moderate": "medium",
-        "standard": "medium",
-        "normal": "medium",
         "intermediate": "medium",
-
         "hard": "deep",
+        "deep": "deep",
         "advanced": "deep",
-        "long": "deep",
-        "dense": "deep",
     }
 
-    value = difficulty_map.get(normalized)
+    mapped = difficulty_map.get(norm, norm)
 
-    # Handle values like "LIGHT" / "MEDIUM" / "DEEP" already covered by .lower()
-    if value not in {"light", "medium", "deep"}:
+    try:
+        # IMPORTANT: return actual Enum member so SQLAlchemy writes correct label
+        from app.models import BookDifficulty
+
+        return BookDifficulty(mapped)
+    except Exception:
         logger.warning(f"[seed_books] invalid difficulty={raw} title={title}, setting to None")
         return None
-
-    return value
 
 
 def _get_difficulty(book_dict: dict):
@@ -273,20 +266,8 @@ def seed_books(files: list[Path]):
             published_year = b.get("published_year")
 
             # Handle both 'difficulty' and 'difficulty_level' keys
-            # _get_difficulty returns a string ("light", "medium", "deep") or None
-            # Convert to BookDifficulty enum for the model
-            difficulty_str = _get_difficulty(b)
-            if difficulty_str:
-                try:
-                    difficulty = models.BookDifficulty(difficulty_str)
-                except ValueError:
-                    logger.warning(
-                        f"[seed_books] failed to create BookDifficulty enum from '{difficulty_str}' "
-                        f"title={title}, setting to None"
-                    )
-                    difficulty = None
-            else:
-                difficulty = None
+            # _get_difficulty returns a BookDifficulty enum or None
+            difficulty = _get_difficulty(b)
             
             # New insight fields (use if present, else None)
             promise = b.get("promise")
