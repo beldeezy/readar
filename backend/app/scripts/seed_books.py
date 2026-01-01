@@ -31,6 +31,7 @@ import sqlalchemy as sa
 
 from app.database import SessionLocal
 from app import models
+from app.models import BookDifficulty
 
 logger = logging.getLogger(__name__)
 
@@ -65,43 +66,28 @@ def normalize_enum(value: Any) -> Optional[str]:
 
 
 def _coerce_difficulty(raw, title: str = ""):
-    """
-    Map JSON difficulty string -> BookDifficulty enum.
+    normalized = normalize_enum(raw)
 
-    Returns a BookDifficulty or None.
-    """
-    if raw is None:
-        return None
-
-    normalized = normalize_enum(raw)  # whatever this does today
+    difficulty_map = {
+        "easy": "light",
+        "intro": "light",
+        "beginner": "light",
+        "light": "light",
+        "medium": "medium",
+        "moderate": "medium",
+        "hard": "deep",
+        "deep": "deep",
+    }
 
     if not normalized:
         return None
 
-    # Normalize to lowercase tokens that match DB enum labels
-    norm = str(normalized).strip().lower()
-
-    difficulty_map = {
-        "easy": "light",
-        "light": "light",
-        "beginner": "light",
-        "medium": "medium",
-        "moderate": "medium",
-        "intermediate": "medium",
-        "hard": "deep",
-        "deep": "deep",
-        "advanced": "deep",
-    }
-
-    mapped = difficulty_map.get(norm, norm)
+    value = difficulty_map.get(normalized, normalized)
 
     try:
-        # IMPORTANT: return actual Enum member so SQLAlchemy writes correct label
-        from app.models import BookDifficulty
-
-        return BookDifficulty(mapped)
+        return BookDifficulty(value)  # returns enum w/ lowercase value
     except Exception:
-        logger.warning(f"[seed_books] invalid difficulty={raw} title={title}, setting to None")
+        print(f"[seed_books] invalid difficulty={raw} title={title}, setting to None")
         return None
 
 

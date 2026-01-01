@@ -135,7 +135,14 @@ class Book(Base):
     business_stage_tags = Column(ARRAY(String), nullable=True)
     functional_tags = Column(ARRAY(String), nullable=True)
     theme_tags = Column(ARRAY(String), nullable=True)
-    difficulty = Column(SQLEnum(BookDifficulty), nullable=True)
+    difficulty = Column(
+        SQLEnum(
+            BookDifficulty,
+            name="bookdifficulty",
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+        ),
+        nullable=True,
+    )
     # Insight fields
     promise = Column(Text, nullable=True)
     best_for = Column(Text, nullable=True)
@@ -155,7 +162,14 @@ class UserBookInteraction(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     book_id = Column(UUID(as_uuid=True), ForeignKey("books.id"), nullable=False)
-    status = Column(SQLEnum(UserBookStatus), nullable=False)
+    status = Column(
+        SQLEnum(
+            UserBookStatus,
+            name="userbookstatus",
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+        ),
+        nullable=False,
+    )
     rating = Column(Integer, nullable=True)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -250,8 +264,22 @@ class UserBookFeedback(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
     book_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    sentiment = Column(SQLEnum(FeedbackSentiment), nullable=False)
-    state = Column(SQLEnum(FeedbackState), nullable=False)
+    sentiment = Column(
+        SQLEnum(
+            FeedbackSentiment,
+            name="feedbacksentiment",
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+        ),
+        nullable=False,
+    )
+    state = Column(
+        SQLEnum(
+            FeedbackState,
+            name="feedbackstate",
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+        ),
+        nullable=False,
+    )
     source = Column(String, nullable=False, default="recommendations_v1")
     created_at = Column(DateTime(timezone=True), server_default=sa.func.now(), nullable=False)
     
