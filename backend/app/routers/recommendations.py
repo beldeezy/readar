@@ -14,7 +14,7 @@ from app.services.recommendation_engine import NotEnoughSignalError
 from app.schemas.recommendation import RecommendationItem, RecommendationRequest, RecommendationsResponse
 from app.schemas.onboarding import OnboardingPayload
 from app.core.auth import get_current_user
-from app.models import User, UserBookFeedback, UserBookInteraction, UserBookStatusModel, ReadingHistoryEntry, Book
+from app.models import User, UserBookFeedback, UserBookInteraction, UserBookStatusModel, ReadingHistoryEntry, Book, OnboardingProfile
 from app.utils.instrumentation import log_event, log_event_best_effort
 from app.utils.timing import now_ms, log_elapsed
 from app.core.config import settings
@@ -40,15 +40,20 @@ async def get_recommendations(
     user_id = user.id
     request_id = str(uuid_lib.uuid4())
     DEBUG = os.getenv("DEBUG", "false").lower() == "true"
+    RECS_DEBUG = os.getenv("READAR_RECS_DEBUG", "false").lower() == "true"
     
-    # DEBUG: Collect diagnostic counts
+    # Collect signal counts (always, for logging and debug)
+    interactions_count = db.query(UserBookInteraction).filter(UserBookInteraction.user_id == user_id).count()
+    reading_history_count = db.query(ReadingHistoryEntry).filter(ReadingHistoryEntry.user_id == user_id).count()
+    onboarding_profile = db.query(OnboardingProfile).filter(OnboardingProfile.user_id == user_id).first()
+    has_onboarding_profile = onboarding_profile is not None
+    candidates_count = db.query(Book).count()
+    
+    # DEBUG: Collect diagnostic counts (legacy DEBUG mode)
     debug_info: Optional[Dict[str, Any]] = None
     if DEBUG:
         feedback_count = db.query(UserBookFeedback).filter(UserBookFeedback.user_id == user_id).count()
-        interactions_count = db.query(UserBookInteraction).filter(UserBookInteraction.user_id == user_id).count()
         status_count = db.query(UserBookStatusModel).filter(UserBookStatusModel.user_id == user_id).count()
-        reading_history_count = db.query(ReadingHistoryEntry).filter(ReadingHistoryEntry.user_id == user_id).count()
-        candidates_count = db.query(Book).count()
         
         logger.info(
             f"[DEBUG GET /api/recommendations] user_id={user_id} "
@@ -96,14 +101,30 @@ async def get_recommendations(
             t3 = now_ms()
     except NotEnoughSignalError as e:
         # User has zero signal - fall back to generic recommendations
+        error_msg = str(e)
         logger.info(
             "User %s has no signal, falling back to generic recommendations: %s",
-            user_id, str(e)
+            user_id, error_msg
+        )
+        
+        # Determine reason for empty results
+        reason = "no_signal"
+        if "No books in catalog" in error_msg:
+            reason = "no_catalog"
+        elif "No scored items" in error_msg:
+            reason = "no_scored_items"
+        elif "No recommendations after scoring" in error_msg:
+            reason = "no_matches_after_filtering"
+        
+        # Log empty recommendations with signal counts
+        logger.info(
+            f"[RECS_EMPTY] user_id={user_id} ratings={interactions_count} "
+            f"history={reading_history_count} has_profile={has_onboarding_profile} reason={reason}"
         )
         
         # DEBUG: Update reason for fallback
         if DEBUG and debug_info is not None:
-            debug_info["reason"] = "no_signal"
+            debug_info["reason"] = reason
         
         if settings.DEBUG:
             t_fallback = log_elapsed(t2, f"req_id={request_id} user={user_id} before_fallback", logger.debug)
@@ -188,11 +209,52 @@ async def get_recommendations(
                 f"returned={len(items)}"
             )
     
+    # Log empty recommendations with signal counts (always log, not gated)
+    # Build structured debug info when recommendations are empty (gated by READAR_RECS_DEBUG)
+    recs_debug_info: Optional[Dict[str, Any]] = None
+    if len(items) == 0:
+        from app.services.recommendation_engine import SIGNAL_THRESHOLD
+        
+        # Determine reason
+        reason = "unknown"
+        if candidates_count == 0:
+            reason = "no_catalog"
+        elif interactions_count == 0 and reading_history_count == 0 and not has_onboarding_profile:
+            reason = "no_signal"
+        elif interactions_count == 0 and reading_history_count == 0:
+            reason = "cold_start_no_interactions"
+        else:
+            reason = "no_matches"
+        
+        logger.info(
+            f"[RECS_EMPTY] user_id={user_id} ratings={interactions_count} "
+            f"history={reading_history_count} has_profile={has_onboarding_profile} reason={reason}"
+        )
+        
+        # Build structured debug info when RECS_DEBUG is enabled
+        if RECS_DEBUG:
+            recs_debug_info = {
+                "user_id": str(user_id),
+                "signal_counts": {
+                    "onboarding_profile": has_onboarding_profile,
+                    "book_ratings": interactions_count,  # Using interactions as "ratings"
+                    "reading_history_entries": reading_history_count,
+                },
+                "gates": {
+                    "min_ratings_required": 0,  # No hard minimum, but SIGNAL_THRESHOLD applies
+                    "min_history_required": 0,  # No hard minimum, but SIGNAL_THRESHOLD applies
+                    "signal_threshold": SIGNAL_THRESHOLD,
+                },
+                "reason": reason,
+            }
+    
     # Build response with optional debug object
+    # Priority: recs_debug_info (when empty + RECS_DEBUG) > debug_info (when DEBUG) > None
+    final_debug = recs_debug_info if recs_debug_info is not None else (debug_info if DEBUG else None)
     return RecommendationsResponse(
         request_id=request_id,
         items=items,
-        debug=debug_info if DEBUG else None,
+        debug=final_debug,
     )
 
 
@@ -208,9 +270,17 @@ async def get_recommendations_post(
     """
     user_id = user.id
     request_id = str(uuid_lib.uuid4())
+    RECS_DEBUG = os.getenv("READAR_RECS_DEBUG", "false").lower() == "true"
 
     # Clamp max_results to 5
     effective_limit = min(request.max_results or 5, 5)
+    
+    # Collect signal counts for logging
+    interactions_count = db.query(UserBookInteraction).filter(UserBookInteraction.user_id == user_id).count()
+    reading_history_count = db.query(ReadingHistoryEntry).filter(ReadingHistoryEntry.user_id == user_id).count()
+    onboarding_profile = db.query(OnboardingProfile).filter(OnboardingProfile.user_id == user_id).first()
+    has_onboarding_profile = onboarding_profile is not None
+    candidates_count = db.query(Book).count()
     
     try:
         items = recommendation_engine.get_personalized_recommendations(
@@ -221,9 +291,25 @@ async def get_recommendations_post(
         )
     except NotEnoughSignalError as e:
         # User has zero signal - fall back to generic recommendations
+        error_msg = str(e)
         logger.info(
             "User %s has no signal, falling back to generic recommendations: %s",
-            user_id, str(e)
+            user_id, error_msg
+        )
+        
+        # Determine reason
+        reason = "no_signal"
+        if "No books in catalog" in error_msg:
+            reason = "no_catalog"
+        elif "No scored items" in error_msg:
+            reason = "no_scored_items"
+        elif "No recommendations after scoring" in error_msg:
+            reason = "no_matches_after_filtering"
+        
+        # Log empty recommendations with signal counts
+        logger.info(
+            f"[RECS_EMPTY] user_id={user_id} ratings={interactions_count} "
+            f"history={reading_history_count} has_profile={has_onboarding_profile} reason={reason}"
         )
         try:
             items = recommendation_engine.get_generic_recommendations(
@@ -269,6 +355,45 @@ async def get_recommendations_post(
             detail=f"Failed to get recommendations: {e}",
         )
     
+    # Log empty recommendations with signal counts (always log, not gated)
+    # Build structured debug info when recommendations are empty (gated by READAR_RECS_DEBUG)
+    recs_debug_info: Optional[Dict[str, Any]] = None
+    if len(items) == 0:
+        from app.services.recommendation_engine import SIGNAL_THRESHOLD
+        
+        # Determine reason
+        reason = "unknown"
+        if candidates_count == 0:
+            reason = "no_catalog"
+        elif interactions_count == 0 and reading_history_count == 0 and not has_onboarding_profile:
+            reason = "no_signal"
+        elif interactions_count == 0 and reading_history_count == 0:
+            reason = "cold_start_no_interactions"
+        else:
+            reason = "no_matches"
+        
+        logger.info(
+            f"[RECS_EMPTY] user_id={user_id} ratings={interactions_count} "
+            f"history={reading_history_count} has_profile={has_onboarding_profile} reason={reason}"
+        )
+        
+        # Build structured debug info when RECS_DEBUG is enabled
+        if RECS_DEBUG:
+            recs_debug_info = {
+                "user_id": str(user_id),
+                "signal_counts": {
+                    "onboarding_profile": has_onboarding_profile,
+                    "book_ratings": interactions_count,  # Using interactions as "ratings"
+                    "reading_history_entries": reading_history_count,
+                },
+                "gates": {
+                    "min_ratings_required": 0,  # No hard minimum, but SIGNAL_THRESHOLD applies
+                    "min_history_required": 0,  # No hard minimum, but SIGNAL_THRESHOLD applies
+                    "signal_threshold": SIGNAL_THRESHOLD,
+                },
+                "reason": reason,
+            }
+    
     # Log impression event
     book_ids = [item.book_id for item in items]
     top_book_id = book_ids[0] if book_ids else None
@@ -301,7 +426,7 @@ async def get_recommendations_post(
         # Silently ignore instrumentation failures
         pass
     
-    return RecommendationsResponse(request_id=request_id, items=items)
+    return RecommendationsResponse(request_id=request_id, items=items, debug=recs_debug_info)
 
 
 @router.post("/recommendations/preview", response_model=List[RecommendationItem])

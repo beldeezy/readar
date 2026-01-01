@@ -21,14 +21,18 @@ Usage examples:
 
 import argparse
 import json
+import logging
 from pathlib import Path
 from datetime import datetime
+from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 import sqlalchemy as sa
 
 from app.database import SessionLocal
 from app import models
+
+logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -40,18 +44,42 @@ DEFAULT_FILES = [
 ]
 
 
-def _coerce_difficulty(raw):
+def normalize_enum(value: Any) -> Optional[str]:
+    """
+    Normalize enum values from JSON before inserting into Postgres.
+    
+    - If value is None/empty -> return None
+    - If it's a string -> strip whitespace, lowercase it
+    - Return the normalized string
+    """
+    if value is None:
+        return None
+    
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        return normalized if normalized else None
+    
+    # For non-string values, convert to string first
+    normalized = str(value).strip().lower()
+    return normalized if normalized else None
+
+
+def _coerce_difficulty(raw, title: str = ""):
     """
     Map JSON difficulty string -> BookDifficulty enum.
 
     Accepts case-insensitive 'light' | 'medium' | 'deep'.
     Also handles 'intro' -> 'light' and 'intermediate' -> 'medium'.
     Returns None if not recognized / not provided.
+    
+    Args:
+        raw: Raw difficulty value from JSON
+        title: Book title for logging (optional)
     """
-    if not raw:
+    # Normalize the enum value first
+    normalized = normalize_enum(raw)
+    if not normalized:
         return None
-
-    value = str(raw).strip().lower()
     
     # Map alternative difficulty labels
     difficulty_map = {
@@ -59,12 +87,23 @@ def _coerce_difficulty(raw):
         "intermediate": "medium",
         "advanced": "deep",
     }
-    value = difficulty_map.get(value, value)
+    value = difficulty_map.get(normalized, normalized)
+    
+    # Validate: must be one of the valid enum values
+    valid_values = {"light", "medium", "deep"}
+    if value not in valid_values:
+        logger.warning(
+            f"[seed_books] invalid difficulty={raw} title={title}, setting to None"
+        )
+        return None
     
     try:
         return models.BookDifficulty(value)
     except ValueError:
-        # Unknown difficulty label – ignore instead of crashing
+        # This shouldn't happen if validation above works, but guard anyway
+        logger.warning(
+            f"[seed_books] invalid difficulty={raw} title={title}, setting to None"
+        )
         return None
 
 
@@ -72,8 +111,10 @@ def _get_difficulty(book_dict: dict):
     """
     Extract difficulty from book dict, handling both 'difficulty' and 'difficulty_level' keys.
     """
+    title = book_dict.get("title", "")
     return _coerce_difficulty(
-        book_dict.get("difficulty") or book_dict.get("difficulty_level")
+        book_dict.get("difficulty") or book_dict.get("difficulty_level"),
+        title=title
     )
 
 
@@ -298,8 +339,7 @@ def seed_books(files: list[Path]):
 
         db.commit()
         print(
-            f"[seed_books] Seed complete. Created={created}, "
-            f"Updated={updated}, Skipped={skipped}"
+            f"[seed_books] Commit successful. Created={created} Updated={updated}"
         )
     finally:
         db.close()
