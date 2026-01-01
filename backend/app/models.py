@@ -2,6 +2,7 @@ from sqlalchemy import Column, String, Integer, Text, Boolean, DateTime, Foreign
 from sqlalchemy.dialects.postgresql import UUID, JSONB, ENUM as PostgresEnum
 from sqlalchemy.orm import relationship
 import uuid
+import enum
 from datetime import datetime
 from enum import Enum
 import sqlalchemy as sa
