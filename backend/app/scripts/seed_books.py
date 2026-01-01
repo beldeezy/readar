@@ -66,45 +66,50 @@ def normalize_enum(value: Any) -> Optional[str]:
 
 def _coerce_difficulty(raw, title: str = ""):
     """
-    Map JSON difficulty string -> BookDifficulty enum.
+    Map JSON difficulty string -> BookDifficulty enum (DB expects lowercase).
 
-    Accepts case-insensitive 'light' | 'medium' | 'deep'.
-    Also handles 'intro' -> 'light' and 'intermediate' -> 'medium'.
-    Returns None if not recognized / not provided.
-    
-    Args:
-        raw: Raw difficulty value from JSON
-        title: Book title for logging (optional)
+    Returns: "light" | "medium" | "deep" | None
     """
-    # Normalize the enum value first
-    normalized = normalize_enum(raw)
-    if not normalized:
+    if raw is None:
         return None
-    
-    # Map alternative difficulty labels
+
+    s = str(raw).strip()
+    if not s:
+        return None
+
+    normalized = s.lower().replace("-", "_").replace(" ", "_")
+
     difficulty_map = {
+        # canonical
+        "light": "light",
+        "medium": "medium",
+        "deep": "deep",
+
+        # common variants
+        "easy": "light",
+        "beginner": "light",
+        "short": "light",
         "intro": "light",
+
+        "moderate": "medium",
+        "standard": "medium",
+        "normal": "medium",
         "intermediate": "medium",
+
+        "hard": "deep",
         "advanced": "deep",
+        "long": "deep",
+        "dense": "deep",
     }
-    value = difficulty_map.get(normalized, normalized)
-    
-    # Validate: must be one of the valid enum values
-    valid_values = {"light", "medium", "deep"}
-    if value not in valid_values:
-        logger.warning(
-            f"[seed_books] invalid difficulty={raw} title={title}, setting to None"
-        )
+
+    value = difficulty_map.get(normalized)
+
+    # Handle values like "LIGHT" / "MEDIUM" / "DEEP" already covered by .lower()
+    if value not in {"light", "medium", "deep"}:
+        logger.warning(f"[seed_books] invalid difficulty={raw} title={title}, setting to None")
         return None
-    
-    try:
-        return models.BookDifficulty(value)
-    except ValueError:
-        # This shouldn't happen if validation above works, but guard anyway
-        logger.warning(
-            f"[seed_books] invalid difficulty={raw} title={title}, setting to None"
-        )
-        return None
+
+    return value
 
 
 def _get_difficulty(book_dict: dict):
@@ -268,7 +273,20 @@ def seed_books(files: list[Path]):
             published_year = b.get("published_year")
 
             # Handle both 'difficulty' and 'difficulty_level' keys
-            difficulty = _get_difficulty(b)
+            # _get_difficulty returns a string ("light", "medium", "deep") or None
+            # Convert to BookDifficulty enum for the model
+            difficulty_str = _get_difficulty(b)
+            if difficulty_str:
+                try:
+                    difficulty = models.BookDifficulty(difficulty_str)
+                except ValueError:
+                    logger.warning(
+                        f"[seed_books] failed to create BookDifficulty enum from '{difficulty_str}' "
+                        f"title={title}, setting to None"
+                    )
+                    difficulty = None
+            else:
+                difficulty = None
             
             # New insight fields (use if present, else None)
             promise = b.get("promise")
