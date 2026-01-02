@@ -25,17 +25,17 @@
 .upload-label {
   display: block;
   padding: 2rem;
-  border: 2px dashed #d0d0d0;
+  border: 2px dashed #054745;
   border-radius: 10px;
-  background-color: #fafafa;
+  background-color: white;
   cursor: pointer;
   transition: all 0.2s ease;
   text-align: center;
 }
 
 .upload-label:hover {
-  border-color: #667eea;
-  background-color: #f8f9ff;
+  border-color: #054745;
+  background-color: rgba(83, 255, 201, 0.1);
 }
 
 .upload-icon {
@@ -111,14 +111,16 @@
 
 .upload-actions .submit-button {
   flex: 1;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
+  background: #53FFC9;
+  color: #000000;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(83, 255, 201, 0.3);
 }
 
 .upload-actions .submit-button:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 4px 12px rgba(83, 255, 201, 0.5);
+  background: #6AFFDB;
 }
 
 .upload-actions .submit-button:disabled {
@@ -127,21 +129,21 @@
 }
 
 .upload-actions .skip-button {
-  background-color: #f5f5f5;
-  color: #666;
-  border: 2px solid #e0e0e0;
+  background-color: #555555;
+  color: white;
+  border: 2px solid #054745;
 }
 
 .upload-actions .skip-button:hover:not(:disabled) {
-  background-color: #ebebeb;
-  border-color: #d0d0d0;
+  background-color: #666666;
+  border-color: #2CB3BE;
 }
 
 .upload-help {
   padding: 1rem;
-  background-color: #f8f9ff;
+  background-color: rgba(83, 255, 201, 0.1);
   border-radius: 8px;
-  border-left: 4px solid #667eea;
+  border-left: 4px solid #53FFC9;
 }
 
 .upload-help p {

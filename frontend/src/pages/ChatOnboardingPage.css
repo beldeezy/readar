@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background-color: #f5f5f5;
+  background-color: #333333;
 }
 
 /* Header with progress bar */
@@ -10,9 +10,9 @@
   position: sticky;
   top: 0;
   z-index: 100;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #000000;
   color: white;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .chat-header-content {
@@ -25,6 +25,11 @@
   margin: 0 0 0.75rem 0;
   font-size: 1.5rem;
   font-weight: 600;
+  transition: color 0.2s ease;
+}
+
+.chat-header h1:hover {
+  color: #53FFC9;
 }
 
 .progress-container {
@@ -36,16 +41,17 @@
 .progress-bar {
   flex: 1;
   height: 8px;
-  background-color: rgba(255, 255, 255, 0.3);
+  background-color: rgba(255, 255, 255, 0.2);
   border-radius: 4px;
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  background-color: white;
+  background-color: #53FFC9;
   border-radius: 4px;
   transition: width 0.3s ease;
+  box-shadow: 0 0 8px rgba(83, 255, 201, 0.5);
 }
 
 .progress-text {
@@ -53,6 +59,7 @@
   font-weight: 500;
   min-width: 90px;
   text-align: right;
+  color: white;
 }
 
 /* Chat messages area */
@@ -69,14 +76,14 @@
 .chat-error {
   margin: 1rem 0;
   padding: 1rem;
-  background-color: #fee;
-  border-left: 4px solid #f44;
+  background-color: rgba(255, 68, 68, 0.1);
+  border-left: 4px solid #ff4444;
   border-radius: 4px;
 }
 
 .chat-error p {
   margin: 0;
-  color: #c33;
+  color: #ff6666;
   font-size: 0.875rem;
 }
 
@@ -91,15 +98,15 @@
   display: flex;
   gap: 4px;
   padding: 1rem 1.5rem;
-  background-color: white;
+  background-color: #E0E0E0;
   border-radius: 18px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .typing-indicator span {
   width: 8px;
   height: 8px;
-  background-color: #999;
+  background-color: #666;
   border-radius: 50%;
   animation: typing 1.4s infinite;
 }

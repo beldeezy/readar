@@ -1,4 +1,5 @@
 import React from 'react';
+import RadarIcon from '../RadarIcon';
 import './ChatMessage.css';
 
 interface Message {
@@ -19,7 +20,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
       <div className="message-bubble">
         {message.type === 'bot' && (
           <div className="bot-avatar">
-            <span>📚</span>
+            <RadarIcon size={40} animationDuration={8} />
           </div>
         )}
         <div className="message-content">

@@ -22,27 +22,25 @@
   flex-shrink: 0;
   width: 40px;
   height: 40px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.25rem;
 }
 
 .message-content {
   padding: 1rem 1.25rem;
   border-radius: 18px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .chat-message.bot .message-content {
-  background-color: white;
+  background-color: #E0E0E0;
+  color: #000000;
   border-bottom-left-radius: 4px;
 }
 
 .chat-message.user .message-content {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #0FA0A2;
   color: white;
   border-bottom-right-radius: 4px;
 }
