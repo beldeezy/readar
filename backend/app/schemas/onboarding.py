@@ -41,20 +41,22 @@ def normalize_business_stage_string(value: str) -> str:
 
 
 class OnboardingPayload(BaseModel):
-    full_name: str
+    # Made optional for chat interface (no longer collecting full_name)
+    full_name: Optional[str] = None
     age: Optional[int] = None
     occupation: Optional[str] = None
     entrepreneur_status: Optional[str] = None
+    # Made optional for chat interface (no longer collecting location)
     location: Optional[str] = None
     economic_sector: Optional[str] = None
     industry: Optional[str] = None
-    business_model: str
+    business_model: Optional[str] = None
     business_experience: Optional[str] = None
     areas_of_business: Optional[list[str]] = None
-    business_stage: BusinessStage
+    business_stage: Optional[BusinessStage] = None
     org_size: Optional[str] = None
     is_student: Optional[bool] = None
-    biggest_challenge: str
+    biggest_challenge: Optional[str] = None
     vision_6_12_months: Optional[str] = None
     blockers: Optional[str] = None
     current_gross_revenue: Optional[RevenueRange] = None
@@ -70,35 +72,80 @@ class OnboardingPayload(BaseModel):
         """
         if value is None:
             return None
-        
+
         # If already an Enum instance, return it
         if isinstance(value, BusinessStage):
             return value
-        
+
         # If string, normalize and match against enum values
         if isinstance(value, str):
             normalized = normalize_business_stage_string(value)
-            
+
             # Try to match by enum value first (e.g., "pre-revenue")
             for stage in BusinessStage:
                 if stage.value == normalized:
                     return stage
-            
+
             # Try to match by enum name (e.g., "PRE_REVENUE" -> "pre-revenue" after normalization)
             # This handles cases where the input is the enum name
             value_upper = value.strip().upper()
             for stage in BusinessStage:
                 if stage.name == value_upper:
                     return stage
-            
+
             # If no match, raise ValueError with allowed values
             allowed_values = [stage.value for stage in BusinessStage]
             raise ValueError(
                 f"Invalid business_stage value: {value!r}. "
                 f"Allowed values are: {', '.join(allowed_values)}"
             )
-        
+
         # For any other type, try to convert to string and normalize
+        return cls.normalize_business_stage(str(value))
+
+
+class OnboardingPatchPayload(BaseModel):
+    """Payload for incremental/partial updates to onboarding profile (PATCH requests)"""
+    entrepreneur_status: Optional[str] = None
+    economic_sector: Optional[str] = None
+    industry: Optional[str] = None
+    business_model: Optional[str] = None
+    business_experience: Optional[str] = None
+    areas_of_business: Optional[list[str]] = None
+    business_stage: Optional[BusinessStage] = None
+    org_size: Optional[str] = None
+    biggest_challenge: Optional[str] = None
+    vision_6_12_months: Optional[str] = None
+    current_gross_revenue: Optional[RevenueRange] = None
+
+    @field_validator("business_stage", mode="before")
+    @classmethod
+    def normalize_business_stage(cls, value):
+        """Same normalization as OnboardingPayload"""
+        if value is None:
+            return None
+
+        if isinstance(value, BusinessStage):
+            return value
+
+        if isinstance(value, str):
+            normalized = normalize_business_stage_string(value)
+
+            for stage in BusinessStage:
+                if stage.value == normalized:
+                    return stage
+
+            value_upper = value.strip().upper()
+            for stage in BusinessStage:
+                if stage.name == value_upper:
+                    return stage
+
+            allowed_values = [stage.value for stage in BusinessStage]
+            raise ValueError(
+                f"Invalid business_stage value: {value!r}. "
+                f"Allowed values are: {', '.join(allowed_values)}"
+            )
+
         return cls.normalize_business_stage(str(value))
 
 
