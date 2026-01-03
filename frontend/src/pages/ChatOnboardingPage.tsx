@@ -166,26 +166,22 @@ const ChatOnboardingPage: React.FC = () => {
 
   const getAcknowledgment = (questionId: string): string => {
     const acknowledgments: Record<string, string[]> = {
-      entrepreneur_status: ['Got it!', 'Thanks for sharing!', 'Perfect!'],
-      economic_sector: ['Great choice!', 'Understood!', 'Perfect!'],
-      industry: ['Awesome!', 'Got it!', 'Thanks!'],
-      business_model: ['Makes sense!', 'Great!', 'Perfect!'],
-      business_stage: ['Exciting!', 'Got it!', 'Thanks!'],
-      current_gross_revenue: ['Thanks for sharing!', 'Got it!', 'Perfect!'],
-      org_size: ['Understood!', 'Got it!', 'Thanks!'],
-      business_experience: ['That\'s great experience!', 'Thanks for sharing!', 'Awesome!'],
-      areas_of_business: ['Got it!', 'Perfect!', 'Thanks!'],
-      vision_6_12_months: ['Love the vision!', 'That sounds exciting!', 'Great goals!'],
-      biggest_challenge: [
-        'Thanks for being honest!',
-        'I\'ll help you find books to tackle that!',
-        'Got it!',
-      ],
-      book_preferences: ['Great choices!', 'Thanks for rating those!', 'Perfect!'],
-      reading_history_csv: ['Thanks!', 'Got it!', 'Perfect!'],
+      entrepreneur_status: ['Got it', 'Thanks', 'Noted'],
+      economic_sector: ['Understood', 'Got it', 'Thanks'],
+      industry: ['Noted', 'Got it', 'Thanks'],
+      business_model: ['Got it', 'Thanks', 'Understood'],
+      business_stage: ['Noted', 'Got it', 'Thanks'],
+      current_gross_revenue: ['Thanks', 'Got it', 'Noted'],
+      org_size: ['Understood', 'Got it', 'Thanks'],
+      business_experience: ['Thanks', 'Noted', 'Got it'],
+      areas_of_business: ['Got it', 'Noted', 'Thanks'],
+      vision_6_12_months: ['Noted', 'Thanks', 'Got it'],
+      biggest_challenge: ['Thanks', 'Noted', 'Got it'],
+      book_preferences: ['Thanks', 'Noted', 'Got it'],
+      reading_history_csv: ['Thanks', 'Got it', 'Noted'],
     };
 
-    const options = acknowledgments[questionId] || ['Got it!'];
+    const options = acknowledgments[questionId] || ['Got it'];
     return options[Math.floor(Math.random() * options.length)];
   };
 
@@ -274,10 +270,25 @@ const ChatOnboardingPage: React.FC = () => {
   const handleSkipQuestion = () => {
     if (currentQuestion && !currentQuestion.required) {
       addUserMessage('Skip');
-      addBotMessage('No problem!');
+      addBotMessage('No problem');
 
       setTimeout(() => {
-        showNextQuestion(answers);
+        // Mark as skipped by setting a placeholder value
+        const updatedAnswers = {
+          ...answers,
+          [currentQuestion.id]: 'skipped',
+        };
+        setAnswers(updatedAnswers);
+
+        // Check if there are more questions after marking this one as skipped
+        const nextQuestion = getNextQuestion(updatedAnswers);
+        if (!nextQuestion) {
+          // No more questions, complete onboarding
+          handleOnboardingComplete();
+        } else {
+          // Show next question
+          showNextQuestion(updatedAnswers);
+        }
       }, 800);
     }
   };

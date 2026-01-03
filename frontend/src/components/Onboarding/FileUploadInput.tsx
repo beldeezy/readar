@@ -117,10 +117,19 @@ const FileUploadInput: React.FC<FileUploadInputProps> = ({ onAnswer, onSkip, que
           <strong>How to export from Goodreads:</strong>
         </p>
         <ol>
-          <li>Go to Goodreads.com and log in</li>
-          <li>Click "My Books" at the top</li>
-          <li>Scroll to bottom and click "Import and export"</li>
+          <li>
+            Go to{' '}
+            <a
+              href="https://www.goodreads.com/review/import"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="goodreads-link"
+            >
+              Goodreads Export Page
+            </a>
+          </li>
           <li>Click "Export Library" and download the CSV file</li>
+          <li>Come back here and upload the file</li>
         </ol>
       </div>
     </div>

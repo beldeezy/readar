@@ -7,6 +7,8 @@ interface RadarIconProps {
   animationDuration?: number;
   ringColor?: string;
   sweepColor?: string;
+  showBlips?: boolean;
+  showShadow?: boolean;
 }
 
 /**
@@ -23,10 +25,12 @@ export default function RadarIcon({
   animationDuration = 10,
   ringColor = 'rgba(249, 250, 251, 0.9)',
   sweepColor = 'rgba(53, 255, 201, 0.9)',
+  showBlips = true,
+  showShadow = true,
 }: RadarIconProps) {
   const coreSize = size;
-  const shadowOffsetX = 8;
-  const shadowOffsetY = 8;
+  const shadowOffsetX = showShadow ? 8 : 0;
+  const shadowOffsetY = showShadow ? 8 : 0;
 
   const svgWidth = coreSize + shadowOffsetX;
   const svgHeight = coreSize + shadowOffsetY;
@@ -93,13 +97,15 @@ export default function RadarIcon({
 
 
       {/* Bold flat white shadow, offset bottom-right */}
-      <circle
-        className="radar-shadow"
-        cx={centerX + shadowOffsetX}
-        cy={centerY + shadowOffsetY}
-        r={radius}
-        fill="rgba(255, 255, 255, 0.75)"
-      />
+      {showShadow && (
+        <circle
+          className="radar-shadow"
+          cx={centerX + shadowOffsetX}
+          cy={centerY + shadowOffsetY}
+          r={radius}
+          fill="rgba(255, 255, 255, 0.75)"
+        />
+      )}
 
       {/* Radar core – centered geometry */}
       <g className="radar-core">
@@ -173,7 +179,7 @@ export default function RadarIcon({
         />
 
         {/* Tiny book blips – appear briefly as sweep passes */}
-        {blips.map((blip, index) => (
+        {showBlips && blips.map((blip, index) => (
           <g
             key={index}
             opacity={0}

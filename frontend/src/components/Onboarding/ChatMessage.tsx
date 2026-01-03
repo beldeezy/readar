@@ -20,7 +20,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
       <div className="message-bubble">
         {message.type === 'bot' && (
           <div className="bot-avatar">
-            <RadarIcon size={40} animationDuration={8} />
+            <RadarIcon size={40} animationDuration={8} showBlips={false} showShadow={false} />
           </div>
         )}
         <div className="message-content">

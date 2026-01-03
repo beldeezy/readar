@@ -163,6 +163,19 @@
   margin-bottom: 0.25rem;
 }
 
+.goodreads-link {
+  color: #0FA0A2;
+  text-decoration: none;
+  font-weight: 600;
+  border-bottom: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.goodreads-link:hover {
+  color: #53FFC9;
+  border-bottom-color: #53FFC9;
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
   .file-upload-input {
