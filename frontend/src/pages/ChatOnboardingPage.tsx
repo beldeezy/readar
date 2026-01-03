@@ -43,12 +43,15 @@ const ChatOnboardingPage: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
-  // Load saved progress from localStorage
+  // Load saved progress from localStorage and initialize chat
   useEffect(() => {
     const savedData = localStorage.getItem('readar_pending_onboarding');
+    let loadedAnswers = {};
+
     if (savedData) {
       try {
         const parsed = JSON.parse(savedData);
+        loadedAnswers = parsed;
         setAnswers(parsed);
         setProgress(calculateProgress(parsed));
       } catch (err) {
@@ -58,12 +61,12 @@ const ChatOnboardingPage: React.FC = () => {
 
     // Start with welcome message
     addBotMessage(
-      "Hi! I'm here to help you find the perfect books for your business journey. Let's get to know you and your business better!"
+      'Welcome to Readar. Answer a few questions to get personalized book recommendations for your business.'
     );
 
     // Show first question after a brief delay
     setTimeout(() => {
-      showNextQuestion({});
+      showNextQuestion(loadedAnswers);
     }, 1000);
   }, []);
 

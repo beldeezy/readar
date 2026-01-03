@@ -1,16 +1,25 @@
 """
-Email utility for sending notifications.
+Email utility for sending notifications using Resend.
 
-TODO: Configure SMTP settings in .env or integrate with an email service like SendGrid/Mailgun.
-For now, this logs email content and provides a foundation for integration.
+Resend integration for sending weekly pending books reports.
+Set RESEND_API_KEY in your .env file to enable email sending.
 """
 import logging
+import os
 from typing import List, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from app.models import PendingBook
 
 logger = logging.getLogger(__name__)
+
+# Try to import Resend, but don't fail if it's not installed
+try:
+    import resend
+    RESEND_AVAILABLE = True
+except ImportError:
+    RESEND_AVAILABLE = False
+    logger.warning("Resend library not installed. Email sending will be logged only.")
 
 
 def generate_weekly_pending_books_report(db: Session) -> str:
@@ -107,7 +116,7 @@ def generate_weekly_pending_books_report(db: Session) -> str:
 
 def send_weekly_pending_books_email(db: Session, recipient: str = "michael@readar.ai") -> dict:
     """
-    Send weekly report of new pending books.
+    Send weekly report of new pending books using Resend.
 
     Args:
         db: Database session
@@ -120,44 +129,52 @@ def send_weekly_pending_books_email(db: Session, recipient: str = "michael@reada
         # Generate report content
         html_content = generate_weekly_pending_books_report(db)
 
-        # TODO: Implement actual email sending via SMTP or email service
-        # For now, we'll log the email content and mark as sent
+        # Check if Resend is configured
+        from app.core.config import settings
+        api_key = settings.RESEND_API_KEY
 
-        logger.info(f"[WEEKLY EMAIL REPORT] Would send to: {recipient}")
-        logger.info(f"[WEEKLY EMAIL REPORT] Content:\n{html_content}")
+        if not RESEND_AVAILABLE:
+            logger.warning("[WEEKLY EMAIL] Resend library not installed. Install with: pip install resend")
+            logger.info(f"[WEEKLY EMAIL REPORT] Would send to: {recipient}")
+            logger.info(f"[WEEKLY EMAIL REPORT] Content:\n{html_content}")
+            return {
+                "status": "logged",
+                "message": "Email content logged (Resend not installed)",
+                "recipient": recipient,
+            }
 
-        # In production, this would use SMTP or an email service like:
-        # - SendGrid API
-        # - Mailgun API
-        # - AWS SES
-        # - Standard SMTP (Gmail, etc.)
+        if not api_key:
+            logger.warning("[WEEKLY EMAIL] RESEND_API_KEY not set in .env file")
+            logger.info(f"[WEEKLY EMAIL REPORT] Would send to: {recipient}")
+            logger.info(f"[WEEKLY EMAIL REPORT] Content:\n{html_content}")
+            return {
+                "status": "logged",
+                "message": "Email content logged (RESEND_API_KEY not configured)",
+                "recipient": recipient,
+            }
 
-        # Example placeholder for future implementation:
-        # import smtplib
-        # from email.mime.text import MIMEText
-        # from email.mime.multipart import MIMEMultipart
-        #
-        # msg = MIMEMultipart('alternative')
-        # msg['Subject'] = 'Readar Weekly Book Report'
-        # msg['From'] = 'noreply@readar.ai'
-        # msg['To'] = recipient
-        #
-        # html_part = MIMEText(html_content, 'html')
-        # msg.attach(html_part)
-        #
-        # with smtplib.SMTP(smtp_host, smtp_port) as server:
-        #     server.starttls()
-        #     server.login(smtp_user, smtp_password)
-        #     server.send_message(msg)
+        # Send email using Resend
+        resend.api_key = api_key
+
+        params = {
+            "from": "auth@readar.ai",
+            "to": [recipient],
+            "subject": "Readar Weekly Book Report",
+            "html": html_content,
+        }
+
+        response = resend.Emails.send(params)
+        logger.info(f"[WEEKLY EMAIL] Successfully sent to {recipient}. Response: {response}")
 
         return {
             "status": "success",
-            "message": f"Weekly report generated and logged (email sending not yet configured). Check logs for content.",
+            "message": f"Weekly report sent successfully to {recipient}",
             "recipient": recipient,
+            "email_id": response.get("id"),
         }
 
     except Exception as e:
-        logger.exception("Failed to generate/send weekly pending books report")
+        logger.exception("Failed to send weekly pending books report")
         return {
             "status": "error",
             "message": str(e),

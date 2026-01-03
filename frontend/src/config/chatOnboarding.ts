@@ -218,36 +218,42 @@ export const CALIBRATION_BOOKS = [
     title: 'The Lean Startup',
     author: 'Eric Ries',
     externalId: 'the-lean-startup',
+    description: 'Learn how to build a successful startup using continuous innovation and validated learning.',
   },
   {
     id: 'zero-to-one',
     title: 'Zero to One',
     author: 'Peter Thiel',
     externalId: 'zero-to-one',
+    description: 'Discover how to create unique businesses that go from nothing to something completely new.',
   },
   {
     id: 'the-e-myth-revisited',
     title: 'The E-Myth Revisited',
     author: 'Michael Gerber',
     externalId: 'the-e-myth-revisited',
+    description: 'Understand why most small businesses fail and how to build systems that work without you.',
   },
   {
     id: 'the-psychology-of-money',
     title: 'The Psychology of Money',
     author: 'Morgan Housel',
     externalId: 'the-psychology-of-money',
+    description: 'Explore how people think about money and make better financial decisions for your business.',
   },
   {
     id: 'deep-work',
     title: 'Deep Work',
     author: 'Cal Newport',
     externalId: 'deep-work',
+    description: 'Master the ability to focus on difficult tasks and get more done in less time.',
   },
   {
     id: 'atomic-habits',
     title: 'Atomic Habits',
     author: 'James Clear',
     externalId: 'atomic-habits',
+    description: 'Build small habits that compound into remarkable results for yourself and your business.',
   },
 ];
 

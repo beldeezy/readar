@@ -45,7 +45,12 @@ const BookCalibrationInput: React.FC<BookCalibrationInputProps> = ({ onAnswer, q
         {CALIBRATION_BOOKS.map((book) => (
           <div key={book.id} className="book-item">
             <div className="book-info">
-              <span className="book-title">{book.title}</span>
+              <div className="book-title-row">
+                <span className="book-title">{book.title}</span>
+                <div className="book-info-icon" data-tooltip={book.description}>
+                  ℹ️
+                </div>
+              </div>
               <span className="book-author">by {book.author}</span>
               {bookStatuses[book.externalId] && (
                 <span className="book-status-emoji">{getStatusEmoji(book.externalId)}</span>

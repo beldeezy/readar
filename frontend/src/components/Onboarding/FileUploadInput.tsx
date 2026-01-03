@@ -36,7 +36,7 @@ const FileUploadInput: React.FC<FileUploadInputProps> = ({ onAnswer, onSkip, que
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch('/api/onboarding/reading-history', {
+      const response = await fetch('/api/reading-history/upload-csv', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${user.access_token}`,
@@ -49,9 +49,14 @@ const FileUploadInput: React.FC<FileUploadInputProps> = ({ onAnswer, onSkip, que
       }
 
       const result = await response.json();
-      const count = result.books_imported || 0;
+      const count = result.imported_count || 0;
+      const newBooks = result.new_books_added || 0;
 
-      onAnswer(questionId, { uploaded: true, count }, `Uploaded reading history (${count} books)`);
+      onAnswer(
+        questionId,
+        { uploaded: true, count, newBooks },
+        `Uploaded reading history (${count} books${newBooks > 0 ? `, ${newBooks} new` : ''})`
+      );
     } catch (err: any) {
       setError(err.message);
       setUploading(false);
