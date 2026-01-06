@@ -218,8 +218,15 @@ const ChatOnboardingPage: React.FC = () => {
       // CSV upload is handled separately in the file upload component
       return;
     } else {
-      // Regular field
-      payload[questionId] = value;
+      // Regular field - convert arrays to comma-separated strings
+      let processedValue = value;
+
+      // Convert arrays to comma-separated strings for backend
+      if (Array.isArray(value)) {
+        processedValue = value.join(',');
+      }
+
+      payload[questionId] = processedValue;
 
       // Send PATCH request to update onboarding profile
       const response = await fetch('/api/onboarding', {
