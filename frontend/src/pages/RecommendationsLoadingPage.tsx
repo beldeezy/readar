@@ -155,12 +155,16 @@ export default function RecommendationsLoadingPage() {
             const pendingOnboarding = JSON.parse(pendingOnboardingStr);
             const payload = normalizePendingOnboardingToPayload(pendingOnboarding);
 
+            console.log('[DEBUG] Normalized payload for preview:', JSON.stringify(payload, null, 2));
+
             const recs = await withTimeout(
               apiClient.getPreviewRecommendations(payload),
               20000,
               'Fetching preview recommendations took too long. Backend may be down or stuck.'
             );
             if (cancelled) return;
+
+            console.log('[DEBUG] Preview recommendations received:', recs.length, 'items');
 
             localStorage.setItem(PREVIEW_RECS_KEY, JSON.stringify(recs));
             setPhase('finalizing');
@@ -173,6 +177,9 @@ export default function RecommendationsLoadingPage() {
             return;
           } catch (e: any) {
             if (cancelled) return;
+            console.error('[DEBUG] Preview recommendations error:', e);
+            console.error('[DEBUG] Error response:', e?.response);
+            console.error('[DEBUG] Error data:', e?.response?.data);
             setError(e?.message || 'Failed to generate preview recommendations.');
             return;
           }
