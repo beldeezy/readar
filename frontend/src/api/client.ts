@@ -371,7 +371,7 @@ class ApiClient {
     const DEBUG = import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true';
     const url = `${API_BASE_URL}/recommendations/preview`;
     const hasAuth = !!getAuthHeader();
-    
+  
     if (DEBUG) {
       console.log('[DEBUG getPreviewRecommendations]', {
         method: 'POST',
@@ -379,31 +379,65 @@ class ApiClient {
         hasAuthorization: hasAuth,
       });
     }
-
+  
+    // Backend expects:
+    // - areas_of_business: string[]
+    // - business_model: string (CSV)
+    const normalizeStringList = (v: unknown): string[] => {
+      if (Array.isArray(v)) return v.map(String).map(s => s.trim()).filter(Boolean);
+      if (typeof v === 'string') return v.split(',').map(s => s.trim()).filter(Boolean);
+      return [];
+    };
+  
+    const normalizeCsvString = (v: unknown): string => {
+      if (typeof v === 'string') return v;
+      if (Array.isArray(v)) return v.map(String).map(s => s.trim()).filter(Boolean).join(',');
+      return '';
+    };
+  
+    const normalizedPayload: OnboardingPayload = {
+      ...payload,
+      areas_of_business: normalizeStringList((payload as any).areas_of_business) as any,
+      business_model: normalizeCsvString((payload as any).business_model) as any,
+    };
+  
+    const formatDetail = (detail: any): string => {
+      if (Array.isArray(detail)) {
+        return detail
+          .map((d) => d?.msg || d?.message || (typeof d === 'string' ? d : JSON.stringify(d)))
+          .join('; ');
+      }
+      if (typeof detail === 'string') return detail;
+      return detail ? JSON.stringify(detail) : 'Unknown error';
+    };
+  
     try {
-      const response = await this.client.post<RecommendationItem[]>('/recommendations/preview', payload);
+      const response = await this.client.post<RecommendationItem[]>('/recommendations/preview', normalizedPayload);
       return response.data;
     } catch (error: any) {
+      const detail = error?.response?.data?.detail;
+  
       if (DEBUG) {
         console.error('[DEBUG getPreviewRecommendations error]', {
           url,
           method: 'POST',
           status: error?.response?.status,
           statusText: error?.response?.statusText,
-          headers: error?.response?.headers ? {
-            'content-type': error.response.headers['content-type'],
-          } : 'no headers',
+          headers: error?.response?.headers
+            ? { 'content-type': error.response.headers['content-type'] }
+            : 'no headers',
           responseData: error?.response?.data ? JSON.stringify(error.response.data) : 'no response data',
           responseText: error?.response?.data ? String(error.response.data) : 'no response text',
           message: error?.message,
         });
       }
-      if (error.response?.data?.detail) {
-        throw new Error(error.response.data.detail);
-      }
-      throw new Error(error.message || 'Failed to get preview recommendations');
+  
+      if (detail) throw new Error(formatDetail(detail));
+      throw new Error(error?.message || 'Failed to get preview recommendations');
     }
   }
+  
+  
 
   async updateUserBook(
     bookId: string,

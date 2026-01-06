@@ -429,9 +429,13 @@ async def get_recommendations_post(
     return RecommendationsResponse(request_id=request_id, items=items, debug=recs_debug_info)
 
 
+from typing import Any, Dict, List, Optional, Union
+from fastapi import Body, Depends, HTTPException, Query
+from pydantic import ValidationError
+
 @router.post("/recommendations/preview", response_model=List[RecommendationItem])
 async def get_preview_recommendations(
-    payload: OnboardingPayload,
+    payload_raw: Dict[str, Any] = Body(...),
     limit: int = Query(5, ge=1, le=5),
     debug: bool = Query(False, description="Include debug fields in response"),
     db: Session = Depends(get_db),
@@ -439,16 +443,60 @@ async def get_preview_recommendations(
     """
     Generate preview recommendations from onboarding payload without requiring authentication.
     This endpoint is used to show recommendations before the user logs in.
-    
+
     Note: This does NOT create or mutate user rows. It only generates recommendations
     based on the provided onboarding data.
     """
     # Hard clamp to avoid any weirdness
     if limit > 5:
         limit = 5
-    
+
+    def _to_str_list(v: Any) -> List[str]:
+        if v is None:
+            return []
+        if isinstance(v, list):
+            return [str(x).strip() for x in v if str(x).strip()]
+        if isinstance(v, str):
+            return [s.strip() for s in v.split(",") if s.strip()]
+        # fallback: treat as single item
+        s = str(v).strip()
+        return [s] if s else []
+
+    def _to_csv_str(v: Any) -> str:
+        if v is None:
+            return ""
+        if isinstance(v, str):
+            return v
+        if isinstance(v, list):
+            parts = [str(x).strip() for x in v if str(x).strip()]
+            return ",".join(parts)
+        return str(v)
+
+    # Normalize common client variances BEFORE Pydantic validation
+    normalized = dict(payload_raw)
+
+    # Backend expects: areas_of_business = List[str]
+    if "areas_of_business" in normalized:
+        normalized["areas_of_business"] = _to_str_list(normalized.get("areas_of_business"))
+
+    # Backend expects: business_model = str (CSV)
+    if "business_model" in normalized:
+        normalized["business_model"] = _to_csv_str(normalized.get("business_model"))
+
+    try:
+        # Pydantic v1 style
+        payload = OnboardingPayload.parse_obj(normalized)
+    except Exception:
+        # Pydantic v2 style (if your project upgraded)
+        try:
+            payload = OnboardingPayload.model_validate(normalized)
+        except ValidationError as ve:
+            raise HTTPException(status_code=422, detail=ve.errors())
+        except Exception as e:
+            raise HTTPException(status_code=422, detail=f"Invalid payload: {e}")
+
     logger.info("Generating preview recommendations (no auth required)")
-    
+
     try:
         items = recommendation_engine.get_recommendations_from_payload(
             db=db,
@@ -457,25 +505,20 @@ async def get_preview_recommendations(
             debug=debug,
         )
         return items
+
     except NotEnoughSignalError as e:
-        # Fall back to generic recommendations
-        logger.info(
-            "Preview recommendations failed, falling back to generic: %s",
-            str(e)
-        )
+        logger.info("Preview recommendations failed, falling back to generic: %s", str(e))
         items = recommendation_engine.get_generic_recommendations(
             db=db,
             limit=limit,
-            business_stage=payload.business_stage.value if hasattr(payload.business_stage, 'value') else str(payload.business_stage),
+            business_stage=payload.business_stage.value if hasattr(payload.business_stage, "value") else str(payload.business_stage),
             business_model=payload.business_model,
         )
         return items
+
     except Exception as e:
-        # Log full traceback to server console
         logger.exception("Error while generating preview recommendations")
-        # Surface detail to the client
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get preview recommendations: {e}",
         )
-
