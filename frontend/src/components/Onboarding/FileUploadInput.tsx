@@ -12,6 +12,7 @@ const FileUploadInput: React.FC<FileUploadInputProps> = ({ onAnswer, onSkip, que
   const { user } = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -23,6 +24,7 @@ const FileUploadInput: React.FC<FileUploadInputProps> = ({ onAnswer, onSkip, que
       }
       setFile(selectedFile);
       setError(null);
+      setUploadSuccess(false);
     }
   };
 
@@ -31,6 +33,7 @@ const FileUploadInput: React.FC<FileUploadInputProps> = ({ onAnswer, onSkip, que
 
     setUploading(true);
     setError(null);
+    setUploadSuccess(false);
 
     try {
       const formData = new FormData();
@@ -52,14 +55,22 @@ const FileUploadInput: React.FC<FileUploadInputProps> = ({ onAnswer, onSkip, que
       const count = result.imported_count || 0;
       const newBooks = result.new_books_added || 0;
 
-      onAnswer(
-        questionId,
-        { uploaded: true, count, newBooks },
-        `Uploaded reading history (${count} books${newBooks > 0 ? `, ${newBooks} new` : ''})`
-      );
+      // Show success indicator briefly
+      setUploadSuccess(true);
+      setUploading(false);
+
+      // Wait a moment to show success, then proceed
+      setTimeout(() => {
+        onAnswer(
+          questionId,
+          { uploaded: true, count, newBooks },
+          `Uploaded reading history (${count} books${newBooks > 0 ? `, ${newBooks} new` : ''})`
+        );
+      }, 800);
     } catch (err: any) {
       setError(err.message);
       setUploading(false);
+      setUploadSuccess(false);
     }
   };
 
@@ -100,17 +111,24 @@ const FileUploadInput: React.FC<FileUploadInputProps> = ({ onAnswer, onSkip, que
       </div>
 
       <div className="upload-actions">
-        {file && !uploading && (
+        {file && !uploading && !uploadSuccess && (
           <button className="submit-button" onClick={handleUpload}>
             Upload File
           </button>
         )}
         {uploading && (
-          <button className="submit-button" disabled>
-            Uploading...
+          <div className="uploading-indicator">
+            <button className="submit-button" disabled>
+              <span className="spinner">⏳</span> Uploading...
+            </button>
+          </div>
+        )}
+        {uploadSuccess && (
+          <button className="submit-button success" disabled>
+            ✓ Upload Complete!
           </button>
         )}
-        {onSkip && (
+        {onSkip && !uploadSuccess && (
           <button className="skip-button" onClick={onSkip} disabled={uploading}>
             Skip for now
           </button>

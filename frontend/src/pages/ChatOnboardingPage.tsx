@@ -26,6 +26,7 @@ const ChatOnboardingPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const hasInitialized = useRef(false); // Track if we've already initialized
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [answers, setAnswers] = useState<Record<string, any>>({});
@@ -45,6 +46,10 @@ const ChatOnboardingPage: React.FC = () => {
 
   // Load saved progress from localStorage and initialize chat
   useEffect(() => {
+    // Prevent duplicate initialization (React StrictMode runs effects twice in dev)
+    if (hasInitialized.current) return;
+    hasInitialized.current = true;
+
     const savedData = localStorage.getItem('readar_pending_onboarding');
     let loadedAnswers = {};
 
@@ -233,7 +238,7 @@ const ChatOnboardingPage: React.FC = () => {
   };
 
   const handleOnboardingComplete = async () => {
-    addBotMessage('Perfect! You\'re all set. Let me find the best books for you...');
+    addBotMessage('Perfect! You\'re all set. Finding the best books for you...');
 
     setIsProcessing(true);
 
@@ -244,6 +249,19 @@ const ChatOnboardingPage: React.FC = () => {
         throw new Error('Please answer all required questions');
       }
 
+      // Prepare data for backend - convert arrays to comma-separated strings
+      const backendPayload = { ...answers };
+
+      // Convert business_model array to comma-separated string
+      if (Array.isArray(backendPayload.business_model)) {
+        backendPayload.business_model = backendPayload.business_model.join(',');
+      }
+
+      // Convert areas_of_business array to comma-separated string
+      if (Array.isArray(backendPayload.areas_of_business)) {
+        backendPayload.areas_of_business = backendPayload.areas_of_business.join(',');
+      }
+
       // Final save to backend (full profile)
       if (user) {
         await fetch('/api/onboarding', {
@@ -252,7 +270,7 @@ const ChatOnboardingPage: React.FC = () => {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${user.access_token}`,
           },
-          body: JSON.stringify(answers),
+          body: JSON.stringify(backendPayload),
         });
       }
 
@@ -265,7 +283,7 @@ const ChatOnboardingPage: React.FC = () => {
       }, 1500);
     } catch (err: any) {
       setError(err.message);
-      addBotMessage("Oops! Something went wrong. Let me try to help you fix that.");
+      addBotMessage("Something went wrong. Please try again.");
       setIsProcessing(false);
     }
   };
