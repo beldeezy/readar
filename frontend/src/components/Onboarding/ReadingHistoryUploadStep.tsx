@@ -1,5 +1,6 @@
 import React, { useState, useRef } from "react";
 import { apiClient } from "../../api/client";
+import { useAuth } from "../../auth/AuthProvider";
 import Button from "../Button";
 import "./ReadingHistoryUploadStep.css";
 
@@ -16,6 +17,7 @@ export const ReadingHistoryUploadStep: React.FC<Props> = ({
   onSkip,
   isSubmitting = false,
 }) => {
+  const { user: authUser } = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -50,8 +52,19 @@ export const ReadingHistoryUploadStep: React.FC<Props> = ({
     setError(null);
     setMessage(null);
 
+    // Check if user is authenticated before attempting upload
+    if (!authUser) {
+      // User is not authenticated yet - skip upload and proceed
+      // The file will need to be uploaded after they complete authentication
+      setMessage("You'll be able to upload your reading history after signing in.");
+      setIsUploading(false);
+      // Proceed to next step immediately
+      onNext?.();
+      return;
+    }
+
     try {
-      // Try to upload CSV, but don't block on failure
+      // Try to upload CSV if user is authenticated
       await importGoodreadsCsv();
     } catch (e) {
       console.error(e);
