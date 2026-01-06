@@ -19,31 +19,53 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, message: string):
 }
 
 function normalizePendingOnboardingToPayload(pendingOnboarding: any): OnboardingPayload {
+  // Explicitly construct payload with ONLY fields that match the backend schema
+  // This prevents extra fields from localStorage from being sent to the backend
   return {
-    ...pendingOnboarding,
+    // Required fields
+    full_name: pendingOnboarding.full_name || '',
+    industry: pendingOnboarding.industry || '',
+    business_stage: pendingOnboarding.business_stage || 'idea',
 
-    // Backend expects business_model as a string
+    // business_model: Backend expects a STRING (not array!)
     business_model: Array.isArray(pendingOnboarding.business_models)
       ? pendingOnboarding.business_models.join(', ')
       : (pendingOnboarding.business_model || ''),
 
-    // Backend expects biggest_challenge as a string
+    // biggest_challenge: Backend expects a STRING
     biggest_challenge:
       pendingOnboarding.biggest_challenge ||
       pendingOnboarding.challenges_and_blockers ||
       '',
 
-    // Backend expects blockers as a string
+    // Optional fields with correct types
+    age: pendingOnboarding.age || undefined,
+    occupation: pendingOnboarding.occupation || undefined,
+    entrepreneur_status: pendingOnboarding.entrepreneur_status || undefined,
+    location: pendingOnboarding.location || undefined,
+    economic_sector: pendingOnboarding.economic_sector || undefined,
+    business_experience: pendingOnboarding.business_experience || undefined,
+    org_size: pendingOnboarding.org_size || undefined,
+    is_student: pendingOnboarding.is_student || undefined,
+    vision_6_12_months: pendingOnboarding.vision_6_12_months || undefined,
+    current_gross_revenue: pendingOnboarding.current_gross_revenue || undefined,
+
+    // blockers: Backend expects a STRING
     blockers:
       pendingOnboarding.blockers ||
       pendingOnboarding.challenges_and_blockers ||
-      '',
+      undefined,
 
-    // Backend expects book_preferences as an array
+    // areas_of_business: Backend expects a STRING ARRAY
+    areas_of_business: Array.isArray(pendingOnboarding.areas_of_business)
+      ? pendingOnboarding.areas_of_business
+      : (pendingOnboarding.areas_of_business ? [pendingOnboarding.areas_of_business] : undefined),
+
+    // book_preferences: Backend expects an ARRAY of {book_id, status}
     book_preferences: Array.isArray(pendingOnboarding.book_preferences)
       ? pendingOnboarding.book_preferences
-      : [],
-  } as OnboardingPayload;
+      : undefined,
+  };
 }
 
 export default function RecommendationsLoadingPage() {
