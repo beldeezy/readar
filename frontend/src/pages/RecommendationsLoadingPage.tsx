@@ -19,13 +19,24 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, message: string):
 }
 
 function normalizePendingOnboardingToPayload(pendingOnboarding: any): OnboardingPayload {
+  // Helper to convert arrays to comma-separated strings
+  const arrayToString = (value: any): string => {
+    if (Array.isArray(value)) {
+      return value.join(',');
+    }
+    return value || '';
+  };
+
   return {
     ...pendingOnboarding,
 
-    // Backend expects business_model as a string
-    business_model: Array.isArray(pendingOnboarding.business_models)
-      ? pendingOnboarding.business_models.join(', ')
-      : (pendingOnboarding.business_model || ''),
+    // Backend expects business_model as a string (convert arrays for backward compatibility)
+    business_model: arrayToString(
+      pendingOnboarding.business_models || pendingOnboarding.business_model
+    ),
+
+    // Backend expects areas_of_business as a string (convert arrays for backward compatibility)
+    areas_of_business: arrayToString(pendingOnboarding.areas_of_business),
 
     // Backend expects biggest_challenge as a string
     biggest_challenge:
