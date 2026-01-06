@@ -140,16 +140,22 @@ const ChatOnboardingPage: React.FC = () => {
       addUserMessage(displayText);
     }
 
-    // Update answers
+    // Convert arrays to comma-separated strings for storage and backend
+    let processedAnswer = answer;
+    if (Array.isArray(answer)) {
+      processedAnswer = answer.join(',');
+    }
+
+    // Update answers with processed value (string, not array)
     const updatedAnswers = {
       ...answers,
-      [questionId]: answer,
+      [questionId]: processedAnswer,
     };
     setAnswers(updatedAnswers);
 
     // Save to backend incrementally
     try {
-      await saveToBackend(questionId, answer);
+      await saveToBackend(questionId, processedAnswer);
     } catch (err: any) {
       setError(`Failed to save: ${err.message}`);
       // Don't block progression on save errors for optional questions
@@ -218,15 +224,8 @@ const ChatOnboardingPage: React.FC = () => {
       // CSV upload is handled separately in the file upload component
       return;
     } else {
-      // Regular field - convert arrays to comma-separated strings
-      let processedValue = value;
-
-      // Convert arrays to comma-separated strings for backend
-      if (Array.isArray(value)) {
-        processedValue = value.join(',');
-      }
-
-      payload[questionId] = processedValue;
+      // Regular field - value is already processed (arrays converted to strings in handleAnswer)
+      payload[questionId] = value;
 
       // Send PATCH request to update onboarding profile
       const response = await fetch('/api/onboarding', {
@@ -256,18 +255,8 @@ const ChatOnboardingPage: React.FC = () => {
         throw new Error('Please answer all required questions');
       }
 
-      // Prepare data for backend - convert arrays to comma-separated strings
-      const backendPayload = { ...answers };
-
-      // Convert business_model array to comma-separated string
-      if (Array.isArray(backendPayload.business_model)) {
-        backendPayload.business_model = backendPayload.business_model.join(',');
-      }
-
-      // Convert areas_of_business array to comma-separated string
-      if (Array.isArray(backendPayload.areas_of_business)) {
-        backendPayload.areas_of_business = backendPayload.areas_of_business.join(',');
-      }
+      // answers already has arrays converted to strings via handleAnswer
+      // No need to convert again - just send as is
 
       // Final save to backend (full profile)
       if (user) {
@@ -277,7 +266,7 @@ const ChatOnboardingPage: React.FC = () => {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${user.access_token}`,
           },
-          body: JSON.stringify(backendPayload),
+          body: JSON.stringify(answers),
         });
       }
 
