@@ -271,7 +271,45 @@ export default function RecommendationsLoadingPage() {
           >
             Error loading recommendations
           </h1>
-          <p style={{ fontSize: 'var(--rd-font-size-sm)', color: 'var(--readar-warm)' }}>{error}</p>
+          <p style={{ fontSize: 'var(--rd-font-size-sm)', color: 'var(--readar-warm)', marginBottom: '1.5rem' }}>{error}</p>
+          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+            <button
+              onClick={() => {
+                setError(null);
+                setPhase('fetching');
+                window.location.reload();
+              }}
+              style={{
+                padding: '0.75rem 1.5rem',
+                backgroundColor: 'var(--readar-mint)',
+                color: 'var(--rd-surface)',
+                border: 'none',
+                borderRadius: 'var(--rd-radius-md)',
+                fontSize: 'var(--rd-font-size-base)',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              Retry
+            </button>
+            <button
+              onClick={() => navigate('/onboarding')}
+              style={{
+                padding: '0.75rem 1.5rem',
+                backgroundColor: 'transparent',
+                color: 'var(--rd-text)',
+                border: '1px solid var(--rd-border)',
+                borderRadius: 'var(--rd-radius-md)',
+                fontSize: 'var(--rd-font-size-base)',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              Back to Onboarding
+            </button>
+          </div>
         </div>
       </div>
     );
