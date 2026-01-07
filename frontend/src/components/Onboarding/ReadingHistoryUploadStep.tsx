@@ -1,9 +1,4 @@
 import React, { useState, useRef } from "react";
-<<<<<<< HEAD
-=======
-import { apiClient } from "../../api/client";
-import { useAuth } from "../../auth/AuthProvider";
->>>>>>> claude/setup-production-testing-unmNg
 import Button from "../Button";
 import "./ReadingHistoryUploadStep.css";
 
@@ -20,7 +15,6 @@ export const ReadingHistoryUploadStep: React.FC<Props> = ({
   onSkip,
   isSubmitting = false,
 }) => {
-  const { user: authUser } = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -59,19 +53,7 @@ export const ReadingHistoryUploadStep: React.FC<Props> = ({
     setError(null);
     setMessage(null);
 
-    // Check if user is authenticated before attempting upload
-    if (!authUser) {
-      // User is not authenticated yet - skip upload and proceed
-      // The file will need to be uploaded after they complete authentication
-      setMessage("You'll be able to upload your reading history after signing in.");
-      setIsUploading(false);
-      // Proceed to next step immediately
-      onNext?.();
-      return;
-    }
-
     try {
-<<<<<<< HEAD
       // Validate CSV locally (no backend call)
       const bookCount = await validateAndParseCSV(file);
 
@@ -86,10 +68,6 @@ export const ReadingHistoryUploadStep: React.FC<Props> = ({
 
       // Small delay to show success message
       await new Promise(resolve => setTimeout(resolve, 800));
-=======
-      // Try to upload CSV if user is authenticated
-      await importGoodreadsCsv();
->>>>>>> claude/setup-production-testing-unmNg
     } catch (e) {
       console.error(e);
       setError(e instanceof Error ? e.message : "Failed to parse CSV.");
@@ -197,4 +175,3 @@ export const ReadingHistoryUploadStep: React.FC<Props> = ({
     </div>
   );
 };
-
