@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     
     # Admin access control
     ADMIN_EMAIL_ALLOWLIST: str = ""  # Comma-separated list of admin emails
+
+    # Email configuration (Resend)
+    RESEND_API_KEY: Optional[str] = None
     
     model_config = SettingsConfigDict(
         # Load from backend/.env (relative to this file's parent's parent)

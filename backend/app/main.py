@@ -153,11 +153,11 @@ if DEBUG_ROUTES:
 @app.on_event("startup")
 def on_startup() -> None:
     logger.info("[BOOT] %s", SERVER_BOOT_ID)
-    
+
     # Log Supabase and database configuration (safe, no secrets)
     from app.core.config import settings
     from urllib.parse import urlparse
-    
+
     # Log Supabase URL (safe - just hostname/project ref)
     if settings.SUPABASE_URL:
         try:
@@ -173,7 +173,7 @@ def on_startup() -> None:
             logger.warning(f"[CONFIG] Could not parse SUPABASE_URL: {e}")
     else:
         logger.warning("[CONFIG] SUPABASE_URL not set")
-    
+
     # Log database host (safe - no password)
     try:
         db_parsed = urlparse(settings.DATABASE_URL)
@@ -183,8 +183,17 @@ def on_startup() -> None:
         logger.info(f"[CONFIG] DATABASE_URL host={db_host}, port={db_port}, database={db_name}")
     except Exception as e:
         logger.warning(f"[CONFIG] Could not parse DATABASE_URL: {e}")
-    
+
     init_db()
+
+    # Start background scheduler for weekly email reports
+    try:
+        from app.scheduler import start_scheduler
+        start_scheduler()
+        logger.info("[SCHEDULER] Background scheduler started successfully")
+    except Exception as e:
+        logger.exception(f"[SCHEDULER] Failed to start background scheduler: {e}")
+        logger.warning("[SCHEDULER] Weekly email reports will not be sent automatically")
     
     # Debug: Print enum values for onboarding-related enums (only when DEBUG=true)
     DEBUG_ENUMS = os.getenv("DEBUG", "false").lower() == "true"
@@ -214,6 +223,18 @@ def on_startup() -> None:
             logger.info(f"  User.subscription_status.enums: {User.subscription_status.type.enums}")
         if hasattr(OnboardingProfile.business_stage.type, 'enums'):
             logger.info(f"  OnboardingProfile.business_stage.enums: {OnboardingProfile.business_stage.type.enums}")
+
+
+@app.on_event("shutdown")
+def on_shutdown() -> None:
+    """Clean shutdown of background tasks."""
+    logger.info("[SHUTDOWN] Stopping background scheduler")
+    try:
+        from app.scheduler import stop_scheduler
+        stop_scheduler()
+        logger.info("[SHUTDOWN] Background scheduler stopped")
+    except Exception as e:
+        logger.exception(f"[SHUTDOWN] Error stopping scheduler: {e}")
 
 
 @app.get("/health")

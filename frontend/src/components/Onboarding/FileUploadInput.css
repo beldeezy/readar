@@ -1,0 +1,224 @@
+.file-upload-input {
+  background-color: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.upload-container {
+  margin-bottom: 1.5rem;
+}
+
+.upload-zone {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.file-input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.upload-label {
+  display: block;
+  padding: 2rem;
+  border: 2px dashed #054745;
+  border-radius: 10px;
+  background-color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.upload-label:hover {
+  border-color: #054745;
+  background-color: rgba(83, 255, 201, 0.1);
+}
+
+.upload-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.upload-text {
+  margin: 0;
+}
+
+.upload-title {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.upload-subtitle {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #777;
+}
+
+.file-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.file-name {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.file-size {
+  font-size: 0.875rem;
+  color: #777;
+}
+
+.upload-error {
+  padding: 0.75rem 1rem;
+  background-color: #fee;
+  border-left: 4px solid #f44;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}
+
+.upload-error p {
+  margin: 0;
+  color: #c33;
+  font-size: 0.875rem;
+}
+
+.upload-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.upload-actions .submit-button,
+.upload-actions .skip-button {
+  padding: 0.875rem 1.5rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.upload-actions .submit-button {
+  flex: 1;
+  background: #53FFC9;
+  color: #000000;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(83, 255, 201, 0.3);
+}
+
+.upload-actions .submit-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(83, 255, 201, 0.5);
+  background: #6AFFDB;
+}
+
+.upload-actions .submit-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.upload-actions .submit-button.success {
+  background: #53FFC9;
+  color: #000000;
+  opacity: 1;
+  animation: successPulse 0.4s ease-out;
+}
+
+@keyframes successPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.uploading-indicator .spinner {
+  display: inline-block;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.upload-actions .skip-button {
+  background-color: #555555;
+  color: white;
+  border: 2px solid #054745;
+}
+
+.upload-actions .skip-button:hover:not(:disabled) {
+  background-color: #666666;
+  border-color: #2CB3BE;
+}
+
+.upload-help {
+  padding: 1rem;
+  background-color: rgba(83, 255, 201, 0.1);
+  border-radius: 8px;
+  border-left: 4px solid #53FFC9;
+}
+
+.upload-help p {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.875rem;
+  color: #333;
+}
+
+.upload-help ol {
+  margin: 0;
+  padding-left: 1.5rem;
+  font-size: 0.875rem;
+  color: #666;
+}
+
+.upload-help li {
+  margin-bottom: 0.25rem;
+}
+
+.goodreads-link {
+  color: #0FA0A2;
+  text-decoration: none;
+  font-weight: 600;
+  border-bottom: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.goodreads-link:hover {
+  color: #53FFC9;
+  border-bottom-color: #53FFC9;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .file-upload-input {
+    padding: 1rem;
+  }
+
+  .upload-label {
+    padding: 1.5rem;
+  }
+
+  .upload-icon {
+    font-size: 2.5rem;
+  }
+
+  .upload-actions {
+    flex-direction: column;
+  }
+
+  .upload-actions .submit-button,
+  .upload-actions .skip-button {
+    width: 100%;
+  }
+}

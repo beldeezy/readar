@@ -156,9 +156,37 @@ class Book(Base):
     user_interactions = relationship("UserBookInteraction", back_populates="book")
 
 
+class PendingBook(Base):
+    """
+    Stores books from Goodreads uploads that aren't yet in the main catalog.
+    These are auto-deduped and added to the catalog, with weekly email reports.
+    """
+    __tablename__ = "pending_books"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title = Column(String, nullable=False)
+    author = Column(String, nullable=False)
+    isbn = Column(String, nullable=True)
+    isbn13 = Column(String, nullable=True)
+    goodreads_id = Column(String, nullable=True)
+    goodreads_url = Column(String, nullable=True)
+    year_published = Column(Integer, nullable=True)
+    average_rating = Column(Float, nullable=True)
+    num_pages = Column(Integer, nullable=True)
+
+    # Tracking fields
+    added_to_catalog = Column(Boolean, default=False, nullable=False)
+    catalog_book_id = Column(UUID(as_uuid=True), ForeignKey("books.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    added_to_catalog_at = Column(DateTime, nullable=True)
+
+    # Relationships
+    catalog_book = relationship("Book", foreign_keys=[catalog_book_id])
+
+
 class UserBookInteraction(Base):
     __tablename__ = "user_book_interactions"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     book_id = Column(UUID(as_uuid=True), ForeignKey("books.id"), nullable=False)
