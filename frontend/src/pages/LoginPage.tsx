@@ -14,6 +14,33 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
+  const handleGoogleSignIn = async () => {
+    setError('');
+    setLoading(true);
+
+    try {
+      const origin = window.location.origin;
+      const next = searchParams.get('next') || '/recommendations';
+      const callbackUrl = `${origin}/auth/callback?next=${encodeURIComponent(next)}`;
+
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: callbackUrl,
+        },
+      });
+
+      if (error) {
+        setError(error.message);
+        setLoading(false);
+      }
+      // Don't set loading false on success - page will redirect to Google
+    } catch (err: any) {
+      setError(err.message || 'An error occurred');
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -24,7 +51,7 @@ export default function LoginPage() {
       const origin = window.location.origin;
       const next = searchParams.get('next') || '/recommendations';
       const callbackUrl = `${origin}/auth/callback?next=${encodeURIComponent(next)}`;
-      
+
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
@@ -61,20 +88,53 @@ export default function LoginPage() {
             </PrimaryButton>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="readar-auth-form">
+          <>
             {error && <div className="readar-auth-error">{error}</div>}
-            <Input
-              label="Email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoFocus
-            />
-            <PrimaryButton type="submit" isDisabled={loading} className="readar-auth-submit">
-              {loading ? 'Sending...' : 'Send magic link'}
+
+            {/* Google Sign In */}
+            <PrimaryButton
+              onClick={handleGoogleSignIn}
+              isDisabled={loading}
+              className="readar-auth-google-button"
+              style={{
+                marginBottom: '1.5rem',
+                backgroundColor: '#fff',
+                color: '#000',
+                border: '1px solid #ddd',
+              }}
+            >
+              {loading ? 'Redirecting...' : '🔐 Continue with Google'}
             </PrimaryButton>
-          </form>
+
+            {/* Divider */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '1rem',
+              margin: '1.5rem 0',
+              color: 'var(--rd-muted)',
+              fontSize: '0.875rem',
+            }}>
+              <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--rd-border)' }} />
+              <span>or</span>
+              <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--rd-border)' }} />
+            </div>
+
+            {/* Email Magic Link Form */}
+            <form onSubmit={handleSubmit} className="readar-auth-form">
+              <Input
+                label="Email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoFocus
+              />
+              <PrimaryButton type="submit" isDisabled={loading} className="readar-auth-submit">
+                {loading ? 'Sending...' : 'Send magic link'}
+              </PrimaryButton>
+            </form>
+          </>
         )}
       </Card>
     </div>

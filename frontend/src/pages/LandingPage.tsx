@@ -8,9 +8,9 @@ export default function LandingPage() {
   const navigate = useNavigate();
 
   const handleFindNextBook = async () => {
-    // Always start with onboarding, regardless of auth status
-    // Unauthenticated users will complete onboarding, then get preview recs, then be prompted for login
-    navigate('/onboarding');
+    // Start with login to show Google sign in
+    // After auth, user will be redirected to onboarding
+    navigate('/login?next=/onboarding');
   };
 
   return (
