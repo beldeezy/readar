@@ -1,5 +1,6 @@
 alembic==1.14.0
 annotated-types==0.7.0
+apscheduler==3.10.4
 anyio==4.12.0
 bcrypt==5.0.0
 certifi==2025.11.12
