@@ -192,6 +192,16 @@ const ChatOnboardingPage: React.FC = () => {
   const saveToBackend = async (questionId: string, value: any) => {
     if (!user) return;
 
+    // Skip saving empty, null, undefined, or "skipped" values
+    if (
+      value === null ||
+      value === undefined ||
+      value === '' ||
+      value === 'skipped'
+    ) {
+      return;
+    }
+
     // Prepare payload based on question type
     const payload: any = {};
 
@@ -227,12 +237,24 @@ const ChatOnboardingPage: React.FC = () => {
         throw new Error('Please answer all required questions');
       }
 
-      // answers already has arrays converted to strings via handleAnswer
-      // No need to convert again - just send as is
+      // Filter answers to only include non-empty, non-skipped values
+      // This prevents sending null/empty/skipped fields to the backend
+      const filteredAnswers = Object.entries(answers).reduce((acc, [key, value]) => {
+        // Skip empty, null, undefined, and "skipped" values
+        if (
+          value !== null &&
+          value !== undefined &&
+          value !== '' &&
+          value !== 'skipped'
+        ) {
+          acc[key] = value;
+        }
+        return acc;
+      }, {} as Record<string, any>);
 
       // Final save to backend (full profile) using apiClient
       if (user) {
-        await apiClient.saveOnboarding(answers);
+        await apiClient.saveOnboarding(filteredAnswers);
       }
 
       // Clear localStorage
