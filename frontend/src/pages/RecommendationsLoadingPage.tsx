@@ -19,6 +19,7 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, message: string):
 }
 
 function normalizePendingOnboardingToPayload(pendingOnboarding: any): OnboardingPayload {
+<<<<<<< HEAD
   // Helper to convert arrays to comma-separated strings
   const arrayToString = (value: any): string => {
     if (Array.isArray(value)) {
@@ -27,9 +28,17 @@ function normalizePendingOnboardingToPayload(pendingOnboarding: any): Onboarding
     return value || '';
   };
 
+=======
+  // Explicitly construct payload with ONLY fields that match the backend schema
+  // This prevents extra fields from localStorage from being sent to the backend
+>>>>>>> claude/setup-production-testing-unmNg
   return {
-    ...pendingOnboarding,
+    // Required fields
+    full_name: pendingOnboarding.full_name || '',
+    industry: pendingOnboarding.industry || '',
+    business_stage: pendingOnboarding.business_stage || 'idea',
 
+<<<<<<< HEAD
     // Backend expects business_model as a string (convert arrays for backward compatibility)
     business_model: arrayToString(
       pendingOnboarding.business_models || pendingOnboarding.business_model
@@ -37,24 +46,47 @@ function normalizePendingOnboardingToPayload(pendingOnboarding: any): Onboarding
 
     // Backend expects areas_of_business as a string (convert arrays for backward compatibility)
     areas_of_business: arrayToString(pendingOnboarding.areas_of_business),
+=======
+    // business_model: Backend expects a STRING (not array!)
+    business_model: Array.isArray(pendingOnboarding.business_models)
+      ? pendingOnboarding.business_models.join(', ')
+      : (pendingOnboarding.business_model || ''),
+>>>>>>> claude/setup-production-testing-unmNg
 
-    // Backend expects biggest_challenge as a string
+    // biggest_challenge: Backend expects a STRING
     biggest_challenge:
       pendingOnboarding.biggest_challenge ||
       pendingOnboarding.challenges_and_blockers ||
       '',
 
-    // Backend expects blockers as a string
+    // Optional fields with correct types
+    age: pendingOnboarding.age || undefined,
+    occupation: pendingOnboarding.occupation || undefined,
+    entrepreneur_status: pendingOnboarding.entrepreneur_status || undefined,
+    location: pendingOnboarding.location || undefined,
+    economic_sector: pendingOnboarding.economic_sector || undefined,
+    business_experience: pendingOnboarding.business_experience || undefined,
+    org_size: pendingOnboarding.org_size || undefined,
+    is_student: pendingOnboarding.is_student || undefined,
+    vision_6_12_months: pendingOnboarding.vision_6_12_months || undefined,
+    current_gross_revenue: pendingOnboarding.current_gross_revenue || undefined,
+
+    // blockers: Backend expects a STRING
     blockers:
       pendingOnboarding.blockers ||
       pendingOnboarding.challenges_and_blockers ||
-      '',
+      undefined,
 
-    // Backend expects book_preferences as an array
+    // areas_of_business: Backend expects a STRING ARRAY
+    areas_of_business: Array.isArray(pendingOnboarding.areas_of_business)
+      ? pendingOnboarding.areas_of_business
+      : (pendingOnboarding.areas_of_business ? [pendingOnboarding.areas_of_business] : undefined),
+
+    // book_preferences: Backend expects an ARRAY of {book_id, status}
     book_preferences: Array.isArray(pendingOnboarding.book_preferences)
       ? pendingOnboarding.book_preferences
-      : [],
-  } as OnboardingPayload;
+      : undefined,
+  };
 }
 
 export default function RecommendationsLoadingPage() {
@@ -144,12 +176,16 @@ export default function RecommendationsLoadingPage() {
             const pendingOnboarding = JSON.parse(pendingOnboardingStr);
             const payload = normalizePendingOnboardingToPayload(pendingOnboarding);
 
+            console.log('[DEBUG] Normalized payload for preview:', JSON.stringify(payload, null, 2));
+
             const recs = await withTimeout(
               apiClient.getPreviewRecommendations(payload),
               20000,
               'Fetching preview recommendations took too long. Backend may be down or stuck.'
             );
             if (cancelled) return;
+
+            console.log('[DEBUG] Preview recommendations received:', recs.length, 'items');
 
             localStorage.setItem(PREVIEW_RECS_KEY, JSON.stringify(recs));
             setPhase('finalizing');
@@ -162,6 +198,9 @@ export default function RecommendationsLoadingPage() {
             return;
           } catch (e: any) {
             if (cancelled) return;
+            console.error('[DEBUG] Preview recommendations error:', e);
+            console.error('[DEBUG] Error response:', e?.response);
+            console.error('[DEBUG] Error data:', e?.response?.data);
             setError(e?.message || 'Failed to generate preview recommendations.');
             return;
           }
