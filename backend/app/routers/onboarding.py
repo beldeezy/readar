@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 from app.database import get_db
 from app.models import User, OnboardingProfile, UserBookInteraction, Book, UserBookStatus, BusinessStage
-from app.schemas.onboarding import OnboardingPayload, OnboardingPatchPayload, OnboardingProfileResponse
+from app.schemas.onboarding import OnboardingPayload, OnboardingProfileResponse
 from app.core.auth import get_current_user
 from app.utils.instrumentation import log_event_best_effort
 from datetime import datetime
@@ -234,66 +234,6 @@ async def get_onboarding(
         raise
 
 
-@router.patch("", response_model=OnboardingProfileResponse)
-async def patch_onboarding(
-    payload: OnboardingPatchPayload,
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Incrementally update onboarding profile for the authenticated user.
-    This endpoint supports partial updates - only provided fields will be updated.
-    """
-    DEBUG = os.getenv("DEBUG", "false").lower() == "true"
-
-    user_id = user.id
-    if DEBUG:
-        logger.info(f"[DEBUG PATCH /api/onboarding] user_id={user_id}, payload={payload.model_dump(exclude_none=True)}")
-
-    try:
-        # Get or create profile
-        profile = db.query(OnboardingProfile).filter(
-            OnboardingProfile.user_id == user_id
-        ).first()
-
-        if not profile:
-            # Create new profile with only the provided fields
-            payload_dict = payload.model_dump(exclude_none=True)
-            profile = OnboardingProfile(
-                user_id=user_id,
-                **payload_dict
-            )
-            db.add(profile)
-        else:
-            # Update existing profile with only provided fields
-            payload_dict = payload.model_dump(exclude_none=True)
-            for key, value in payload_dict.items():
-                setattr(profile, key, value)
-            profile.updated_at = datetime.utcnow()
-
-        db.commit()
-        db.refresh(profile)
-
-        return OnboardingProfileResponse.model_validate(profile)
-    except HTTPException:
-        db.rollback()
-        raise
-    except Exception as e:
-        db.rollback()
-        logger.exception(
-            f"[DEBUG PATCH /api/onboarding ERROR] user_id={user_id}, "
-            f"error_type={type(e).__name__}, error={str(e)}"
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={
-                "detail": "internal_error",
-                "error_type": type(e).__name__,
-                "error": str(e),
-            },
-        )
-
-
 @router.post("/book-interactions", status_code=status.HTTP_200_OK)
 async def save_book_interactions(
     payload: dict,
@@ -364,4 +304,3 @@ async def save_book_interactions(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
-
