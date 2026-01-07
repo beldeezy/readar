@@ -104,10 +104,10 @@ class OnboardingPayload(BaseModel):
 
 class OnboardingProfileResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: UUID
     user_id: UUID
-    full_name: str
+    full_name: Optional[str]  # Nullable: extracted from Supabase metadata if not provided
     age: Optional[int]
     occupation: Optional[str]
     entrepreneur_status: Optional[str]
