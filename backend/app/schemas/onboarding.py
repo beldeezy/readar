@@ -41,7 +41,7 @@ def normalize_business_stage_string(value: str) -> str:
 
 
 class OnboardingPayload(BaseModel):
-    full_name: str
+    full_name: Optional[str] = None
     age: Optional[int] = None
     occupation: Optional[str] = None
     entrepreneur_status: Optional[str] = None

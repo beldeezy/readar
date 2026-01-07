@@ -75,10 +75,10 @@ class User(Base):
 
 class OnboardingProfile(Base):
     __tablename__ = "onboarding_profiles"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), unique=True, nullable=False)
-    full_name = Column(String, nullable=False)
+    full_name = Column(String, nullable=True)  # Nullable: extracted from Supabase metadata if not provided
     age = Column(Integer, nullable=True)
     occupation = Column(String, nullable=True)
     entrepreneur_status = Column(String, nullable=True)

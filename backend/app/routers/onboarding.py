@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from uuid import UUID
 from app.database import get_db
@@ -29,15 +29,18 @@ router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 @router.post("", response_model=OnboardingProfileResponse, status_code=status.HTTP_201_CREATED)
 async def create_or_update_onboarding(
     payload: OnboardingPayload,
+    request: Request,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Create or update onboarding profile for the authenticated user.
+
+    Extracts full_name from Supabase user metadata if not provided in payload.
     """
     # Debug logging (only when DEBUG env var is set)
     DEBUG = os.getenv("DEBUG", "false").lower() == "true"
-    
+
     user_id = user.id
     if DEBUG:
         payload_dict_debug = payload.model_dump()
@@ -49,11 +52,30 @@ async def create_or_update_onboarding(
             f"entrepreneur_status={payload_dict_debug.get('entrepreneur_status', 'N/A')}, "
             f"subscription_status={user.subscription_status.value if hasattr(user, 'subscription_status') else 'N/A'}"
         )
-    
+
     try:
         # Extract book_preferences before creating profile (since OnboardingProfile doesn't have this field)
         book_preferences = payload.book_preferences
         payload_dict = payload.model_dump(exclude={"book_preferences"})
+
+        # Extract full_name from Supabase user metadata if not provided or empty
+        if not payload_dict.get("full_name") or not payload_dict["full_name"].strip():
+            # Try to get from JWT payload stored in request.state
+            jwt_payload = getattr(request.state, "supabase_jwt_payload", {})
+            user_metadata = jwt_payload.get("user_metadata", {})
+
+            # Try multiple possible fields in order of preference
+            full_name = (
+                user_metadata.get("full_name") or
+                user_metadata.get("name") or
+                jwt_payload.get("name") or
+                user.email.split("@")[0] if user.email else "User"  # Fallback to email username
+            )
+
+            if DEBUG:
+                logger.info(f"[DEBUG] Extracted full_name from metadata: {full_name}")
+
+            payload_dict["full_name"] = full_name
         
         # Note: business_stage is already normalized by Pydantic validator in OnboardingPayload schema
         

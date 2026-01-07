@@ -91,6 +91,7 @@ def get_current_user(
     - Verifies JWT
     - Extracts sub (Supabase user id) and email
     - Upserts into local users table via get_or_create_user_by_auth_id()
+    - Stores JWT payload in request.state for downstream use
     """
     token = _extract_bearer_token(request)
     payload = _decode_supabase_jwt(token)
@@ -101,7 +102,10 @@ def get_current_user(
 
     email = payload.get("email") or ""
     email_verified = payload.get("email_verified", False)  # Supabase includes this claim
-    
+
+    # Store JWT payload in request.state for downstream access (e.g., user_metadata)
+    request.state.supabase_jwt_payload = payload
+
     # Extract endpoint info for logging
     endpoint = f"{request.method} {request.url.path}"
 

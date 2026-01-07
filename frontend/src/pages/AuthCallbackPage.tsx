@@ -21,8 +21,22 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
-        // Get the session from the URL hash
-        const { data: { session }, error } = await supabase.auth.getSession();
+        // Check if we have an OAuth code parameter (Google OAuth flow)
+        const code = searchParams.get('code');
+        let session = null;
+        let error = null;
+
+        if (code) {
+          // Exchange the OAuth code for a session
+          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          session = data.session;
+          error = exchangeError;
+        } else {
+          // Fallback: Get the session from the URL hash (magic link flow)
+          const { data, error: sessionError } = await supabase.auth.getSession();
+          session = data.session;
+          error = sessionError;
+        }
 
         if (error) {
           console.error('Auth callback error:', error);
