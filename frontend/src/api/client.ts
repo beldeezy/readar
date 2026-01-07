@@ -250,6 +250,49 @@ class ApiClient {
     }
   }
 
+  async patchOnboarding(payload: Partial<OnboardingPayload>): Promise<OnboardingProfile> {
+    // Debug logging (only in dev or when VITE_DEBUG=true)
+    const DEBUG = import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true';
+    const url = `${API_BASE_URL}/onboarding`;
+    const hasAuth = !!getAuthHeader();
+
+    if (DEBUG) {
+      console.log('[DEBUG patchOnboarding]', {
+        method: 'PATCH',
+        url,
+        payloadKeys: Object.keys(payload),
+        hasAuthorization: hasAuth,
+      });
+    }
+
+    try {
+      const response = await this.client.patch<OnboardingProfile>("/onboarding", payload);
+
+      if (DEBUG) {
+        console.log('[DEBUG patchOnboarding response]', {
+          status: response.status,
+          statusText: response.statusText,
+          body: JSON.stringify(response.data),
+        });
+      }
+
+      return response.data;
+    } catch (error: any) {
+      if (DEBUG) {
+        console.log('[DEBUG patchOnboarding error]', {
+          status: error?.response?.status,
+          statusText: error?.response?.statusText,
+          body: error?.response?.data ? JSON.stringify(error.response.data) : 'no body',
+          message: error?.message,
+        });
+      }
+
+      // Re-throw with proper error message
+      if (error.response?.data?.detail) throw new Error(error.response.data.detail);
+      throw new Error(error.message || "Failed to update onboarding");
+    }
+  }
+
   async getOnboarding(): Promise<OnboardingProfile> {
     // Debug logging (only in dev or when VITE_DEBUG=true)
     const DEBUG = import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true';

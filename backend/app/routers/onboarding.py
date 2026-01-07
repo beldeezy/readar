@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 from app.database import get_db
 from app.models import User, OnboardingProfile, UserBookInteraction, Book, UserBookStatus, BusinessStage
-from app.schemas.onboarding import OnboardingPayload, OnboardingProfileResponse
+from app.schemas.onboarding import OnboardingPayload, OnboardingPatchPayload, OnboardingProfileResponse
 from app.core.auth import get_current_user
 from app.utils.instrumentation import log_event_best_effort
 from datetime import datetime

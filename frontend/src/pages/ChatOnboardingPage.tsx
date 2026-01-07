@@ -220,8 +220,8 @@ const ChatOnboardingPage: React.FC = () => {
       // Regular field
       payload[questionId] = value;
 
-      // Save incremental progress to backend using apiClient (POST handles upsert)
-      await apiClient.saveOnboarding(payload);
+      // Save incremental progress to backend using PATCH (allows partial updates)
+      await apiClient.patchOnboarding(payload);
     }
   };
 
