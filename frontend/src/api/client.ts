@@ -515,6 +515,10 @@ class ApiClient {
     });
     return response.data;
   }
+
+  async saveBookInteractions(books: Array<{ external_id: string; status: string }>): Promise<void> {
+    await this.client.post('/onboarding/book-interactions', { books });
+  }
 }
 
 export const apiClient = new ApiClient();

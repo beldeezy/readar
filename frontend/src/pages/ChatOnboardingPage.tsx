@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
+import { apiClient } from '../api/client';
 import {
   CHAT_QUESTIONS,
   INDUSTRIES_BY_SECTOR,
@@ -195,20 +196,13 @@ const ChatOnboardingPage: React.FC = () => {
     const payload: any = {};
 
     if (questionId === 'book_preferences') {
-      // Handle book preferences separately
+      // Handle book preferences separately using apiClient
       const bookInteractions = Object.entries(value).map(([externalId, status]) => ({
         external_id: externalId,
         status: status as string,
       }));
 
-      await fetch('/api/onboarding/book-interactions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${user.access_token}`,
-        },
-        body: JSON.stringify({ books: bookInteractions }),
-      });
+      await apiClient.saveBookInteractions(bookInteractions);
     } else if (questionId === 'reading_history_csv') {
       // CSV upload is handled separately in the file upload component
       return;
@@ -216,19 +210,8 @@ const ChatOnboardingPage: React.FC = () => {
       // Regular field
       payload[questionId] = value;
 
-      // Send PATCH request to update onboarding profile
-      const response = await fetch('/api/onboarding', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${user.access_token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to save progress');
-      }
+      // Save incremental progress to backend using apiClient (POST handles upsert)
+      await apiClient.saveOnboarding(payload);
     }
   };
 
@@ -244,16 +227,12 @@ const ChatOnboardingPage: React.FC = () => {
         throw new Error('Please answer all required questions');
       }
 
-      // Final save to backend (full profile)
+      // answers already has arrays converted to strings via handleAnswer
+      // No need to convert again - just send as is
+
+      // Final save to backend (full profile) using apiClient
       if (user) {
-        await fetch('/api/onboarding', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${user.access_token}`,
-          },
-          body: JSON.stringify(answers),
-        });
+        await apiClient.saveOnboarding(answers);
       }
 
       // Clear localStorage
