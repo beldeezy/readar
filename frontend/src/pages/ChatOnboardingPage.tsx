@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
+import { apiClient } from '../api/client';
 import {
   CHAT_QUESTIONS,
   INDUSTRIES_BY_SECTOR,
@@ -26,7 +27,6 @@ const ChatOnboardingPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const hasInitialized = useRef(false); // Track if we've already initialized
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [answers, setAnswers] = useState<Record<string, any>>({});
@@ -46,10 +46,6 @@ const ChatOnboardingPage: React.FC = () => {
 
   // Load saved progress from localStorage and initialize chat
   useEffect(() => {
-    // Prevent duplicate initialization (React StrictMode runs effects twice in dev)
-    if (hasInitialized.current) return;
-    hasInitialized.current = true;
-
     const savedData = localStorage.getItem('readar_pending_onboarding');
     let loadedAnswers = {};
 
@@ -140,22 +136,16 @@ const ChatOnboardingPage: React.FC = () => {
       addUserMessage(displayText);
     }
 
-    // Convert arrays to comma-separated strings for storage and backend
-    let processedAnswer = answer;
-    if (Array.isArray(answer)) {
-      processedAnswer = answer.join(',');
-    }
-
-    // Update answers with processed value (string, not array)
+    // Update answers
     const updatedAnswers = {
       ...answers,
-      [questionId]: processedAnswer,
+      [questionId]: answer,
     };
     setAnswers(updatedAnswers);
 
     // Save to backend incrementally
     try {
-      await saveToBackend(questionId, processedAnswer);
+      await saveToBackend(questionId, answer);
     } catch (err: any) {
       setError(`Failed to save: ${err.message}`);
       // Don't block progression on save errors for optional questions
@@ -202,49 +192,41 @@ const ChatOnboardingPage: React.FC = () => {
   const saveToBackend = async (questionId: string, value: any) => {
     if (!user) return;
 
+    // Skip saving empty, null, undefined, or "skipped" values
+    if (
+      value === null ||
+      value === undefined ||
+      value === '' ||
+      value === 'skipped'
+    ) {
+      return;
+    }
+
     // Prepare payload based on question type
     const payload: any = {};
 
     if (questionId === 'book_preferences') {
-      // Handle book preferences separately
+      // Handle book preferences separately using apiClient
       const bookInteractions = Object.entries(value).map(([externalId, status]) => ({
         external_id: externalId,
         status: status as string,
       }));
 
-      await fetch('/api/onboarding/book-interactions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${user.access_token}`,
-        },
-        body: JSON.stringify({ books: bookInteractions }),
-      });
+      await apiClient.saveBookInteractions(bookInteractions);
     } else if (questionId === 'reading_history_csv') {
       // CSV upload is handled separately in the file upload component
       return;
     } else {
-      // Regular field - value is already processed (arrays converted to strings in handleAnswer)
+      // Regular field
       payload[questionId] = value;
 
-      // Send PATCH request to update onboarding profile
-      const response = await fetch('/api/onboarding', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${user.access_token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to save progress');
-      }
+      // Save incremental progress to backend using PATCH (allows partial updates)
+      await apiClient.patchOnboarding(payload);
     }
   };
 
   const handleOnboardingComplete = async () => {
-    addBotMessage('Perfect! You\'re all set. Finding the best books for you...');
+    addBotMessage('Perfect! You\'re all set. Let me find the best books for you...');
 
     setIsProcessing(true);
 
@@ -255,19 +237,24 @@ const ChatOnboardingPage: React.FC = () => {
         throw new Error('Please answer all required questions');
       }
 
-      // answers already has arrays converted to strings via handleAnswer
-      // No need to convert again - just send as is
+      // Filter answers to only include non-empty, non-skipped values
+      // This prevents sending null/empty/skipped fields to the backend
+      const filteredAnswers = Object.entries(answers).reduce((acc, [key, value]) => {
+        // Skip empty, null, undefined, and "skipped" values
+        if (
+          value !== null &&
+          value !== undefined &&
+          value !== '' &&
+          value !== 'skipped'
+        ) {
+          acc[key] = value;
+        }
+        return acc;
+      }, {} as Record<string, any>);
 
-      // Final save to backend (full profile)
+      // Final save to backend (full profile) using apiClient
       if (user) {
-        await fetch('/api/onboarding', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${user.access_token}`,
-          },
-          body: JSON.stringify(answers),
-        });
+        await apiClient.saveOnboarding(filteredAnswers);
       }
 
       // Clear localStorage
@@ -279,7 +266,7 @@ const ChatOnboardingPage: React.FC = () => {
       }, 1500);
     } catch (err: any) {
       setError(err.message);
-      addBotMessage("Something went wrong. Please try again.");
+      addBotMessage("Oops! Something went wrong. Let me try to help you fix that.");
       setIsProcessing(false);
     }
   };

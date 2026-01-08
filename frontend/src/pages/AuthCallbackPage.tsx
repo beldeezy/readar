@@ -49,12 +49,12 @@ export default function AuthCallbackPage() {
         if (session?.access_token) {
           // Store access token in localStorage
           setAccessToken(session.access_token);
-          
-          // NEW: mark magic link verified for this session
+
+          // Mark magic link verified for this session
           authContext.setHasVerifiedMagicLink(true);
-          
+
           setStatus('success');
-          
+
           // Set up auth state change listener to keep token updated
           supabase.auth.onAuthStateChange((_event, session) => {
             if (session?.access_token) {
@@ -63,13 +63,13 @@ export default function AuthCallbackPage() {
               clearAccessToken();
             }
           });
-          
+
           // Check if there's pending onboarding in localStorage
           const pendingOnboardingStr = localStorage.getItem(PENDING_ONBOARDING_KEY);
           if (pendingOnboardingStr) {
             try {
               const pendingOnboarding = JSON.parse(pendingOnboardingStr);
-              
+
               // Map form data to backend payload format
               const payload: OnboardingPayload = {
                 ...pendingOnboarding,

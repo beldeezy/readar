@@ -102,6 +102,61 @@ class OnboardingPayload(BaseModel):
         return cls.normalize_business_stage(str(value))
 
 
+class OnboardingPatchPayload(BaseModel):
+    """
+    Schema for PATCH /api/onboarding - all fields optional for incremental updates.
+    Use this for partial updates during chat onboarding.
+    """
+    full_name: Optional[str] = None
+    age: Optional[int] = None
+    occupation: Optional[str] = None
+    entrepreneur_status: Optional[str] = None
+    location: Optional[str] = None
+    economic_sector: Optional[str] = None
+    industry: Optional[str] = None
+    business_model: Optional[str] = None
+    business_experience: Optional[str] = None
+    areas_of_business: Optional[list[str]] = None
+    business_stage: Optional[BusinessStage] = None
+    org_size: Optional[str] = None
+    is_student: Optional[bool] = None
+    biggest_challenge: Optional[str] = None
+    vision_6_12_months: Optional[str] = None
+    blockers: Optional[str] = None
+    current_gross_revenue: Optional[RevenueRange] = None
+    has_prior_reading_history: Optional[bool] = None
+
+    @field_validator("business_stage", mode="before")
+    @classmethod
+    def normalize_business_stage(cls, value):
+        """Normalize business_stage input (same as OnboardingPayload)."""
+        if value is None:
+            return None
+
+        if isinstance(value, BusinessStage):
+            return value
+
+        if isinstance(value, str):
+            normalized = normalize_business_stage_string(value)
+
+            for stage in BusinessStage:
+                if stage.value == normalized:
+                    return stage
+
+            value_upper = value.strip().upper()
+            for stage in BusinessStage:
+                if stage.name == value_upper:
+                    return stage
+
+            allowed_values = [stage.value for stage in BusinessStage]
+            raise ValueError(
+                f"Invalid business_stage value: {value!r}. "
+                f"Allowed values are: {', '.join(allowed_values)}"
+            )
+
+        return cls.normalize_business_stage(str(value))
+
+
 class OnboardingProfileResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
