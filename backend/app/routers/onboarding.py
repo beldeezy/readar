@@ -86,6 +86,8 @@ async def create_or_update_onboarding(
             OnboardingProfile.user_id == user_id
         ).first()
 
+        is_new_profile = existing_profile is None
+
         if existing_profile:
             # Update existing profile with only the fields that were provided
             for key, value in payload_dict.items():
@@ -151,17 +153,19 @@ async def create_or_update_onboarding(
                     db.add(new_interaction)
             
             db.commit()
-        
-        # Log onboarding completion event (best-effort, non-blocking)
-        log_event_best_effort(
-            event_name="onboarding_completed",
-            user_id=user_id,
-            properties={
-                "business_model": existing_profile.business_model,
-                "business_stage": existing_profile.business_stage.value if hasattr(existing_profile.business_stage, 'value') else str(existing_profile.business_stage),
-                "org_size": existing_profile.org_size,
-            },
-        )
+
+        # Log onboarding completion event ONLY on first creation (not updates)
+        # This prevents duplicate event logs when the same onboarding is saved multiple times
+        if is_new_profile:
+            log_event_best_effort(
+                event_name="onboarding_completed",
+                user_id=user_id,
+                properties={
+                    "business_model": existing_profile.business_model,
+                    "business_stage": existing_profile.business_stage.value if hasattr(existing_profile.business_stage, 'value') else str(existing_profile.business_stage),
+                    "org_size": existing_profile.org_size,
+                },
+            )
         
         return OnboardingProfileResponse.model_validate(existing_profile)
     except HTTPException:
@@ -368,4 +372,3 @@ async def save_book_interactions(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
-

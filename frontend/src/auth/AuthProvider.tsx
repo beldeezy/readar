@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
 import { apiClient, getApiBaseUrlDebug } from '../api/client';
@@ -31,6 +31,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null);
   const [onboardingChecked, setOnboardingChecked] = useState(false);
   const [hasVerifiedMagicLink, setHasVerifiedMagicLink] = useState(false);
+
+  // Guard to prevent double execution in React StrictMode
+  const finalizePendingOnboardingRef = useRef(false);
+  // Store stable reference to checkOnboardingStatus
+  const checkOnboardingStatusRef = useRef<(() => Promise<void>) | null>(null);
 
   useEffect(() => {
     // Get initial session
@@ -141,9 +146,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
+  // Keep stable reference to checkOnboardingStatus
+  useEffect(() => {
+    checkOnboardingStatusRef.current = checkOnboardingStatus;
+  }, [checkOnboardingStatus]);
+
   // Finalize pending onboarding after login
   useEffect(() => {
     const finalizePendingOnboarding = async () => {
+      // Guard to prevent double execution in React StrictMode
+      if (finalizePendingOnboardingRef.current) {
+        return;
+      }
+      finalizePendingOnboardingRef.current = true;
+
       if (!user) {
         return;
       }
@@ -160,34 +176,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const parsed = JSON.parse(pending);
 
-          // Map pending payload to backend expected shape (match what RecommendationsLoadingPage does)
-          const payload: OnboardingPayload = {
-            ...parsed,
-            business_model: parsed.business_models?.join(', ') || parsed.business_model || '',
-            biggest_challenge: parsed.challenges_and_blockers || parsed.biggest_challenge || '',
-            blockers: parsed.challenges_and_blockers || parsed.blockers || '',
-            book_preferences: parsed.book_preferences || [],
-          } as OnboardingPayload;
+          // ✅ Idempotency check: Verify onboarding doesn't already exist
+          // This prevents duplicate saves if the effect runs multiple times
+          let onboardingExists = false;
+          try {
+            await apiClient.getOnboarding();
+            onboardingExists = true;
+            console.log("Onboarding already exists, skipping save");
+          } catch (err: any) {
+            const status = err?.response?.status;
+            if (status === 404) {
+              // Onboarding doesn't exist, proceed with save
+              onboardingExists = false;
+            } else if (status === 401) {
+              // Unauthorized, can't check - proceed with save
+              onboardingExists = false;
+            } else {
+              // Other errors - assume it might exist, log and skip to be safe
+              console.error("Error checking onboarding status, skipping save to avoid duplicates:", err);
+              finalizePendingOnboardingRef.current = false;
+              return;
+            }
+          }
 
-          await apiClient.saveOnboarding(payload);
+          // Only save if onboarding doesn't already exist
+          if (!onboardingExists) {
+            // Map pending payload to backend expected shape (match what RecommendationsLoadingPage does)
+            const payload: OnboardingPayload = {
+              ...parsed,
+              business_model: parsed.business_models?.join(', ') || parsed.business_model || '',
+              biggest_challenge: parsed.challenges_and_blockers || parsed.biggest_challenge || '',
+              blockers: parsed.challenges_and_blockers || parsed.blockers || '',
+              book_preferences: parsed.book_preferences || [],
+            } as OnboardingPayload;
+
+            await apiClient.saveOnboarding(payload);
+            console.log("Successfully saved pending onboarding");
+          }
 
           // ✅ Clear pending so we don't loop
           localStorage.removeItem(PENDING_ONBOARDING_KEY);
+          localStorage.removeItem(PREVIEW_RECS_KEY);
+          localStorage.setItem(HAS_ONBOARDING_KEY, '1');
 
           // ✅ Mark onboarded locally to prevent redirect back
           setOnboardingComplete(true);
-          
+
           // Refresh onboarding status to confirm it's saved
-          await checkOnboardingStatus();
+          await checkOnboardingStatusRef.current?.();
         } catch (e) {
           console.error("Failed to finalize pending onboarding after login", e);
           // leave pending for retry, but DO NOT redirect to onboarding endlessly
           // Still check onboarding status in case it was saved by another process
-          checkOnboardingStatus();
+          checkOnboardingStatusRef.current?.();
+          finalizePendingOnboardingRef.current = false;
         }
       } else {
         // No pending onboarding, just check status normally
-        checkOnboardingStatus();
+        checkOnboardingStatusRef.current?.();
       }
     };
 
@@ -195,8 +241,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       finalizePendingOnboarding();
     } else {
       setOnboardingComplete(null);
+      // Reset guard when user logs out
+      finalizePendingOnboardingRef.current = false;
     }
-  }, [user, checkOnboardingStatus]);
+  }, [user]);
 
   const logout = async () => {
     await supabase.auth.signOut();
