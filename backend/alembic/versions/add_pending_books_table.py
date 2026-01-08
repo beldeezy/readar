@@ -1,7 +1,7 @@
 """add pending_books table for goodreads import queue
 
 Revision ID: add_pending_books_table
-Revises: 000000000000
+Revises: merge_all_branches_final
 Create Date: 2026-01-03
 
 """
@@ -12,7 +12,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = "add_pending_books_table"
-down_revision: str = "000000000000"  # Depends on baseline that creates books table
+down_revision: str = "merge_all_branches_final"  # Comes after latest merge
 branch_labels = None
 depends_on = None
 

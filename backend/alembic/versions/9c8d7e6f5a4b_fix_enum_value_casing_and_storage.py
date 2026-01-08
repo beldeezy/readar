@@ -1,7 +1,7 @@
 """fix_enum_value_casing_and_storage
 
-Revision ID: fix_enum_value_casing_and_storage
-Revises: add_free_to_subscriptionstatus_enum
+Revision ID: 9c8d7e6f5a4b
+Revises: 3d4e5f6a7b8c
 Create Date: 2025-01-21 12:00:00.000000
 
 Fix enum casing and storage issues:
@@ -15,8 +15,8 @@ from alembic import op
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'fix_enum_value_casing_and_storage'
-down_revision: Union[str, None] = 'add_free_to_subscriptionstatus_enum'
+revision: str = '9c8d7e6f5a4b'
+down_revision: Union[str, None] = '3d4e5f6a7b8c'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
