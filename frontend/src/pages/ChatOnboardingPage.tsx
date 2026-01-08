@@ -238,7 +238,6 @@ const ChatOnboardingPage: React.FC = () => {
     }
   };
 
-
   const handleOnboardingComplete = async () => {
     addBotMessage("Perfect! You're all set. Let me find the best books for you...");
 
@@ -257,16 +256,16 @@ const ChatOnboardingPage: React.FC = () => {
         return acc;
       }, {} as Record<string, any>);
 
-<<<<<<< HEAD
-=======
       // Normalize business_model to CSV string for backend schema
       if (Array.isArray(filteredAnswers.business_model)) {
         filteredAnswers.business_model = filteredAnswers.business_model
-          .map(String).map((s) => s.trim()).filter(Boolean).join(',');
+          .map(String)
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .join(',');
       }
 
       // Final save to backend (full profile) using apiClient
->>>>>>> fc3589cf (Fix business_model normalization and validation error formatting)
       if (user) {
         await apiClient.saveOnboarding(filteredAnswers);
       }
