@@ -248,6 +248,15 @@ const ChatOnboardingPage: React.FC = () => {
         }
       }
 
+      // Normalize current_gross_revenue to backend RevenueRange literals (legacy-safe)
+      if (questionId === 'current_gross_revenue' && typeof normalizedValue === 'string') {
+        const v = normalizedValue.trim();
+        const revenueMap: Record<string, string> = {
+          'pre-revenue': 'pre_revenue', // legacy hyphenated value
+        };
+        normalizedValue = revenueMap[v] ?? v;
+      }
+
       payload[questionId] = normalizedValue;
 
       // Save incremental progress to backend using PATCH (allows partial updates)
@@ -286,6 +295,12 @@ const ChatOnboardingPage: React.FC = () => {
       if (Array.isArray(filteredAnswers.business_model)) {
         filteredAnswers.business_model = filteredAnswers.business_model
           .map(String).map((s) => s.trim()).filter(Boolean).join(',');
+      }
+
+      // Normalize current_gross_revenue for backend schema (legacy-safe)
+      if (typeof filteredAnswers.current_gross_revenue === 'string') {
+        const v = filteredAnswers.current_gross_revenue.trim();
+        if (v === 'pre-revenue') filteredAnswers.current_gross_revenue = 'pre_revenue';
       }
 
       // Final save to backend (full profile) using apiClient
