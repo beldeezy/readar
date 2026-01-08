@@ -1,9 +1,11 @@
 # app/routers/reading_history.py
 from fastapi import APIRouter, Depends, File, UploadFile, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import exc as sqlalchemy_exc
 from io import TextIOWrapper
 import csv
 import logging
+import re
 from app.database import get_db
 from app.core.auth import get_current_user
 from app.models import User, Book, PendingBook
@@ -13,6 +15,37 @@ import sqlalchemy as sa
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/reading-history", tags=["reading_history"])
+
+
+def normalize_isbn(value: str | None) -> str | None:
+    """
+    Normalize ISBN/ISBN13 values to remove Excel export artifacts.
+
+    Excel exports often wrap ISBNs in ="..." format to preserve leading zeros.
+    This function strips those wrappers and cleans the ISBN.
+
+    Examples:
+        ="142990531X" -> 142990531X
+        ="9781429905312" -> 9781429905312
+        9780143127741 -> 9780143127741
+    """
+    if not value:
+        return None
+
+    # Strip whitespace
+    value = value.strip()
+
+    # Remove Excel-export artifacts: leading =" and trailing "
+    if value.startswith('="') and value.endswith('"'):
+        value = value[2:-1]
+    elif value.startswith('"') and value.endswith('"'):
+        value = value[1:-1]
+
+    # Remove any remaining whitespace or non-ISBN characters (keep digits and X)
+    # ISBN-10 can have X as check digit
+    value = re.sub(r'[^0-9X]', '', value.upper())
+
+    return value if value else None
 
 
 @router.post("/upload-csv")
@@ -66,8 +99,9 @@ async def upload_reading_history_csv(
                 continue
 
             # Extract additional metadata from Goodreads CSV
-            isbn = (row.get("ISBN") or "").strip() or None
-            isbn13 = (row.get("ISBN13") or "").strip() or None
+            # Normalize ISBNs to remove Excel export artifacts (="..." format)
+            isbn = normalize_isbn(row.get("ISBN"))
+            isbn13 = normalize_isbn(row.get("ISBN13"))
             goodreads_id = (row.get("Book Id") or "").strip() or None
             year_str = (row.get("Year Published") or "").strip()
             rating_str = (row.get("Average Rating") or "").strip()
@@ -114,16 +148,28 @@ async def upload_reading_history_csv(
                 continue
 
             # Check if already in pending_books (dedupe within pending)
-            existing_pending = db.query(PendingBook).filter(
-                or_(
-                    PendingBook.isbn == isbn if isbn else False,
-                    PendingBook.isbn13 == isbn13 if isbn13 else False,
-                    sa.and_(
-                        sa.func.lower(PendingBook.title) == title.lower(),
-                        sa.func.lower(PendingBook.author) == author.lower()
+            # Defensive: handle case where pending_books table doesn't exist
+            existing_pending = None
+            try:
+                existing_pending = db.query(PendingBook).filter(
+                    or_(
+                        PendingBook.isbn == isbn if isbn else False,
+                        PendingBook.isbn13 == isbn13 if isbn13 else False,
+                        sa.and_(
+                            sa.func.lower(PendingBook.title) == title.lower(),
+                            sa.func.lower(PendingBook.author) == author.lower()
+                        )
                     )
-                )
-            ).first()
+                ).first()
+            except sqlalchemy_exc.ProgrammingError as e:
+                # Table doesn't exist - log warning once and continue
+                if "pending_books" in str(e).lower() and "does not exist" in str(e).lower():
+                    logger.warning(
+                        "pending_books table not found; skipping pending dedupe. "
+                        "Run 'alembic upgrade head' to create the table."
+                    )
+                else:
+                    raise
 
             if existing_pending:
                 # Already in pending queue
@@ -131,19 +177,28 @@ async def upload_reading_history_csv(
                 continue
 
             # Add to pending_books table
-            pending_book = PendingBook(
-                title=title,
-                author=author,
-                isbn=isbn,
-                isbn13=isbn13,
-                goodreads_id=goodreads_id,
-                goodreads_url=f"https://www.goodreads.com/book/show/{goodreads_id}" if goodreads_id else None,
-                year_published=year_published,
-                average_rating=average_rating,
-                num_pages=num_pages,
-            )
-            db.add(pending_book)
-            new_books_added += 1
+            # Defensive: if table doesn't exist, skip adding (already logged warning)
+            try:
+                pending_book = PendingBook(
+                    title=title,
+                    author=author,
+                    isbn=isbn,
+                    isbn13=isbn13,
+                    goodreads_id=goodreads_id,
+                    goodreads_url=f"https://www.goodreads.com/book/show/{goodreads_id}" if goodreads_id else None,
+                    year_published=year_published,
+                    average_rating=average_rating,
+                    num_pages=num_pages,
+                )
+                db.add(pending_book)
+                new_books_added += 1
+            except sqlalchemy_exc.ProgrammingError as e:
+                if "pending_books" in str(e).lower() and "does not exist" in str(e).lower():
+                    # Table doesn't exist - skip but don't fail the whole import
+                    logger.warning(f"Skipping pending_books insert for '{title}' - table not found")
+                else:
+                    raise
+
             imported += 1
 
     except Exception as e:
