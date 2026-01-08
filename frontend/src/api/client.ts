@@ -169,7 +169,7 @@ class ApiClient {
     
     if (DEBUG) {
       console.log('[DEBUG saveOnboarding]', {
-        method: 'POST',
+        method: 'PATCH',
         url,
         payloadKeys: Object.keys(payload),
         hasAuthorization: hasAuth,
@@ -177,8 +177,8 @@ class ApiClient {
     }
 
     const attempt = async () => {
-      const response = await this.client.post<OnboardingProfile>("/onboarding", payload);
-      
+      const response = await this.client.patch<OnboardingProfile>("/onboarding", payload);
+
       if (DEBUG) {
         console.log('[DEBUG saveOnboarding response]', {
           status: response.status,
@@ -186,7 +186,7 @@ class ApiClient {
           body: JSON.stringify(response.data),
         });
       }
-      
+
       return response.data;
     };
 
