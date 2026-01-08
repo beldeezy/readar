@@ -314,6 +314,14 @@ class ApiClient {
         });
       }
 
+      // Handle 404 specially - profile doesn't exist yet (early onboarding)
+      // Frontend should handle this gracefully and continue onboarding
+      if (error.response?.status === 404) {
+        const err = new Error("onboarding_profile_not_found");
+        (err as any).status = 404;
+        throw err;
+      }
+
       // Re-throw with proper error message
       if (error.response?.data?.detail) throw new Error(formatApiDetail(error.response.data.detail));
       throw new Error(error.message || "Failed to update onboarding");

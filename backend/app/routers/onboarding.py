@@ -249,6 +249,10 @@ async def patch_onboarding(
     """
     Incrementally update onboarding profile for the authenticated user.
     This endpoint supports partial updates - only provided fields will be updated.
+
+    IMPORTANT: PATCH will NOT create a new profile if one doesn't exist.
+    This prevents NOT NULL constraint violations when required fields are missing.
+    Use POST /api/onboarding to create a profile with all required fields.
     """
     DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
@@ -257,30 +261,33 @@ async def patch_onboarding(
         logger.info(f"[DEBUG PATCH /api/onboarding] user_id={user_id}, payload={payload.model_dump(exclude_unset=True)}")
 
     try:
-        # Get or create profile
+        # Get existing profile (do not create if missing)
         profile = db.query(OnboardingProfile).filter(
             OnboardingProfile.user_id == user_id
         ).first()
 
         if not profile:
-            # Create new profile with only the provided fields
-            # Use exclude_unset=True to only include fields explicitly set in the request
-            payload_dict = payload.model_dump(exclude_unset=True)
-            profile = OnboardingProfile(
-                user_id=user_id,
-                **payload_dict
+            # Return 404 instead of creating incomplete profile
+            # Frontend should handle this gracefully during early onboarding steps
+            if DEBUG:
+                logger.info(f"[DEBUG PATCH /api/onboarding] user_id={user_id} - profile not found, returning 404")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Onboarding profile not found. Use POST /api/onboarding to create a profile with required fields."
             )
-            db.add(profile)
-        else:
-            # Update existing profile with only provided fields
-            # Use exclude_unset=True to avoid overwriting existing data with None/empty values
-            payload_dict = payload.model_dump(exclude_unset=True)
-            for key, value in payload_dict.items():
-                setattr(profile, key, value)
-            profile.updated_at = datetime.utcnow()
+
+        # Update existing profile with only provided fields
+        # Use exclude_unset=True to avoid overwriting existing data with None/empty values
+        payload_dict = payload.model_dump(exclude_unset=True)
+        for key, value in payload_dict.items():
+            setattr(profile, key, value)
+        profile.updated_at = datetime.utcnow()
 
         db.commit()
         db.refresh(profile)
+
+        if DEBUG:
+            logger.info(f"[DEBUG PATCH /api/onboarding] user_id={user_id} - profile updated successfully")
 
         return OnboardingProfileResponse.model_validate(profile)
     except HTTPException:

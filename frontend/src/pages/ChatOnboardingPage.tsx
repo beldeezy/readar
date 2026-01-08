@@ -260,7 +260,19 @@ const ChatOnboardingPage: React.FC = () => {
       payload[questionId] = normalizedValue;
 
       // Save incremental progress to backend using PATCH (allows partial updates)
-      await apiClient.patchOnboarding(payload);
+      // Note: PATCH returns 404 if profile doesn't exist yet (early onboarding)
+      // This is expected and handled gracefully - final POST will create the profile
+      try {
+        await apiClient.patchOnboarding(payload);
+      } catch (err: any) {
+        // Handle 404 gracefully - profile doesn't exist yet, will be created on final save
+        if (err.message === "onboarding_profile_not_found") {
+          console.log(`[Onboarding] Profile not yet created, will create on final save (question: ${questionId})`);
+          return; // Continue onboarding without error
+        }
+        // Re-throw other errors
+        throw err;
+      }
     }
   };
 
