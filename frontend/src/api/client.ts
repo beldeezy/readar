@@ -36,6 +36,33 @@ function getAuthHeader(): Record<string, string> | null {
   return null;
 }
 
+// Helper to format backend validation errors
+function formatApiDetail(detail: any): string {
+  if (!detail) return 'Unknown error';
+  if (typeof detail === 'string') return detail;
+
+  // FastAPI/Pydantic often returns a list of error objects
+  if (Array.isArray(detail)) {
+    return detail
+      .map((d) => {
+        if (!d) return '';
+        if (typeof d === 'string') return d;
+        const loc = Array.isArray(d.loc) ? d.loc.join('.') : (d.loc ?? '');
+        const msg = d.msg ?? d.message ?? JSON.stringify(d);
+        return loc ? `${loc}: ${msg}` : String(msg);
+      })
+      .filter(Boolean)
+      .join('; ');
+  }
+
+  // Object detail
+  try {
+    return JSON.stringify(detail);
+  } catch {
+    return String(detail);
+  }
+}
+
 // Prevent redirect storms on repeated 401s
 let redirectingToLogin = false;
 
@@ -227,7 +254,7 @@ class ApiClient {
 
       // Do NOT retry auth/permission/validation-style failures
       if (status === 401 || status === 403 || status === 422) {
-        if (error.response?.data?.detail) throw new Error(error.response.data.detail);
+        if (error.response?.data?.detail) throw new Error(formatApiDetail(error.response.data.detail));
         throw new Error(error.message || "Failed to save onboarding");
       }
 
@@ -240,12 +267,12 @@ class ApiClient {
         try {
           return await attempt();
         } catch (error2: any) {
-          if (error2.response?.data?.detail) throw new Error(error2.response.data.detail);
+          if (error2.response?.data?.detail) throw new Error(formatApiDetail(error2.response.data.detail));
           throw new Error(error2.message || "Failed to save onboarding");
         }
       }
 
-      if (error.response?.data?.detail) throw new Error(error.response.data.detail);
+      if (error.response?.data?.detail) throw new Error(formatApiDetail(error.response.data.detail));
       throw new Error(error.message || "Failed to save onboarding");
     }
   }
@@ -288,7 +315,7 @@ class ApiClient {
       }
 
       // Re-throw with proper error message
-      if (error.response?.data?.detail) throw new Error(error.response.data.detail);
+      if (error.response?.data?.detail) throw new Error(formatApiDetail(error.response.data.detail));
       throw new Error(error.message || "Failed to update onboarding");
     }
   }

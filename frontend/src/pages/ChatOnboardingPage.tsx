@@ -219,10 +219,25 @@ const ChatOnboardingPage: React.FC = () => {
     } else if (questionId === 'reading_history_csv') {
       return;
     } else {
-      payload[questionId] = value;
+      // Regular field
+      let normalizedValue = value;
+
+      // Backend expects business_model as a CSV string, but UI multi-select returns string[]
+      if (questionId === 'business_model') {
+        if (Array.isArray(value)) {
+          normalizedValue = value.map(String).map((s) => s.trim()).filter(Boolean).join(',');
+        } else if (typeof value !== 'string') {
+          normalizedValue = String(value ?? '');
+        }
+      }
+
+      payload[questionId] = normalizedValue;
+
+      // Save incremental progress to backend using PATCH (allows partial updates)
       await apiClient.patchOnboarding(payload);
     }
   };
+
 
   const handleOnboardingComplete = async () => {
     addBotMessage("Perfect! You're all set. Let me find the best books for you...");
@@ -242,6 +257,16 @@ const ChatOnboardingPage: React.FC = () => {
         return acc;
       }, {} as Record<string, any>);
 
+<<<<<<< HEAD
+=======
+      // Normalize business_model to CSV string for backend schema
+      if (Array.isArray(filteredAnswers.business_model)) {
+        filteredAnswers.business_model = filteredAnswers.business_model
+          .map(String).map((s) => s.trim()).filter(Boolean).join(',');
+      }
+
+      // Final save to backend (full profile) using apiClient
+>>>>>>> fc3589cf (Fix business_model normalization and validation error formatting)
       if (user) {
         await apiClient.saveOnboarding(filteredAnswers);
       }
