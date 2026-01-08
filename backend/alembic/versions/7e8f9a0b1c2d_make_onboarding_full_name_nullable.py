@@ -1,6 +1,6 @@
 """make onboarding_profiles.full_name nullable
 
-Revision ID: make_onboarding_full_name_nullable
+Revision ID: 7e8f9a0b1c2d
 Revises: f1a2b3c4d5e6
 Create Date: 2025-01-07
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = "make_onboarding_full_name_nullable"
+revision: str = "7e8f9a0b1c2d"
 down_revision: str = "f1a2b3c4d5e6"
 branch_labels = None
 depends_on = None

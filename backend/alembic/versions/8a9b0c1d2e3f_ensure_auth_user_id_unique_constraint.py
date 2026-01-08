@@ -1,7 +1,7 @@
 """ensure_auth_user_id_unique_constraint
 
-Revision ID: ensure_auth_user_id_unique_constraint
-Revises: add_case_insensitive_email_constraint
+Revision ID: 8a9b0c1d2e3f
+Revises: 2b3c4d5e6f7a
 Create Date: 2025-01-21 14:00:00.000000
 
 Ensure auth_user_id has unique constraint and index for Supabase Auth source of truth.
@@ -14,8 +14,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'ensure_auth_user_id_unique_constraint'
-down_revision: Union[str, None] = 'add_case_insensitive_email_constraint'
+revision: str = '8a9b0c1d2e3f'
+down_revision: Union[str, None] = '2b3c4d5e6f7a'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

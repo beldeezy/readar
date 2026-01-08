@@ -1,7 +1,7 @@
 """add_case_insensitive_email_constraint
 
-Revision ID: add_case_insensitive_email_constraint
-Revises: fix_enum_value_casing_and_storage
+Revision ID: 2b3c4d5e6f7a
+Revises: 9c8d7e6f5a4b
 Create Date: 2025-01-21 13:00:00.000000
 
 Add case-insensitive email uniqueness constraint and normalize existing emails to lowercase.
@@ -14,8 +14,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'add_case_insensitive_email_constraint'
-down_revision: Union[str, None] = 'fix_enum_value_casing_and_storage'
+revision: str = '2b3c4d5e6f7a'
+down_revision: Union[str, None] = '9c8d7e6f5a4b'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
