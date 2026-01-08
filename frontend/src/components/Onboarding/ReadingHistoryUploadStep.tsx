@@ -1,5 +1,4 @@
 import React, { useState, useRef } from "react";
-import { apiClient } from "../../api/client";
 import Button from "../Button";
 import "./ReadingHistoryUploadStep.css";
 
@@ -17,7 +16,7 @@ export const ReadingHistoryUploadStep: React.FC<Props> = ({
   isSubmitting = false,
 }) => {
   const [file, setFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -33,36 +32,50 @@ export const ReadingHistoryUploadStep: React.FC<Props> = ({
     setMessage(`Selected: ${f.name}`);
   }
 
-  async function importGoodreadsCsv() {
-    if (!file) {
-      throw new Error("Choose a CSV file first.");
-    }
+  async function validateAndParseCSV(csvFile: File): Promise<number> {
+    // Quick local validation - just count non-empty lines (approximation of book count)
+    const text = await csvFile.text();
+    const lines = text.split('\n').filter(line => line.trim().length > 0);
 
-    const result = await apiClient.uploadReadingHistoryCsv({ file });
-    setMessage(
-      `Imported ${result.imported_count} books (skipped ${result.skipped_count}).`
-    );
-    return result;
+    // CSV has header row, so book count is lines - 1
+    const bookCount = Math.max(0, lines.length - 1);
+
+    return bookCount;
   }
 
   const handleUploadContinue = async () => {
-    setIsUploading(true);
+    if (!file) {
+      setError("Please select a CSV file first.");
+      return;
+    }
+
+    setIsProcessing(true);
     setError(null);
     setMessage(null);
 
     try {
-      // Try to upload CSV, but don't block on failure
-      await importGoodreadsCsv();
+      // Validate CSV locally (no backend call)
+      const bookCount = await validateAndParseCSV(file);
+
+      // Store flag in localStorage to indicate user has reading history
+      // Backend can use this later when implementing full import
+      if (bookCount > 0) {
+        localStorage.setItem('readar_has_reading_history', 'true');
+        localStorage.setItem('readar_reading_history_book_count', String(bookCount));
+      }
+
+      setMessage(`✓ File accepted (${bookCount} books detected). Full import coming soon!`);
+
+      // Small delay to show success message
+      await new Promise(resolve => setTimeout(resolve, 800));
     } catch (e) {
       console.error(e);
-      // Show error but don't block progression
-      setError(e instanceof Error ? e.message : "Failed to upload CSV. You can continue anyway.");
+      setError(e instanceof Error ? e.message : "Failed to parse CSV.");
     } finally {
-      setIsUploading(false);
+      setIsProcessing(false);
     }
 
-    // Always proceed to next step, even if upload failed
-    // onNext will attempt to save onboarding data but won't block navigation
+    // Always proceed to next step
     onNext?.();
   };
 
@@ -152,14 +165,13 @@ export const ReadingHistoryUploadStep: React.FC<Props> = ({
           <Button
             variant="mint"
             onClick={handleUploadContinue}
-            disabled={isUploading || !file || isSubmitting}
+            disabled={isProcessing || !file || isSubmitting}
             delayMs={140}
           >
-            {isUploading ? "Uploading..." : isSubmitting ? "Saving..." : "Upload & continue"}
+            {isProcessing ? "Processing..." : isSubmitting ? "Saving..." : "Upload & continue"}
           </Button>
         </div>
       </div>
     </div>
   );
 };
-

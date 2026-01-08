@@ -54,7 +54,7 @@ def _decode_supabase_jwt(token: str) -> Dict[str, Any]:
     Decode and validate Supabase access token.
 
     Assumes HS256 using SUPABASE_JWT_SECRET (common for Supabase projects).
-    Validates issuer and audience.
+    Validates issuer and audience (if configured).
     """
     # Check Supabase configuration before attempting to decode
     try:
@@ -66,17 +66,43 @@ def _decode_supabase_jwt(token: str) -> Dict[str, Any]:
             detail="Supabase environment variables not configured. Authentication is not available.",
         )
 
+    # Build decode options - make audience and issuer optional if not configured
+    decode_options = {
+        "algorithms": ["HS256"],
+    }
+
+    # Only validate audience if explicitly configured (not empty/None)
+    if settings.SUPABASE_JWT_AUD and settings.SUPABASE_JWT_AUD.strip():
+        decode_options["audience"] = settings.SUPABASE_JWT_AUD
+
+    # Only validate issuer if explicitly configured (not empty/None)
+    if settings.SUPABASE_JWT_ISS and settings.SUPABASE_JWT_ISS.strip():
+        decode_options["issuer"] = settings.SUPABASE_JWT_ISS
+
     try:
         payload = jwt.decode(
             token,
             settings.SUPABASE_JWT_SECRET,
-            algorithms=["HS256"],
-            audience=settings.SUPABASE_JWT_AUD,
-            issuer=settings.SUPABASE_JWT_ISS,
+            **decode_options
         )
+
+        # Enhanced logging for successful decode (only in DEBUG mode)
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                f"JWT decoded successfully: "
+                f"sub={payload.get('sub')}, "
+                f"aud={payload.get('aud')}, "
+                f"iss={payload.get('iss')}"
+            )
+
         return payload
     except JWTError as e:
-        logger.warning(f"JWT validation failed: {e}")
+        # Enhanced error logging with more context
+        logger.warning(
+            f"JWT validation failed: {e} | "
+            f"Expected aud={settings.SUPABASE_JWT_AUD}, "
+            f"Expected iss={settings.SUPABASE_JWT_ISS}"
+        )
         raise _unauthorized("Token validation failed")
 
 
@@ -91,6 +117,7 @@ def get_current_user(
     - Verifies JWT
     - Extracts sub (Supabase user id) and email
     - Upserts into local users table via get_or_create_user_by_auth_id()
+    - Stores JWT payload in request.state for downstream use
     """
     token = _extract_bearer_token(request)
     payload = _decode_supabase_jwt(token)
@@ -101,7 +128,10 @@ def get_current_user(
 
     email = payload.get("email") or ""
     email_verified = payload.get("email_verified", False)  # Supabase includes this claim
-    
+
+    # Store JWT payload in request.state for downstream access (e.g., user_metadata)
+    request.state.supabase_jwt_payload = payload
+
     # Extract endpoint info for logging
     endpoint = f"{request.method} {request.url.path}"
 

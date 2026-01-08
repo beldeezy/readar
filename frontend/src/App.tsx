@@ -4,7 +4,7 @@ import { AuthProvider, useAuth } from './auth/AuthProvider';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import AuthCallbackPage from './pages/AuthCallbackPage';
-import OnboardingPage from './pages/OnboardingPage';
+import ChatOnboardingPage from './pages/ChatOnboardingPage';
 import RecommendationsPage from './pages/RecommendationsPage';
 import RecommendationsLoadingPage from './pages/RecommendationsLoadingPage';
 import BookDetailPage from './pages/BookDetailPage';
@@ -82,7 +82,7 @@ function AppRoutes() {
       <Route path="/env" element={<EnvCheckPage />} />
       <Route
         path="/onboarding"
-        element={<OnboardingPage />}
+        element={<ChatOnboardingPage />}
       />
       <Route
         path="/recommendations/loading"

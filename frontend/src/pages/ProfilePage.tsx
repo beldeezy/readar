@@ -109,9 +109,9 @@ export default function ProfilePage() {
       <div className="readar-profile-page">
         <div className="container">
           <Card variant="elevated">
-            <p>No profile found. Please complete onboarding.</p>
+            <p>No profile found. Let's get you set up.</p>
             <Button variant="primary" onClick={handleReRunOnboarding} delayMs={140} className="readar-profile-action">
-              Complete Onboarding
+              Get Started
             </Button>
           </Card>
         </div>
