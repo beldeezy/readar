@@ -237,7 +237,18 @@ const ChatOnboardingPage: React.FC = () => {
       return;
     } else {
       // Regular field
-      payload[questionId] = value;
+      let normalizedValue = value;
+
+      // Backend expects business_model as a CSV string, but UI multi-select returns string[]
+      if (questionId === 'business_model') {
+        if (Array.isArray(value)) {
+          normalizedValue = value.map(String).map(s => s.trim()).filter(Boolean).join(',');
+        } else if (typeof value !== 'string') {
+          normalizedValue = String(value ?? '');
+        }
+      }
+
+      payload[questionId] = normalizedValue;
 
       // Save incremental progress to backend using PATCH (allows partial updates)
       await apiClient.patchOnboarding(payload);
@@ -270,6 +281,12 @@ const ChatOnboardingPage: React.FC = () => {
         }
         return acc;
       }, {} as Record<string, any>);
+
+      // Normalize business_model to CSV string for backend schema
+      if (Array.isArray(filteredAnswers.business_model)) {
+        filteredAnswers.business_model = filteredAnswers.business_model
+          .map(String).map((s) => s.trim()).filter(Boolean).join(',');
+      }
 
       // Final save to backend (full profile) using apiClient
       if (user) {
