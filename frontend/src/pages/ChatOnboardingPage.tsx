@@ -23,8 +23,6 @@ interface Message {
   timestamp: Date;
 }
 
-<<<<<<< HEAD
-=======
 // Collision-proof message ID generator (prevents duplicate IDs in React StrictMode)
 let messageSeq = 0;
 const newMessageId = (prefix: string) => `${prefix}-${Date.now()}-${messageSeq++}`;
@@ -36,7 +34,6 @@ const dedupeById = (list: Message[]) => {
   return Array.from(map.values());
 };
 
->>>>>>> origin/claude/fix-duplicate-welcome-messages-v4zoG
 const ChatOnboardingPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -49,12 +46,9 @@ const ChatOnboardingPage: React.FC = () => {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-<<<<<<< HEAD
-=======
   // Guard to prevent double execution in React StrictMode
   const initializedRef = useRef(false);
 
->>>>>>> origin/claude/fix-duplicate-welcome-messages-v4zoG
   // Scroll to bottom when new messages appear
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -66,13 +60,9 @@ const ChatOnboardingPage: React.FC = () => {
 
   // Load saved progress from localStorage and initialize chat
   useEffect(() => {
-<<<<<<< HEAD
-=======
-    // Guard to prevent double execution in React StrictMode
     if (initializedRef.current) return;
     initializedRef.current = true;
 
->>>>>>> origin/claude/fix-duplicate-welcome-messages-v4zoG
     const savedData = localStorage.getItem('readar_pending_onboarding');
     let loadedAnswers = {};
 
@@ -87,16 +77,10 @@ const ChatOnboardingPage: React.FC = () => {
       }
     }
 
-<<<<<<< HEAD
-    // Start with welcome message
-    addBotMessage(
-      'Welcome to Readar. Answer a few questions to get personalized book recommendations for your business.'
-=======
     // Start with welcome message (with deterministic questionId)
     addBotMessage(
       'Welcome to Readar. Answer a few questions to get personalized book recommendations for your business.',
       'system_welcome'
->>>>>>> origin/claude/fix-duplicate-welcome-messages-v4zoG
     );
 
     // Show first question after a brief delay
@@ -115,46 +99,29 @@ const ChatOnboardingPage: React.FC = () => {
 
   const addBotMessage = (content: string, questionId?: string) => {
     const message: Message = {
-<<<<<<< HEAD
-      id: Date.now().toString(),
-=======
       id: newMessageId('bot'),
->>>>>>> origin/claude/fix-duplicate-welcome-messages-v4zoG
       type: 'bot',
       content,
       questionId,
       timestamp: new Date(),
     };
-<<<<<<< HEAD
-    setMessages((prev) => [...prev, message]);
-=======
     setMessages((prev) => dedupeById([...prev, message]));
->>>>>>> origin/claude/fix-duplicate-welcome-messages-v4zoG
   };
 
   const addUserMessage = (content: string) => {
     const message: Message = {
-<<<<<<< HEAD
-      id: Date.now().toString(),
-=======
       id: newMessageId('user'),
->>>>>>> origin/claude/fix-duplicate-welcome-messages-v4zoG
       type: 'user',
       content,
       timestamp: new Date(),
     };
-<<<<<<< HEAD
-    setMessages((prev) => [...prev, message]);
-=======
     setMessages((prev) => dedupeById([...prev, message]));
->>>>>>> origin/claude/fix-duplicate-welcome-messages-v4zoG
   };
 
   const showNextQuestion = (currentAnswers: Record<string, any>) => {
     const nextQuestion = getNextQuestion(currentAnswers);
 
     if (!nextQuestion) {
-      // All questions answered
       handleOnboardingComplete();
       return;
     }
@@ -181,24 +148,20 @@ const ChatOnboardingPage: React.FC = () => {
     setIsProcessing(true);
     setError(null);
 
-    // Add user's answer to chat
     if (displayText) {
       addUserMessage(displayText);
     }
 
-    // Update answers
     const updatedAnswers = {
       ...answers,
       [questionId]: answer,
     };
     setAnswers(updatedAnswers);
 
-    // Save to backend incrementally
     try {
       await saveToBackend(questionId, answer);
     } catch (err: any) {
       setError(`Failed to save: ${err.message}`);
-      // Don't block progression on save errors for optional questions
       const question = CHAT_QUESTIONS.find((q) => q.id === questionId);
       if (question?.required) {
         setIsProcessing(false);
@@ -206,11 +169,9 @@ const ChatOnboardingPage: React.FC = () => {
       }
     }
 
-    // Add acknowledgment
     setTimeout(() => {
       addBotMessage(getAcknowledgment(questionId));
 
-      // Show next question
       setTimeout(() => {
         showNextQuestion(updatedAnswers);
         setIsProcessing(false);
@@ -242,21 +203,13 @@ const ChatOnboardingPage: React.FC = () => {
   const saveToBackend = async (questionId: string, value: any) => {
     if (!user) return;
 
-    // Skip saving empty, null, undefined, or "skipped" values
-    if (
-      value === null ||
-      value === undefined ||
-      value === '' ||
-      value === 'skipped'
-    ) {
+    if (value === null || value === undefined || value === '' || value === 'skipped') {
       return;
     }
 
-    // Prepare payload based on question type
     const payload: any = {};
 
     if (questionId === 'book_preferences') {
-      // Handle book preferences separately using apiClient
       const bookInteractions = Object.entries(value).map(([externalId, status]) => ({
         external_id: externalId,
         status: status as string,
@@ -264,53 +217,37 @@ const ChatOnboardingPage: React.FC = () => {
 
       await apiClient.saveBookInteractions(bookInteractions);
     } else if (questionId === 'reading_history_csv') {
-      // CSV upload is handled separately in the file upload component
       return;
     } else {
-      // Regular field
       payload[questionId] = value;
-
-      // Save incremental progress to backend using PATCH (allows partial updates)
       await apiClient.patchOnboarding(payload);
     }
   };
 
   const handleOnboardingComplete = async () => {
-    addBotMessage('Perfect! You\'re all set. Let me find the best books for you...');
+    addBotMessage("Perfect! You're all set. Let me find the best books for you...");
 
     setIsProcessing(true);
 
     try {
-      // Validate all required fields
       const validation = validateOnboardingComplete(answers);
       if (!validation.isComplete) {
         throw new Error('Please answer all required questions');
       }
 
-      // Filter answers to only include non-empty, non-skipped values
-      // This prevents sending null/empty/skipped fields to the backend
       const filteredAnswers = Object.entries(answers).reduce((acc, [key, value]) => {
-        // Skip empty, null, undefined, and "skipped" values
-        if (
-          value !== null &&
-          value !== undefined &&
-          value !== '' &&
-          value !== 'skipped'
-        ) {
+        if (value !== null && value !== undefined && value !== '' && value !== 'skipped') {
           acc[key] = value;
         }
         return acc;
       }, {} as Record<string, any>);
 
-      // Final save to backend (full profile) using apiClient
       if (user) {
         await apiClient.saveOnboarding(filteredAnswers);
       }
 
-      // Clear localStorage
       localStorage.removeItem('readar_pending_onboarding');
 
-      // Navigate to recommendations loading page
       setTimeout(() => {
         navigate('/recommendations/loading');
       }, 1500);
@@ -327,20 +264,16 @@ const ChatOnboardingPage: React.FC = () => {
       addBotMessage('No problem');
 
       setTimeout(() => {
-        // Mark as skipped by setting a placeholder value
         const updatedAnswers = {
           ...answers,
           [currentQuestion.id]: 'skipped',
         };
         setAnswers(updatedAnswers);
 
-        // Check if there are more questions after marking this one as skipped
         const nextQuestion = getNextQuestion(updatedAnswers);
         if (!nextQuestion) {
-          // No more questions, complete onboarding
           handleOnboardingComplete();
         } else {
-          // Show next question
           showNextQuestion(updatedAnswers);
         }
       }, 800);
@@ -349,7 +282,6 @@ const ChatOnboardingPage: React.FC = () => {
 
   return (
     <div className="chat-onboarding-page">
-      {/* Header with progress bar */}
       <header className="chat-header">
         <div className="chat-header-content">
           <h1>Readar</h1>
@@ -369,20 +301,17 @@ const ChatOnboardingPage: React.FC = () => {
         </div>
       </header>
 
-      {/* Chat messages */}
       <main className="chat-messages">
         {messages.map((message) => (
           <ChatMessage key={message.id} message={message} />
         ))}
 
-        {/* Error message */}
         {error && (
           <div className="chat-error">
             <p>⚠️ {error}</p>
           </div>
         )}
 
-        {/* Current question input */}
         {currentQuestion && !isProcessing && (
           <ChatInput
             question={currentQuestion}
@@ -391,7 +320,6 @@ const ChatOnboardingPage: React.FC = () => {
           />
         )}
 
-        {/* Processing indicator */}
         {isProcessing && (
           <div className="chat-processing">
             <div className="typing-indicator">
