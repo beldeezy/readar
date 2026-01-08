@@ -277,7 +277,7 @@ class ApiClient {
     }
   }
 
-  async patchOnboarding(payload: Partial<OnboardingPayload>): Promise<OnboardingProfile> {
+  async patchOnboarding(payload: Partial<OnboardingPayload>): Promise<OnboardingProfile | null> {
     // Debug logging (only in dev or when VITE_DEBUG=true)
     const DEBUG = import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true';
     const url = `${API_BASE_URL}/onboarding`;
@@ -314,15 +314,16 @@ class ApiClient {
         });
       }
 
-      // Handle 404 specially - profile doesn't exist yet (early onboarding)
-      // Frontend should handle this gracefully and continue onboarding
+      // Handle 404 gracefully - profile doesn't exist yet (early onboarding)
+      // Return null instead of throwing - frontend will create profile when ready
       if (error.response?.status === 404) {
-        const err = new Error("onboarding_profile_not_found");
-        (err as any).status = 404;
-        throw err;
+        if (DEBUG) {
+          console.log('[DEBUG patchOnboarding] Profile not found (404), returning null');
+        }
+        return null;
       }
 
-      // Re-throw with proper error message
+      // Re-throw other errors
       if (error.response?.data?.detail) throw new Error(formatApiDetail(error.response.data.detail));
       throw new Error(error.message || "Failed to update onboarding");
     }

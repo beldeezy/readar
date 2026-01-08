@@ -45,6 +45,7 @@ const ChatOnboardingPage: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [profileCreated, setProfileCreated] = useState(false);
 
   // Guard to prevent double execution in React StrictMode
   const initializedRef = useRef(false);
@@ -208,6 +209,79 @@ const ChatOnboardingPage: React.FC = () => {
     return options[Math.floor(Math.random() * options.length)];
   };
 
+  /**
+   * Ensures profile exists by creating it once all required fields are collected.
+   * Required fields: business_model, business_stage, biggest_challenge
+   * Returns true if profile was created or already exists, false if required fields are missing.
+   */
+  const ensureProfileExists = async (): Promise<boolean> => {
+    if (profileCreated || !user) return profileCreated;
+
+    const currentAnswers = answers;
+
+    // Check if we have all required fields
+    const hasBusinessModel = currentAnswers.business_model &&
+      (Array.isArray(currentAnswers.business_model) ? currentAnswers.business_model.length > 0 : currentAnswers.business_model);
+    const hasBusinessStage = currentAnswers.business_stage;
+    const hasBiggestChallenge = currentAnswers.biggest_challenge;
+
+    if (!hasBusinessModel || !hasBusinessStage || !hasBiggestChallenge) {
+      // Not ready to create profile yet
+      return false;
+    }
+
+    console.log('[Onboarding] All required fields collected, creating profile');
+
+    try {
+      // Normalize business_model (array to CSV string)
+      let normalizedBusinessModel = currentAnswers.business_model;
+      if (Array.isArray(normalizedBusinessModel)) {
+        normalizedBusinessModel = normalizedBusinessModel.map(String).map(s => s.trim()).filter(Boolean).join(',');
+      }
+
+      // Prepare payload with all current answers
+      const payload: any = {
+        business_model: normalizedBusinessModel,
+        business_stage: currentAnswers.business_stage,
+        biggest_challenge: currentAnswers.biggest_challenge,
+      };
+
+      // Include optional fields if they exist
+      const optionalFields = [
+        'full_name', 'age', 'occupation', 'entrepreneur_status', 'location',
+        'economic_sector', 'industry', 'business_experience', 'areas_of_business',
+        'org_size', 'is_student', 'vision_6_12_months', 'blockers',
+        'current_gross_revenue', 'has_prior_reading_history'
+      ];
+
+      for (const field of optionalFields) {
+        if (currentAnswers[field] !== undefined && currentAnswers[field] !== null && currentAnswers[field] !== '') {
+          let value = currentAnswers[field];
+
+          // Normalize current_gross_revenue
+          if (field === 'current_gross_revenue' && typeof value === 'string') {
+            const revenueMap: Record<string, string> = {
+              'pre-revenue': 'pre_revenue',
+            };
+            value = revenueMap[value.trim()] ?? value;
+          }
+
+          payload[field] = value;
+        }
+      }
+
+      // Create profile using POST
+      await apiClient.saveOnboarding(payload);
+      setProfileCreated(true);
+      console.log('[Onboarding] Profile created successfully');
+      return true;
+    } catch (err: any) {
+      console.error('[Onboarding] Failed to create profile:', err);
+      // Don't throw - let onboarding continue, will retry on final submit
+      return false;
+    }
+  };
+
   const saveToBackend = async (questionId: string, value: any) => {
     if (!user) return;
 
@@ -259,19 +333,14 @@ const ChatOnboardingPage: React.FC = () => {
 
       payload[questionId] = normalizedValue;
 
-      // Save incremental progress to backend using PATCH (allows partial updates)
-      // Note: PATCH returns 404 if profile doesn't exist yet (early onboarding)
-      // This is expected and handled gracefully - final POST will create the profile
-      try {
-        await apiClient.patchOnboarding(payload);
-      } catch (err: any) {
-        // Handle 404 gracefully - profile doesn't exist yet, will be created on final save
-        if (err.message === "onboarding_profile_not_found") {
-          console.log(`[Onboarding] Profile not yet created, will create on final save (question: ${questionId})`);
-          return; // Continue onboarding without error
-        }
-        // Re-throw other errors
-        throw err;
+      // Try to create profile if we have all required fields
+      await ensureProfileExists();
+
+      // Save incremental progress to backend using PATCH
+      // Returns null if profile doesn't exist yet (early onboarding)
+      const result = await apiClient.patchOnboarding(payload);
+      if (result === null) {
+        console.log(`[Onboarding] Profile not yet created, will create once required fields are collected (question: ${questionId})`);
       }
     }
   };
