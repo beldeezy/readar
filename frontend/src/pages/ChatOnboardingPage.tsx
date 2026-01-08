@@ -60,6 +60,7 @@ const ChatOnboardingPage: React.FC = () => {
 
   // Load saved progress from localStorage and initialize chat
   useEffect(() => {
+    // Guard to prevent double execution in React StrictMode
     if (initializedRef.current) return;
     initializedRef.current = true;
 
@@ -225,10 +226,19 @@ const ChatOnboardingPage: React.FC = () => {
       // Backend expects business_model as a CSV string, but UI multi-select returns string[]
       if (questionId === 'business_model') {
         if (Array.isArray(value)) {
-          normalizedValue = value.map(String).map((s) => s.trim()).filter(Boolean).join(',');
+          normalizedValue = value.map(String).map(s => s.trim()).filter(Boolean).join(',');
         } else if (typeof value !== 'string') {
           normalizedValue = String(value ?? '');
         }
+      }
+
+      // Normalize current_gross_revenue to backend RevenueRange literals (legacy-safe)
+      if (questionId === 'current_gross_revenue' && typeof normalizedValue === 'string') {
+        const v = normalizedValue.trim();
+        const revenueMap: Record<string, string> = {
+          'pre-revenue': 'pre_revenue', // legacy hyphenated value
+        };
+        normalizedValue = revenueMap[v] ?? v;
       }
 
       payload[questionId] = normalizedValue;
@@ -259,10 +269,13 @@ const ChatOnboardingPage: React.FC = () => {
       // Normalize business_model to CSV string for backend schema
       if (Array.isArray(filteredAnswers.business_model)) {
         filteredAnswers.business_model = filteredAnswers.business_model
-          .map(String)
-          .map((s) => s.trim())
-          .filter(Boolean)
-          .join(',');
+          .map(String).map((s) => s.trim()).filter(Boolean).join(',');
+      }
+
+      // Normalize current_gross_revenue for backend schema (legacy-safe)
+      if (typeof filteredAnswers.current_gross_revenue === 'string') {
+        const v = filteredAnswers.current_gross_revenue.trim();
+        if (v === 'pre-revenue') filteredAnswers.current_gross_revenue = 'pre_revenue';
       }
 
       // Final save to backend (full profile) using apiClient
