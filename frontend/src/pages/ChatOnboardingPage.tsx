@@ -23,6 +23,20 @@ interface Message {
   timestamp: Date;
 }
 
+<<<<<<< HEAD
+=======
+// Collision-proof message ID generator (prevents duplicate IDs in React StrictMode)
+let messageSeq = 0;
+const newMessageId = (prefix: string) => `${prefix}-${Date.now()}-${messageSeq++}`;
+
+// Deduplication helper (belt + suspenders approach)
+const dedupeById = (list: Message[]) => {
+  const map = new Map<string, Message>();
+  for (const m of list) if (!map.has(m.id)) map.set(m.id, m);
+  return Array.from(map.values());
+};
+
+>>>>>>> origin/claude/fix-duplicate-welcome-messages-v4zoG
 const ChatOnboardingPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -35,6 +49,12 @@ const ChatOnboardingPage: React.FC = () => {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
+<<<<<<< HEAD
+=======
+  // Guard to prevent double execution in React StrictMode
+  const initializedRef = useRef(false);
+
+>>>>>>> origin/claude/fix-duplicate-welcome-messages-v4zoG
   // Scroll to bottom when new messages appear
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -46,6 +66,13 @@ const ChatOnboardingPage: React.FC = () => {
 
   // Load saved progress from localStorage and initialize chat
   useEffect(() => {
+<<<<<<< HEAD
+=======
+    // Guard to prevent double execution in React StrictMode
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+
+>>>>>>> origin/claude/fix-duplicate-welcome-messages-v4zoG
     const savedData = localStorage.getItem('readar_pending_onboarding');
     let loadedAnswers = {};
 
@@ -60,9 +87,16 @@ const ChatOnboardingPage: React.FC = () => {
       }
     }
 
+<<<<<<< HEAD
     // Start with welcome message
     addBotMessage(
       'Welcome to Readar. Answer a few questions to get personalized book recommendations for your business.'
+=======
+    // Start with welcome message (with deterministic questionId)
+    addBotMessage(
+      'Welcome to Readar. Answer a few questions to get personalized book recommendations for your business.',
+      'system_welcome'
+>>>>>>> origin/claude/fix-duplicate-welcome-messages-v4zoG
     );
 
     // Show first question after a brief delay
@@ -81,23 +115,39 @@ const ChatOnboardingPage: React.FC = () => {
 
   const addBotMessage = (content: string, questionId?: string) => {
     const message: Message = {
+<<<<<<< HEAD
       id: Date.now().toString(),
+=======
+      id: newMessageId('bot'),
+>>>>>>> origin/claude/fix-duplicate-welcome-messages-v4zoG
       type: 'bot',
       content,
       questionId,
       timestamp: new Date(),
     };
+<<<<<<< HEAD
     setMessages((prev) => [...prev, message]);
+=======
+    setMessages((prev) => dedupeById([...prev, message]));
+>>>>>>> origin/claude/fix-duplicate-welcome-messages-v4zoG
   };
 
   const addUserMessage = (content: string) => {
     const message: Message = {
+<<<<<<< HEAD
       id: Date.now().toString(),
+=======
+      id: newMessageId('user'),
+>>>>>>> origin/claude/fix-duplicate-welcome-messages-v4zoG
       type: 'user',
       content,
       timestamp: new Date(),
     };
+<<<<<<< HEAD
     setMessages((prev) => [...prev, message]);
+=======
+    setMessages((prev) => dedupeById([...prev, message]));
+>>>>>>> origin/claude/fix-duplicate-welcome-messages-v4zoG
   };
 
   const showNextQuestion = (currentAnswers: Record<string, any>) => {
