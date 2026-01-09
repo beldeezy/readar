@@ -32,4 +32,5 @@ class Token(BaseModel):
 class MeResponse(BaseModel):
     id: str
     email: str
+    is_admin: bool
 

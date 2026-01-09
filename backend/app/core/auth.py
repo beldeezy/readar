@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.database import get_db
 from app.models import User
 from app.core.user_helpers import get_or_create_user_by_auth_id
+from app.core.admin import parse_admin_allowlist, is_admin_email
 
 logger = logging.getLogger(__name__)
 
@@ -161,15 +162,12 @@ def require_admin_user(
 ) -> User:
     """
     FastAPI dependency: returns current user only if they are an admin.
-    Admin status is determined by email allowlist.
+    Admin status is determined by email allowlist from ADMIN_EMAIL_ALLOWLIST env var.
 
     Raises 403 Forbidden if user is not admin.
     """
-    # Admin email allowlist - normalized (lowercased, trimmed)
-    ADMIN_EMAILS = {
-        "michael@readar.ai",
-        "mbelden35@gmail.com",
-    }
+    # Parse admin allowlist from environment variable
+    admin_allowlist = parse_admin_allowlist(settings.ADMIN_EMAIL_ALLOWLIST)
 
     if not current_user.email:
         logger.warning(
@@ -180,10 +178,7 @@ def require_admin_user(
             detail="Admin access denied: email missing"
         )
 
-    # Normalize user email for comparison (lowercase, strip whitespace)
-    normalized_email = current_user.email.lower().strip()
-
-    if normalized_email not in ADMIN_EMAILS:
+    if not is_admin_email(current_user.email, admin_allowlist):
         logger.warning(
             f"[ADMIN_ACCESS_DENIED] user_id={current_user.id}, email={current_user.email}"
         )

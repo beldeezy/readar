@@ -37,17 +37,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Store stable reference to checkOnboardingStatus
   const checkOnboardingStatusRef = useRef<(() => Promise<void>) | null>(null);
 
+  // Fetch full user profile from backend including is_admin
+  const fetchUserProfile = React.useCallback(async (baseUser: User) => {
+    try {
+      const token = getAccessToken();
+      if (!token) {
+        return baseUser; // No token yet, return base user
+      }
+
+      // Fetch full profile from backend
+      const fullProfile = await apiClient.getCurrentUser();
+
+      // Merge is_admin into user state
+      return {
+        ...baseUser,
+        is_admin: fullProfile.is_admin,
+      };
+    } catch (err) {
+      console.warn('[AuthProvider] Failed to fetch user profile, using base user:', err);
+      return baseUser; // Fallback to base user if fetch fails
+    }
+  }, []);
+
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
-        setUser({
+        const baseUser: User = {
           id: session.user.id,
           email: session.user.email || '',
           subscription_status: 'free',
           created_at: session.user.created_at,
-        });
+        };
+
+        // Fetch full profile including is_admin
+        const fullUser = await fetchUserProfile(baseUser);
+        setUser(fullUser);
       }
       setLoading(false);
     });
@@ -55,15 +81,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       if (session?.user) {
-        setUser({
+        const baseUser: User = {
           id: session.user.id,
           email: session.user.email || '',
           subscription_status: 'free',
           created_at: session.user.created_at,
-        });
+        };
+
+        // Fetch full profile including is_admin
+        const fullUser = await fetchUserProfile(baseUser);
+        setUser(fullUser);
       } else {
         setUser(null);
         setOnboardingComplete(null);
@@ -76,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [fetchUserProfile]);
 
   // Check onboarding status function (can be called manually or automatically)
   // Using useCallback to stabilize the function reference

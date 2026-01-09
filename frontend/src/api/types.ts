@@ -3,6 +3,7 @@ export interface User {
   email: string;
   subscription_status: "free" | "active" | "canceled";
   created_at: string;
+  is_admin?: boolean; // Admin status from backend (from /api/me)
 }
 
 export interface Token {

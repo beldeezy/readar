@@ -76,12 +76,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading, user } = useAuth();
 
-  // Admin email allowlist - must match backend
-  const ADMIN_EMAILS = new Set([
-    'michael@readar.ai',
-    'mbelden35@gmail.com',
-  ]);
-
   if (loading) {
     return (
       <div style={{
@@ -101,9 +95,9 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   }
 
   // If authenticated but not admin, redirect to recommendations
-  const userEmail = user?.email?.toLowerCase().trim() || '';
-  if (!ADMIN_EMAILS.has(userEmail)) {
-    console.warn('[AdminRoute] Access denied for non-admin user:', userEmail);
+  // Backend is the authoritative source for admin status
+  if (user?.is_admin !== true) {
+    console.warn('[AdminRoute] Access denied: user.is_admin =', user?.is_admin, 'email =', user?.email);
     return <Navigate to="/recommendations" replace />;
   }
 
