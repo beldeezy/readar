@@ -154,6 +154,7 @@ class Book(Base):
     
     # Relationships
     user_interactions = relationship("UserBookInteraction", back_populates="book")
+    sources = relationship("BookSource", back_populates="book")
 
 
 class UserBookInteraction(Base):
@@ -260,7 +261,7 @@ class UserBookFeedback(Base):
     This is a normalized, immutable record of user feedback actions.
     """
     __tablename__ = "user_book_feedback"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
     book_id = Column(UUID(as_uuid=True), nullable=False, index=True)
@@ -282,9 +283,35 @@ class UserBookFeedback(Base):
     )
     source = Column(String, nullable=False, default="recommendations_v1")
     created_at = Column(DateTime(timezone=True), server_default=sa.func.now(), nullable=False)
-    
+
     __table_args__ = (
         sa.Index('idx_user_book_feedback_user_book', 'user_id', 'book_id'),
+    )
+
+
+class BookSource(Base):
+    """
+    Tracks provenance of books from various sources (Amazon lists, Goodreads lists, etc).
+    Allows tracking which curated lists/rankings a book appeared in.
+    """
+    __tablename__ = "book_sources"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    book_id = Column(UUID(as_uuid=True), ForeignKey("books.id", ondelete="CASCADE"), nullable=False, index=True)
+    source_name = Column(Text, nullable=False)  # e.g., "amazon", "goodreads"
+    source_year = Column(Integer, nullable=False)
+    source_rank = Column(Integer, nullable=False)
+    source_category = Column(Text, nullable=False)  # e.g., "entrepreneurship"
+    source_url = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # Relationships
+    book = relationship("Book", back_populates="sources")
+
+    __table_args__ = (
+        UniqueConstraint('book_id', 'source_name', 'source_year', 'source_category', name='uq_book_source_unique'),
+        sa.Index('idx_book_sources_source', 'source_name', 'source_year', 'source_category'),
     )
 
 
