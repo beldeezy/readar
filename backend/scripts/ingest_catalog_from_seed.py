@@ -11,18 +11,19 @@ Flags:
     --delay: Delay between API requests in seconds (default 0.2)
 """
 
+import sys
+from pathlib import Path
+
+# Add backend/ to sys.path for app imports
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+
 import argparse
 import csv
 import os
-import sys
 import time
 import re
 from typing import Optional, Dict, Any, List, Tuple
-from pathlib import Path
 from datetime import datetime
-
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import requests
 from sqlalchemy.orm import Session
