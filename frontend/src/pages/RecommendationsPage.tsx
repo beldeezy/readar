@@ -28,16 +28,18 @@ export default function RecommendationsPage() {
     // Liveness check: verify backend is reachable
     const rawBase = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
     const apiBaseUrl = rawBase.endsWith('/api') ? rawBase : `${rawBase}/api`;
-    
+
     // Check if we have prefetched recommendations from the loading page
     const prefetchedData = (location.state as any)?.prefetchedRecommendations;
-    const prefetchedRecs = Array.isArray(prefetchedData) 
+    const prefetchedRecs = Array.isArray(prefetchedData)
       ? prefetchedData as RecommendationItem[]
       : prefetchedData?.items as RecommendationItem[] | undefined;
     const prefetchedRequestId = prefetchedData?.request_id as string | undefined;
-    
-    if (prefetchedRecs) {
-      // Use prefetched results immediately
+
+    if (prefetchedRecs !== undefined) {
+      // Use prefetched results immediately (even if empty array)
+      const itemCount = prefetchedRecs?.length ?? 0;
+      console.log(`[RecommendationsPage] Using prefetched recommendations: ${itemCount} items`);
       setRecommendations(prefetchedRecs);
       if (prefetchedRequestId) {
         setRequestId(prefetchedRequestId);
@@ -96,13 +98,16 @@ export default function RecommendationsPage() {
 
       // Backend is healthy, proceed with recommendations
       if (cancelled) return;
-      
+
       setLoading(true);
       setError(null);
-      
+
       try {
+        console.log('[RecommendationsPage] Fetching recommendations from backend...');
         const response = await fetchRecommendations({ limit: 5 });
         if (!cancelled) {
+          const itemCount = response?.items?.length ?? 0;
+          console.log(`[RecommendationsPage] Received ${itemCount} recommendations from backend`);
           setRecommendations(response.items);
           setRequestId(response.request_id);
           // Clear preview recs if we successfully fetched from backend
@@ -110,7 +115,7 @@ export default function RecommendationsPage() {
         }
       } catch (err: any) {
         if (!cancelled) {
-          console.error("Failed to load recommendations", err);
+          console.error("[RecommendationsPage] Failed to load recommendations", err);
           
           // Fall back to preview recs if backend errors
           const previewRecsStr = localStorage.getItem(PREVIEW_RECS_KEY);
@@ -227,24 +232,35 @@ export default function RecommendationsPage() {
   }
 
   if (!recommendations.length) {
+    console.log('[RecommendationsPage] Rendering empty state (0 recommendations)');
     return (
       <div className="readar-recommendations-page">
         <div className="container">
-          <h1 style={{ 
-            fontSize: 'var(--rd-font-size-2xl)', 
-            fontWeight: 600, 
+          <h1 style={{
+            fontSize: 'var(--rd-font-size-2xl)',
+            fontWeight: 600,
             color: 'var(--rd-text)',
             marginBottom: '0.5rem'
           }}>
-            Your recommendations
+            No recommendations yet
           </h1>
-          <p style={{ 
-            fontSize: 'var(--rd-font-size-sm)', 
-            color: 'var(--rd-muted)'
+          <p style={{
+            fontSize: 'var(--rd-font-size-sm)',
+            color: 'var(--rd-muted)',
+            marginBottom: '1rem'
           }}>
-            We don&apos;t have enough signal yet. Try rating a few books or uploading your
-            reading history.
+            Your catalog appears to be empty. To get personalized recommendations:
           </p>
+          <ul style={{
+            fontSize: 'var(--rd-font-size-sm)',
+            color: 'var(--rd-muted)',
+            paddingLeft: '1.5rem',
+            listStyle: 'disc'
+          }}>
+            <li>Add books to your catalog (run seed script if in development)</li>
+            <li>Rate books you&apos;ve read to improve recommendations</li>
+            <li>Upload your reading history for better personalization</li>
+          </ul>
         </div>
       </div>
     );

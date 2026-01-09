@@ -133,12 +133,16 @@ export default function RecommendationsLoadingPage() {
             const pendingOnboarding = JSON.parse(pendingOnboardingStr);
             const payload = normalizePendingOnboardingToPayload(pendingOnboarding);
 
+            console.log('[RecommendationsLoading] Fetching preview recommendations...');
             const recs = await withTimeout(
               apiClient.getPreviewRecommendations(payload),
               20000,
               'Fetching preview recommendations took too long. Backend may be down or stuck.'
             );
             if (cancelled) return;
+
+            const itemCount = Array.isArray(recs) ? recs.length : 0;
+            console.log(`[RecommendationsLoading] Received ${itemCount} preview recommendations, navigating to login`);
 
             localStorage.setItem(PREVIEW_RECS_KEY, JSON.stringify(recs));
             setPhase('finalizing');
@@ -151,6 +155,7 @@ export default function RecommendationsLoadingPage() {
             return;
           } catch (e: any) {
             if (cancelled) return;
+            console.error('[RecommendationsLoading] Error generating preview recommendations:', e);
             setError(e?.message || 'Failed to generate preview recommendations.');
             return;
           }
@@ -181,6 +186,7 @@ export default function RecommendationsLoadingPage() {
             localStorage.removeItem(PREVIEW_RECS_KEY);
             localStorage.setItem(HAS_ONBOARDING_KEY, '1');
 
+            console.log('[RecommendationsLoading] Fetching recommendations after onboarding save...');
             const recs = await withTimeout(
               fetchRecommendations({ limit }),
               20000,
@@ -188,14 +194,19 @@ export default function RecommendationsLoadingPage() {
             );
             if (cancelled) return;
 
+            const itemCount = recs?.items?.length ?? 0;
+            console.log(`[RecommendationsLoading] Received ${itemCount} recommendations, navigating to /recommendations`);
+
             setPhase('finalizing');
             await sleep(900);
             if (cancelled) return;
 
+            // Navigate regardless of whether items is empty - let RecommendationsPage handle empty state
             navigate('/recommendations', { state: { prefetchedRecommendations: recs } });
             return;
           } catch (e: any) {
             if (cancelled) return;
+            console.error('[RecommendationsLoading] Error:', e);
             if (
               !e?.response ||
               String(e?.message || '').includes('timeout') ||
@@ -218,6 +229,7 @@ export default function RecommendationsLoadingPage() {
 
         // CASE 3: no pending => normal authenticated flow
         try {
+          console.log('[RecommendationsLoading] Fetching recommendations (normal flow)...');
           const recs = await withTimeout(
             fetchRecommendations({ limit }),
             20000,
@@ -225,14 +237,19 @@ export default function RecommendationsLoadingPage() {
           );
           if (cancelled) return;
 
+          const itemCount = recs?.items?.length ?? 0;
+          console.log(`[RecommendationsLoading] Received ${itemCount} recommendations, navigating to /recommendations`);
+
           setPhase('finalizing');
           await sleep(900);
           if (cancelled) return;
 
+          // Navigate regardless of whether items is empty - let RecommendationsPage handle empty state
           navigate('/recommendations', { state: { prefetchedRecommendations: recs } });
           return;
         } catch (e: any) {
           if (cancelled) return;
+          console.error('[RecommendationsLoading] Error:', e);
           if (
             !e?.response ||
             String(e?.message || '').includes('timeout') ||
