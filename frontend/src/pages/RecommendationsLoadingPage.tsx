@@ -68,6 +68,8 @@ export default function RecommendationsLoadingPage() {
   const lastRunKeyRef = useRef<string | null>(null);
   // Guard to prevent navigation from being called multiple times
   const hasNavigatedRef = useRef<boolean>(false);
+  // Track which effect run we're in (for debugging race conditions)
+  const runIdRef = useRef<number>(0);
 
   // Helper to check whether onboarding exists for the authenticated user
   async function checkExistingOnboarding(): Promise<boolean> {
@@ -90,19 +92,24 @@ export default function RecommendationsLoadingPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const currentRunId = ++runIdRef.current;
 
     const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
     async function run() {
       try {
-        console.log('RecommendationsLoadingPage mounted');
+        console.log(`[RecommendationsLoading] Effect run #${currentRunId} starting`);
 
         const pendingOnboardingStr = localStorage.getItem(PENDING_ONBOARDING_KEY);
         const userId = authUser?.id ?? 'anon';
 
         const runKey = `${userId}|limit=${limit}|pending=${pendingOnboardingStr ? '1' : '0'}`;
-        if (lastRunKeyRef.current === runKey) return;
+        if (lastRunKeyRef.current === runKey) {
+          console.log(`[RecommendationsLoading] Run #${currentRunId} skipping (duplicate key: ${runKey})`);
+          return;
+        }
         lastRunKeyRef.current = runKey;
+        console.log(`[RecommendationsLoading] Run #${currentRunId} executing for key: ${runKey}`);
 
         // Check if we can skip magic link verification (user already has onboarding in backend)
         let canSkipMagicLink = false;
@@ -196,28 +203,27 @@ export default function RecommendationsLoadingPage() {
             );
 
             const itemCount = recs?.items?.length ?? 0;
-            console.log(`[RecommendationsLoading] Received ${itemCount} recommendations`);
+            console.log(`[RecommendationsLoading] Run #${currentRunId} received ${itemCount} recommendations`);
 
             // Check if already navigated
             if (hasNavigatedRef.current) {
-              console.log('[RecommendationsLoading] Already navigated, skipping');
+              console.log(`[RecommendationsLoading] Run #${currentRunId} - already navigated, skipping`);
               return;
             }
+
+            // Mark navigation intent IMMEDIATELY, before ANY state updates or checks that could trigger cleanup
+            hasNavigatedRef.current = true;
 
             if (cancelled) {
-              console.log('[RecommendationsLoading] Cancelled before navigation (effect re-ran)');
-              return;
+              console.log(`[RecommendationsLoading] Run #${currentRunId} - cancelled=true but hasNavigated=true, proceeding anyway`);
+              // Still navigate since we marked intent - don't let cancellation block us
             }
 
-            setPhase('finalizing');
+            console.log(`[RecommendationsLoading] Run #${currentRunId} calling navigate() now...`);
 
-            // Mark that we're about to navigate
-            hasNavigatedRef.current = true;
-            console.log('[RecommendationsLoading] Calling navigate() now...');
-
-            // Navigate immediately - handle empty state in RecommendationsPage
+            // Navigate immediately - no state updates, no delays, no animation
             navigate('/recommendations', { state: { prefetchedRecommendations: recs }, replace: true });
-            console.log('[RecommendationsLoading] navigate() called successfully');
+            console.log(`[RecommendationsLoading] Run #${currentRunId} navigate() succeeded`);
             return;
           } catch (e: any) {
             if (cancelled) {
@@ -255,29 +261,27 @@ export default function RecommendationsLoadingPage() {
           );
 
           const itemCount = recs?.items?.length ?? 0;
-          console.log(`[RecommendationsLoading] Received ${itemCount} recommendations`);
+          console.log(`[RecommendationsLoading] Run #${currentRunId} received ${itemCount} recommendations`);
 
           // Check if already navigated (prevent duplicate navigations in StrictMode)
           if (hasNavigatedRef.current) {
-            console.log('[RecommendationsLoading] Already navigated, skipping');
+            console.log(`[RecommendationsLoading] Run #${currentRunId} - already navigated, skipping`);
             return;
           }
 
-          // Check cancelled AFTER checking hasNavigated to log what's happening
-          if (cancelled) {
-            console.log('[RecommendationsLoading] Cancelled before navigation (effect re-ran)');
-            return;
-          }
-
-          setPhase('finalizing');
-
-          // Mark that we're about to navigate (before any awaits that could allow cancellation)
+          // Mark navigation intent IMMEDIATELY, before ANY state updates or checks that could trigger cleanup
           hasNavigatedRef.current = true;
-          console.log('[RecommendationsLoading] Calling navigate() now...');
 
-          // Navigate immediately - don't wait for animation, handle empty state in RecommendationsPage
+          if (cancelled) {
+            console.log(`[RecommendationsLoading] Run #${currentRunId} - cancelled=true but hasNavigated=true, proceeding anyway`);
+            // Still navigate since we marked intent - don't let cancellation block us
+          }
+
+          console.log(`[RecommendationsLoading] Run #${currentRunId} calling navigate() now...`);
+
+          // Navigate immediately - no state updates, no delays, no animation
           navigate('/recommendations', { state: { prefetchedRecommendations: recs }, replace: true });
-          console.log('[RecommendationsLoading] navigate() called successfully');
+          console.log(`[RecommendationsLoading] Run #${currentRunId} navigate() succeeded`);
           return;
         } catch (e: any) {
           if (cancelled) {
@@ -305,9 +309,10 @@ export default function RecommendationsLoadingPage() {
     run();
 
     return () => {
+      console.log(`[RecommendationsLoading] Cleanup for run #${currentRunId}, setting cancelled=true`);
       cancelled = true;
     };
-  }, [limit, navigate, authUser, hasVerifiedMagicLink, setHasVerifiedMagicLink]);
+  }, [limit, navigate, authUser?.id, hasVerifiedMagicLink, setHasVerifiedMagicLink]);
 
   if (error) {
     return (
