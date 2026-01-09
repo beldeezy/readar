@@ -243,6 +243,7 @@ const ChatOnboardingPage: React.FC = () => {
       };
 
       // Include optional fields if they exist
+      // NOTE: Exclude book_preferences - already saved via /api/onboarding/book-interactions
       const optionalFields = [
         'full_name', 'age', 'occupation', 'entrepreneur_status', 'location',
         'economic_sector', 'industry', 'business_experience', 'areas_of_business',
@@ -348,12 +349,22 @@ const ChatOnboardingPage: React.FC = () => {
         throw new Error('Please answer all required questions');
       }
 
-      const filteredAnswers = Object.entries(answers).reduce((acc, [key, value]) => {
-        if (value !== null && value !== undefined && value !== '' && value !== 'skipped') {
-          acc[key] = value;
-        }
-        return acc;
-      }, {} as Record<string, any>);
+// Filter answers to only include non-empty, non-skipped values
+// NOTE: Exclude book_preferences and reading_history_csv - already saved via separate endpoints
+const filteredAnswers = Object.entries(answers).reduce((acc, [key, value]) => {
+  // Skip book_preferences (already saved via /api/onboarding/book-interactions)
+  // Skip reading_history_csv (already saved via CSV upload)
+  if (key === 'book_preferences' || key === 'reading_history_csv') {
+    return acc;
+  }
+
+  // Skip empty, null, undefined, and "skipped" values
+  if (value !== null && value !== undefined && value !== '' && value !== 'skipped') {
+    acc[key] = value;
+  }
+  return acc;
+}, {} as Record<string, any>);
+
 
       // Normalize business_model to CSV string for backend schema
       if (Array.isArray(filteredAnswers.business_model)) {
