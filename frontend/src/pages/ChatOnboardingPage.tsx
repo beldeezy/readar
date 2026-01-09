@@ -160,9 +160,10 @@ const ChatOnboardingPage: React.FC = () => {
     };
     setAnswers(updatedAnswers);
 
+    // Save to backend incrementally using the UPDATED answers snapshot
     try {
-      await saveToBackend(questionId, answer);
-    } catch (err: any) {
+      await saveToBackend(questionId, answer, updatedAnswers);
+      } catch (err: any) {
       setError(`Failed to save: ${err.message}`);
       const question = CHAT_QUESTIONS.find((q) => q.id === questionId);
       if (question?.required) {
@@ -170,6 +171,7 @@ const ChatOnboardingPage: React.FC = () => {
         return;
       }
     }
+
 
     setTimeout(() => {
       addBotMessage(getAcknowledgment(questionId));
@@ -207,16 +209,17 @@ const ChatOnboardingPage: React.FC = () => {
    * Required fields: business_model, business_stage, biggest_challenge
    * Returns true if profile was created or already exists, false if required fields are missing.
    */
-  const ensureProfileExists = async (): Promise<boolean> => {
+  const ensureProfileExists = async (currentAnswers?: Record<string, any>): Promise<boolean> => {
     if (profileCreated || !user) return profileCreated;
 
-    const currentAnswers = answers;
+    // Use provided answers or fall back to state
+    const answersToCheck = currentAnswers || answers;
 
     // Check if we have all required fields
-    const hasBusinessModel = currentAnswers.business_model &&
-      (Array.isArray(currentAnswers.business_model) ? currentAnswers.business_model.length > 0 : currentAnswers.business_model);
-    const hasBusinessStage = currentAnswers.business_stage;
-    const hasBiggestChallenge = currentAnswers.biggest_challenge;
+    const hasBusinessModel = answersToCheck.business_model &&
+      (Array.isArray(answersToCheck.business_model) ? answersToCheck.business_model.length > 0 : answersToCheck.business_model);
+    const hasBusinessStage = answersToCheck.business_stage;
+    const hasBiggestChallenge = answersToCheck.biggest_challenge;
 
     if (!hasBusinessModel || !hasBusinessStage || !hasBiggestChallenge) {
       // Not ready to create profile yet
@@ -227,7 +230,7 @@ const ChatOnboardingPage: React.FC = () => {
 
     try {
       // Normalize business_model (array to CSV string)
-      let normalizedBusinessModel = currentAnswers.business_model;
+      let normalizedBusinessModel = answersToCheck.business_model;
       if (Array.isArray(normalizedBusinessModel)) {
         normalizedBusinessModel = normalizedBusinessModel.map(String).map(s => s.trim()).filter(Boolean).join(',');
       }
@@ -235,8 +238,8 @@ const ChatOnboardingPage: React.FC = () => {
       // Prepare payload with all current answers
       const payload: any = {
         business_model: normalizedBusinessModel,
-        business_stage: currentAnswers.business_stage,
-        biggest_challenge: currentAnswers.biggest_challenge,
+        business_stage: answersToCheck.business_stage,
+        biggest_challenge: answersToCheck.biggest_challenge,
       };
 
       // Include optional fields if they exist
@@ -248,8 +251,8 @@ const ChatOnboardingPage: React.FC = () => {
       ];
 
       for (const field of optionalFields) {
-        if (currentAnswers[field] !== undefined && currentAnswers[field] !== null && currentAnswers[field] !== '') {
-          let value = currentAnswers[field];
+        if (answersToCheck[field] !== undefined && answersToCheck[field] !== null && answersToCheck[field] !== '') {
+          let value = answersToCheck[field];
 
           // Normalize current_gross_revenue
           if (field === 'current_gross_revenue' && typeof value === 'string') {
@@ -264,18 +267,19 @@ const ChatOnboardingPage: React.FC = () => {
       }
 
       // Create profile using POST
-      await apiClient.saveOnboarding(payload);
+      console.log('[Onboarding] Creating profile via POST with payload:', Object.keys(payload));
+      const response = await apiClient.saveOnboarding(payload);
       setProfileCreated(true);
-      console.log('[Onboarding] Profile created successfully');
+      console.log('[Onboarding] Profile created successfully, status:', response ? 'success' : 'unknown');
       return true;
     } catch (err: any) {
-      console.error('[Onboarding] Failed to create profile:', err);
+      console.error('[Onboarding] Failed to create profile:', err.message || err);
       // Don't throw - let onboarding continue, will retry on final submit
       return false;
     }
   };
 
-  const saveToBackend = async (questionId: string, value: any) => {
+  const saveToBackend = async (questionId: string, value: any, currentAnswers?: Record<string, any>) => {
     if (!user) return;
 
     if (value === null || value === undefined || value === '' || value === 'skipped') {
@@ -317,14 +321,18 @@ const ChatOnboardingPage: React.FC = () => {
 
       payload[questionId] = normalizedValue;
 
-      // Try to create profile if we have all required fields
-      await ensureProfileExists();
+      // Try to create profile if we have all required fields (using updated answers)
+      const profileCreatedNow = await ensureProfileExists(currentAnswers);
 
-      // Save incremental progress to backend using PATCH
-      // Returns null if profile doesn't exist yet (early onboarding)
-      const result = await apiClient.patchOnboarding(payload);
-      if (result === null) {
-        console.log(`[Onboarding] Profile not yet created, will create once required fields are collected (question: ${questionId})`);
+      // Only attempt PATCH if profile exists
+      if (profileCreated || profileCreatedNow) {
+        // Save incremental progress to backend using PATCH
+        const result = await apiClient.patchOnboarding(payload);
+        if (result === null) {
+          console.log(`[Onboarding] Unexpected: PATCH returned null even though profile should exist (question: ${questionId})`);
+        }
+      } else {
+        console.log(`[Onboarding] Profile not yet created (missing required fields), skipping PATCH for question: ${questionId}`);
       }
     }
   };
