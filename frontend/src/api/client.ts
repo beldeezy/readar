@@ -193,10 +193,10 @@ class ApiClient {
     const DEBUG = import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true';
     const url = `${API_BASE_URL}/onboarding`;
     const hasAuth = !!getAuthHeader();
-    
+
     if (DEBUG) {
       console.log('[DEBUG saveOnboarding]', {
-        method: 'PATCH',
+        method: 'POST',
         url,
         payloadKeys: Object.keys(payload),
         hasAuthorization: hasAuth,
@@ -204,7 +204,7 @@ class ApiClient {
     }
 
     const attempt = async () => {
-      const response = await this.client.patch<OnboardingProfile>("/onboarding", payload);
+      const response = await this.client.post<OnboardingProfile>("/onboarding", payload);
 
       if (DEBUG) {
         console.log('[DEBUG saveOnboarding response]', {
