@@ -334,6 +334,13 @@ class BookSource(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
+    # Match confidence and audit fields (populated during ingestion)
+    match_strategy = Column(Text, nullable=True)  # "isbn" or "title_author"
+    match_score = Column(Integer, nullable=True)  # 0-100
+    matched_volume_id = Column(Text, nullable=True)  # Google Books volume ID
+    matched_isbn13 = Column(Text, nullable=True)
+    rejected_candidates_count = Column(Integer, nullable=True)
+
     # Relationships
     book = relationship("Book", back_populates="sources")
 

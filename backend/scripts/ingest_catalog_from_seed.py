@@ -2,13 +2,17 @@
 Catalog ingestion script: reads seed CSV, enriches via Google Books API, upserts books and sources.
 
 Usage:
-    python -m backend.scripts.ingest_catalog_from_seed --seed path/to/seed.csv [--commit] [--limit N]
+    python -m backend.scripts.ingest_catalog_from_seed --seed path/to/seed.csv [--commit] [--limit N] [--resume] [--skip-existing-books]
 
 Flags:
     --seed: Path to seed CSV file (required)
     --commit: Write to database (default is dry-run)
     --limit: Process only first N rows (optional)
     --delay: Delay between API requests in seconds (default 0.2)
+    --resume: Skip rows that already exist in book_sources (safe re-run)
+    --skip-existing-books: Don't update existing books, only add new sources
+    --report-dir: Directory for ingestion reports (default: backend/data/ingestion_reports)
+    --confidence-threshold: Minimum match score to accept (0-100, default: 65)
 """
 
 import sys
@@ -34,6 +38,10 @@ from app.models import Book, BookSource
 from app.core.config import settings
 
 
+# ----------------------------
+# Text normalization utilities
+# ----------------------------
+
 def normalize_text(text: str) -> str:
     """Normalize text for comparison: lowercase, remove punctuation, extra whitespace."""
     text = text.lower()
@@ -52,21 +60,28 @@ def compute_work_key(title: str, author: str) -> str:
     return f"{norm_title}::{norm_author}"
 
 
+# ----------------------------
+# Google Books enrichment
+# ----------------------------
+
 def enrich_from_google_books(
     title: str,
     author: str,
     isbn13: Optional[str],
     api_key: str,
     delay: float = 0.2
-) -> Optional[Dict[str, Any]]:
+) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any]]:
     """
-    Query Google Books API and return the best match.
+    Query Google Books API and return the best match with audit metadata.
 
-    Returns dict with:
-        - volumeId
-        - volumeInfo fields: title, subtitle, authors, description, etc.
+    Returns (google_data, audit_data):
+        google_data: dict with volumeId, volumeInfo, saleInfo (or None if no match)
+        audit_data: dict with match_strategy, match_score, rejected_candidates_count, matched_volume_id, matched_isbn13
     """
     base_url = "https://www.googleapis.com/books/v1/volumes"
+
+    # Determine strategy
+    match_strategy = "isbn" if isbn13 else "title_author"
 
     # Build query
     if isbn13:
@@ -83,6 +98,14 @@ def enrich_from_google_books(
         "key": api_key,
     }
 
+    audit_data = {
+        "match_strategy": match_strategy,
+        "match_score": None,
+        "rejected_candidates_count": 0,
+        "matched_volume_id": None,
+        "matched_isbn13": None,
+    }
+
     try:
         time.sleep(delay)  # Rate limiting
         response = requests.get(base_url, params=params, timeout=10)
@@ -90,7 +113,7 @@ def enrich_from_google_books(
         data = response.json()
 
         if "items" not in data or not data["items"]:
-            return None
+            return (None, audit_data)
 
         # Score each result
         candidates = []
@@ -102,19 +125,38 @@ def enrich_from_google_books(
         # Sort by score descending
         candidates.sort(key=lambda x: x[0], reverse=True)
 
+        # Count rejected candidates (score <= 0)
+        audit_data["rejected_candidates_count"] = sum(1 for score, _ in candidates if score <= 0)
+
         if candidates[0][0] > 0:
-            best_item = candidates[0][1]
-            return {
+            best_score, best_item = candidates[0]
+            volume_info = best_item.get("volumeInfo", {})
+
+            # Extract matched ISBN13
+            matched_isbn13 = isbn13  # If we searched by ISBN
+            if not matched_isbn13:
+                for identifier in volume_info.get("industryIdentifiers", []):
+                    if identifier.get("type") == "ISBN_13":
+                        matched_isbn13 = identifier.get("identifier")
+                        break
+
+            audit_data["match_score"] = int(best_score)
+            audit_data["matched_volume_id"] = best_item.get("id")
+            audit_data["matched_isbn13"] = matched_isbn13
+
+            google_data = {
                 "volumeId": best_item.get("id"),
-                "volumeInfo": best_item.get("volumeInfo", {}),
+                "volumeInfo": volume_info,
                 "saleInfo": best_item.get("saleInfo", {}),
             }
 
-        return None
+            return (google_data, audit_data)
+
+        return (None, audit_data)
 
     except Exception as e:
         print(f"  [ERROR] Google Books API error: {e}")
-        return None
+        return (None, audit_data)
 
 
 def score_google_books_match(seed_title: str, seed_author: str, volume_info: Dict[str, Any]) -> float:
@@ -158,6 +200,10 @@ def score_google_books_match(seed_title: str, seed_author: str, volume_info: Dic
 
     return score
 
+
+# ----------------------------
+# Book data extraction
+# ----------------------------
 
 def extract_book_data_from_google(seed_row: Dict[str, str], google_data: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     """
@@ -244,6 +290,10 @@ def extract_book_data_from_google(seed_row: Dict[str, str], google_data: Optiona
     }
 
 
+# ----------------------------
+# Database operations
+# ----------------------------
+
 def find_existing_book_by_work_key(db: Session, title: str, author: str) -> Optional[Book]:
     """
     Search for existing book matching the same work (title + author family).
@@ -278,18 +328,37 @@ def find_existing_book_by_work_key(db: Session, title: str, author: str) -> Opti
     return None
 
 
+def check_source_exists(db: Session, source_data: Dict[str, Any]) -> bool:
+    """
+    Check if a source already exists in book_sources.
+
+    Returns True if exists, False otherwise.
+    """
+    existing = db.query(BookSource).filter(
+        BookSource.source_name == source_data["source_name"],
+        BookSource.source_year == source_data["source_year"],
+        BookSource.source_rank == source_data["source_rank"],
+        BookSource.source_category == source_data["source_category"]
+    ).first()
+
+    return existing is not None
+
+
 def upsert_book_and_source(
     db: Session,
     book_data: Dict[str, Any],
     source_data: Dict[str, Any],
-    dry_run: bool = True
-) -> Tuple[str, Optional[str]]:
+    audit_data: Dict[str, Any],
+    dry_run: bool = True,
+    skip_existing_books: bool = False
+) -> Tuple[str, Optional[str], str]:
     """
     Upsert book and source into database.
 
-    Returns (action, book_id):
-        action: "created", "updated", "skipped"
+    Returns (action, book_id, notes):
+        action: "created", "updated", "skipped", "skipped_existing_book"
         book_id: UUID string if created/updated, None if skipped
+        notes: Additional notes about the action
     """
     title = book_data["title"]
     author = book_data["author_name"]
@@ -298,21 +367,45 @@ def upsert_book_and_source(
     existing_book = find_existing_book_by_work_key(db, title, author)
 
     if existing_book:
+        if skip_existing_books:
+            # Skip updating book, but still add source
+            if not dry_run:
+                existing_source = db.query(BookSource).filter(
+                    BookSource.book_id == existing_book.id,
+                    BookSource.source_name == source_data["source_name"],
+                    BookSource.source_year == source_data["source_year"],
+                    BookSource.source_category == source_data["source_category"]
+                ).first()
+
+                if not existing_source:
+                    new_source = BookSource(
+                        book_id=existing_book.id,
+                        **source_data,
+                        **audit_data
+                    )
+                    db.add(new_source)
+
+            return ("skipped_existing_book", str(existing_book.id), "Book exists, only added source")
+
         # Decide whether to update
         should_update = False
+        update_reasons = []
 
         # Update if new book has newer published_year
         if book_data.get("published_year") and existing_book.published_year:
             if book_data["published_year"] > existing_book.published_year:
                 should_update = True
+                update_reasons.append("newer published_year")
 
         # Update if existing is missing critical fields
         if not existing_book.description or existing_book.description == "No description available.":
             if book_data.get("description") and book_data["description"] != "No description available.":
                 should_update = True
+                update_reasons.append("added description")
 
         if not existing_book.cover_image_url and book_data.get("cover_image_url"):
             should_update = True
+            update_reasons.append("added cover image")
 
         if should_update:
             if not dry_run:
@@ -323,9 +416,11 @@ def upsert_book_and_source(
                 db.flush()
             action = "updated"
             book_id = str(existing_book.id)
+            notes = f"Updated: {', '.join(update_reasons)}"
         else:
             action = "skipped"
             book_id = str(existing_book.id)
+            notes = "No updates needed"
 
         # Upsert source
         if not dry_run and action in ("updated", "skipped"):
@@ -339,11 +434,12 @@ def upsert_book_and_source(
             if not existing_source:
                 new_source = BookSource(
                     book_id=existing_book.id,
-                    **source_data
+                    **source_data,
+                    **audit_data
                 )
                 db.add(new_source)
 
-        return (action, book_id)
+        return (action, book_id, notes)
 
     else:
         # Create new book
@@ -355,7 +451,8 @@ def upsert_book_and_source(
             # Create source
             new_source = BookSource(
                 book_id=new_book.id,
-                **source_data
+                **source_data,
+                **audit_data
             )
             db.add(new_source)
 
@@ -363,8 +460,42 @@ def upsert_book_and_source(
         else:
             book_id = None
 
-        return ("created", book_id)
+        return ("created", book_id, "New book created")
 
+
+# ----------------------------
+# Reporting
+# ----------------------------
+
+def write_ingestion_report(report_path: Path, report_rows: List[Dict[str, Any]]):
+    """Write ingestion report CSV."""
+    if not report_rows:
+        return
+
+    fieldnames = [
+        "title",
+        "author",
+        "source_name",
+        "source_year",
+        "source_rank",
+        "status",
+        "match_strategy",
+        "match_score",
+        "matched_title",
+        "matched_author",
+        "matched_published_year",
+        "notes",
+    ]
+
+    with open(report_path, 'w', encoding='utf-8', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(report_rows)
+
+
+# ----------------------------
+# Main ingestion logic
+# ----------------------------
 
 def main():
     parser = argparse.ArgumentParser(description="Ingest catalog from seed CSV")
@@ -372,6 +503,10 @@ def main():
     parser.add_argument("--commit", action="store_true", help="Write to database (default is dry-run)")
     parser.add_argument("--limit", type=int, help="Process only first N rows")
     parser.add_argument("--delay", type=float, default=0.2, help="Delay between API requests (seconds)")
+    parser.add_argument("--resume", action="store_true", help="Skip rows that already exist in book_sources")
+    parser.add_argument("--skip-existing-books", action="store_true", help="Don't update existing books, only add sources")
+    parser.add_argument("--report-dir", default="backend/data/ingestion_reports", help="Directory for ingestion reports")
+    parser.add_argument("--confidence-threshold", type=int, default=65, help="Minimum match score to accept (0-100)")
 
     args = parser.parse_args()
 
@@ -387,6 +522,10 @@ def main():
         print(f"[ERROR] Seed file not found: {seed_path}")
         sys.exit(1)
 
+    # Ensure report directory exists
+    report_dir = Path(args.report_dir)
+    report_dir.mkdir(parents=True, exist_ok=True)
+
     dry_run = not args.commit
     mode_str = "DRY-RUN" if dry_run else "COMMIT"
 
@@ -394,6 +533,10 @@ def main():
     print(f"[{mode_str}] Seed file: {seed_path}")
     print(f"[{mode_str}] Limit: {args.limit or 'none'}")
     print(f"[{mode_str}] API delay: {args.delay}s")
+    print(f"[{mode_str}] Resume mode: {args.resume}")
+    print(f"[{mode_str}] Skip existing books: {args.skip_existing_books}")
+    print(f"[{mode_str}] Confidence threshold: {args.confidence_threshold}")
+    print(f"[{mode_str}] Report directory: {report_dir}")
     print()
 
     # Read CSV
@@ -422,9 +565,14 @@ def main():
         "created": 0,
         "updated": 0,
         "skipped": 0,
+        "skipped_resume": 0,
+        "skipped_existing_book": 0,
         "failed": 0,
         "sources_inserted": 0,
     }
+
+    # Report rows
+    report_rows = []
 
     db = SessionLocal()
     try:
@@ -437,9 +585,37 @@ def main():
 
             stats["processed"] += 1
 
+            # Resume mode: check if source already exists
+            if args.resume:
+                source_data = {
+                    "source_name": row["source_name"],
+                    "source_year": int(row["source_year"]),
+                    "source_rank": int(row["source_rank"]),
+                    "source_category": row["source_category"],
+                }
+                if check_source_exists(db, source_data):
+                    stats["skipped_resume"] += 1
+                    print(f"  [SKIP][RESUME] source={row['source_name']} rank={row['source_rank']}")
+                    report_rows.append({
+                        "title": title,
+                        "author": author,
+                        "source_name": row["source_name"],
+                        "source_year": row["source_year"],
+                        "source_rank": row["source_rank"],
+                        "status": "skipped_resume",
+                        "match_strategy": None,
+                        "match_score": None,
+                        "matched_title": None,
+                        "matched_author": None,
+                        "matched_published_year": None,
+                        "notes": "Source already exists (resume mode)",
+                    })
+                    print()
+                    continue
+
             try:
                 # Enrich from Google Books
-                google_data = enrich_from_google_books(
+                google_data, audit_data = enrich_from_google_books(
                     title=title,
                     author=author,
                     isbn13=isbn13,
@@ -447,15 +623,38 @@ def main():
                     delay=args.delay
                 )
 
+                # Check confidence threshold
+                if google_data and audit_data["match_score"] is not None:
+                    if audit_data["match_score"] < args.confidence_threshold:
+                        stats["failed"] += 1
+                        print(f"  [FAIL] Match score {audit_data['match_score']} below threshold {args.confidence_threshold}")
+                        report_rows.append({
+                            "title": title,
+                            "author": author,
+                            "source_name": row["source_name"],
+                            "source_year": row["source_year"],
+                            "source_rank": row["source_rank"],
+                            "status": "failed",
+                            "match_strategy": audit_data["match_strategy"],
+                            "match_score": audit_data["match_score"],
+                            "matched_title": None,
+                            "matched_author": None,
+                            "matched_published_year": None,
+                            "notes": f"Match score {audit_data['match_score']} below threshold {args.confidence_threshold}",
+                        })
+                        print()
+                        continue
+
                 if google_data:
-                    print(f"  [OK] Enriched from Google Books (volumeId: {google_data.get('volumeId')})")
+                    volume_info = google_data.get("volumeInfo", {})
+                    print(f"  [OK] Enriched via {audit_data['match_strategy']} (score: {audit_data['match_score']}, volumeId: {google_data.get('volumeId')})")
                 else:
                     print(f"  [WARN] No Google Books match found, using seed data")
 
                 # Extract book data
                 book_data = extract_book_data_from_google(row, google_data)
 
-                # Source data
+                # Source data (without audit fields)
                 source_data = {
                     "source_name": row["source_name"],
                     "source_year": int(row["source_year"]),
@@ -465,17 +664,56 @@ def main():
                 }
 
                 # Upsert
-                action, book_id = upsert_book_and_source(db, book_data, source_data, dry_run=dry_run)
+                action, book_id, notes = upsert_book_and_source(
+                    db, book_data, source_data, audit_data,
+                    dry_run=dry_run, skip_existing_books=args.skip_existing_books
+                )
 
                 stats[action] += 1
                 if action in ("created", "updated"):
                     stats["sources_inserted"] += 1
 
                 print(f"  [OK] Action: {action.upper()}, book_id: {book_id or 'N/A (dry-run)'}")
+                if notes:
+                    print(f"       Notes: {notes}")
+
+                # Add to report
+                matched_title = book_data["title"] if google_data else None
+                matched_author = book_data["author_name"] if google_data else None
+                matched_published_year = book_data.get("published_year") if google_data else None
+
+                report_rows.append({
+                    "title": title,
+                    "author": author,
+                    "source_name": row["source_name"],
+                    "source_year": row["source_year"],
+                    "source_rank": row["source_rank"],
+                    "status": action,
+                    "match_strategy": audit_data["match_strategy"] if google_data else None,
+                    "match_score": audit_data["match_score"],
+                    "matched_title": matched_title,
+                    "matched_author": matched_author,
+                    "matched_published_year": matched_published_year,
+                    "notes": notes,
+                })
 
             except Exception as e:
                 stats["failed"] += 1
                 print(f"  [ERROR] Failed: {e}")
+                report_rows.append({
+                    "title": title,
+                    "author": author,
+                    "source_name": row["source_name"],
+                    "source_year": row["source_year"],
+                    "source_rank": row["source_rank"],
+                    "status": "failed",
+                    "match_strategy": None,
+                    "match_score": None,
+                    "matched_title": None,
+                    "matched_author": None,
+                    "matched_published_year": None,
+                    "notes": str(e),
+                })
 
             print()
 
@@ -489,8 +727,14 @@ def main():
     finally:
         db.close()
 
-    # Print summary
+    # Write report
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    report_path = report_dir / f"{timestamp}.csv"
+    write_ingestion_report(report_path, report_rows)
+    print(f"[{mode_str}] Report written to: {report_path}")
     print()
+
+    # Print summary
     print("=" * 60)
     print(f"SUMMARY ({mode_str})")
     print("=" * 60)
@@ -498,6 +742,10 @@ def main():
     print(f"Created:          {stats['created']}")
     print(f"Updated:          {stats['updated']}")
     print(f"Skipped:          {stats['skipped']}")
+    if args.resume:
+        print(f"  - Resume:       {stats['skipped_resume']}")
+    if args.skip_existing_books:
+        print(f"  - Existing book: {stats['skipped_existing_book']}")
     print(f"Failed:           {stats['failed']}")
     print(f"Sources inserted: {stats['sources_inserted']}")
     print("=" * 60)
