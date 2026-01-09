@@ -643,6 +643,8 @@ export async function fetchRecommendations(params: {
   const safeLimit = Math.min(Math.max(limit, 1), 5);
   const url = `${API_BASE_URL}/recommendations?limit=${safeLimit}`;
 
+  console.log(`[fetchRecommendations] Requesting ${safeLimit} recommendations from ${url}`);
+
   try {
     const authHeader = getAuthHeader();
     const headers: HeadersInit = {
@@ -658,6 +660,8 @@ export async function fetchRecommendations(params: {
       credentials: 'include',
     });
 
+    console.log(`[fetchRecommendations] Response status: ${res.status}`);
+
     if (!res.ok) {
       let message = `Failed to fetch recommendations (status ${res.status}).`;
       try {
@@ -668,12 +672,16 @@ export async function fetchRecommendations(params: {
       } catch {
         // ignore
       }
+      console.error(`[fetchRecommendations] Error: ${message}`);
       throw new Error(message);
     }
 
-    return res.json();
+    const data = await res.json();
+    const itemCount = data?.items?.length ?? 0;
+    console.log(`[fetchRecommendations] Successfully received ${itemCount} items`);
+    return data;
   } catch (err: any) {
-    console.error("Network error fetching recommendations", err);
+    console.error("[fetchRecommendations] Network error:", err);
 
     const errorMessage = err?.message || "";
     if ((errorMessage.includes("Failed to fetch") || err instanceof TypeError) && !(err as any).response) {
