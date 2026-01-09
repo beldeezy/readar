@@ -154,3 +154,32 @@ def get_current_user(
                 f"detail={e.detail}"
             )
         raise
+
+
+def require_admin_user(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """
+    FastAPI dependency: returns current user only if they are an admin.
+    Admin status is determined by email allowlist.
+
+    Raises 403 Forbidden if user is not admin.
+    """
+    ADMIN_EMAILS = {"michael@readar.ai"}
+
+    if not current_user.email:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access denied: email missing"
+        )
+
+    if current_user.email.lower() not in ADMIN_EMAILS:
+        logger.warning(
+            f"[ADMIN_ACCESS_DENIED] user_id={current_user.id}, email={current_user.email}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access denied"
+        )
+
+    return current_user
