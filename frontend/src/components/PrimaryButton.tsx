@@ -8,6 +8,7 @@ interface PrimaryButtonProps {
   type?: "button" | "submit" | "reset";
   className?: string;
   delayMs?: number;
+  style?: React.CSSProperties;
 }
 
 export default function PrimaryButton({
@@ -17,6 +18,7 @@ export default function PrimaryButton({
   type = "button",
   className = "",
   delayMs = 0,
+  style,
 }: PrimaryButtonProps) {
   return (
     <Button
@@ -27,6 +29,7 @@ export default function PrimaryButton({
       variant="mint"
       size="md"
       className={className}
+      style={style}
     >
       {children}
     </Button>

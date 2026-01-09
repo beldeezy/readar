@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { apiClient } from '../api/client';
+import type { OnboardingPayload } from '../api/types';
 import {
   CHAT_QUESTIONS,
   INDUSTRIES_BY_SECTOR,
@@ -363,13 +364,13 @@ const filteredAnswers = Object.entries(answers).reduce((acc, [key, value]) => {
     acc[key] = value;
   }
   return acc;
-}, {} as Record<string, any>);
+}, {} as Record<string, any>) as OnboardingPayload;
 
 
       // Normalize business_model to CSV string for backend schema
       if (Array.isArray(filteredAnswers.business_model)) {
         filteredAnswers.business_model = filteredAnswers.business_model
-          .map(String).map((s) => s.trim()).filter(Boolean).join(',');
+          .map(String).map((s: string) => s.trim()).filter(Boolean).join(',');
       }
 
       // Normalize current_gross_revenue for backend schema (legacy-safe)

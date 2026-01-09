@@ -1,13 +1,10 @@
-import { api } from "./client";
+import { apiClient } from "./client";
+import type { User } from "./types";
 
-export type Me = {
-  id: string;
-  email: string;
-  is_admin?: boolean;
-};
+// Export User type as Me for backward compatibility
+export type Me = User;
 
 export async function fetchMe(): Promise<Me> {
-  const res = await api.get("/me");
-  return res.data;
+  return await apiClient.getCurrentUser();
 }
 

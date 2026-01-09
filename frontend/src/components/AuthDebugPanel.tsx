@@ -1,3 +1,4 @@
+import React from 'react';
 import { useMe } from "@/context/MeContext";
 
 export function AuthDebugPanel() {
