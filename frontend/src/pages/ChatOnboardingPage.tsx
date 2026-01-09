@@ -248,6 +248,7 @@ const ChatOnboardingPage: React.FC = () => {
       };
 
       // Include optional fields if they exist
+      // NOTE: Exclude book_preferences - already saved via /api/onboarding/book-interactions
       const optionalFields = [
         'full_name', 'age', 'occupation', 'entrepreneur_status', 'location',
         'economic_sector', 'industry', 'business_experience', 'areas_of_business',
@@ -365,7 +366,14 @@ const ChatOnboardingPage: React.FC = () => {
 
       // Filter answers to only include non-empty, non-skipped values
       // This prevents sending null/empty/skipped fields to the backend
+      // NOTE: Exclude book_preferences and reading_history_csv - already saved via separate endpoints
       const filteredAnswers = Object.entries(answers).reduce((acc, [key, value]) => {
+        // Skip book_preferences (already saved via /api/onboarding/book-interactions)
+        // Skip reading_history_csv (already saved via CSV upload)
+        if (key === 'book_preferences' || key === 'reading_history_csv') {
+          return acc;
+        }
+
         // Skip empty, null, undefined, and "skipped" values
         if (
           value !== null &&
