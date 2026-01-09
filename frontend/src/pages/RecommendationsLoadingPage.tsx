@@ -66,6 +66,8 @@ export default function RecommendationsLoadingPage() {
 
   // Guard to prevent spam/re-runs
   const lastRunKeyRef = useRef<string | null>(null);
+  // Guard to prevent navigation from being called multiple times
+  const hasNavigatedRef = useRef<boolean>(false);
 
   // Helper to check whether onboarding exists for the authenticated user
   async function checkExistingOnboarding(): Promise<boolean> {
@@ -192,20 +194,36 @@ export default function RecommendationsLoadingPage() {
               20000,
               'Fetching recommendations took too long. Backend may be down or stuck.'
             );
-            if (cancelled) return;
 
             const itemCount = recs?.items?.length ?? 0;
-            console.log(`[RecommendationsLoading] Received ${itemCount} recommendations, navigating to /recommendations`);
+            console.log(`[RecommendationsLoading] Received ${itemCount} recommendations`);
+
+            // Check if already navigated
+            if (hasNavigatedRef.current) {
+              console.log('[RecommendationsLoading] Already navigated, skipping');
+              return;
+            }
+
+            if (cancelled) {
+              console.log('[RecommendationsLoading] Cancelled before navigation (effect re-ran)');
+              return;
+            }
 
             setPhase('finalizing');
-            await sleep(900);
-            if (cancelled) return;
 
-            // Navigate regardless of whether items is empty - let RecommendationsPage handle empty state
-            navigate('/recommendations', { state: { prefetchedRecommendations: recs } });
+            // Mark that we're about to navigate
+            hasNavigatedRef.current = true;
+            console.log('[RecommendationsLoading] Calling navigate() now...');
+
+            // Navigate immediately - handle empty state in RecommendationsPage
+            navigate('/recommendations', { state: { prefetchedRecommendations: recs }, replace: true });
+            console.log('[RecommendationsLoading] navigate() called successfully');
             return;
           } catch (e: any) {
-            if (cancelled) return;
+            if (cancelled) {
+              console.log('[RecommendationsLoading] Cancelled after error');
+              return;
+            }
             console.error('[RecommendationsLoading] Error:', e);
             if (
               !e?.response ||
@@ -235,20 +253,37 @@ export default function RecommendationsLoadingPage() {
             20000,
             'Fetching recommendations took too long. Backend may be down or stuck.'
           );
-          if (cancelled) return;
 
           const itemCount = recs?.items?.length ?? 0;
-          console.log(`[RecommendationsLoading] Received ${itemCount} recommendations, navigating to /recommendations`);
+          console.log(`[RecommendationsLoading] Received ${itemCount} recommendations`);
+
+          // Check if already navigated (prevent duplicate navigations in StrictMode)
+          if (hasNavigatedRef.current) {
+            console.log('[RecommendationsLoading] Already navigated, skipping');
+            return;
+          }
+
+          // Check cancelled AFTER checking hasNavigated to log what's happening
+          if (cancelled) {
+            console.log('[RecommendationsLoading] Cancelled before navigation (effect re-ran)');
+            return;
+          }
 
           setPhase('finalizing');
-          await sleep(900);
-          if (cancelled) return;
 
-          // Navigate regardless of whether items is empty - let RecommendationsPage handle empty state
-          navigate('/recommendations', { state: { prefetchedRecommendations: recs } });
+          // Mark that we're about to navigate (before any awaits that could allow cancellation)
+          hasNavigatedRef.current = true;
+          console.log('[RecommendationsLoading] Calling navigate() now...');
+
+          // Navigate immediately - don't wait for animation, handle empty state in RecommendationsPage
+          navigate('/recommendations', { state: { prefetchedRecommendations: recs }, replace: true });
+          console.log('[RecommendationsLoading] navigate() called successfully');
           return;
         } catch (e: any) {
-          if (cancelled) return;
+          if (cancelled) {
+            console.log('[RecommendationsLoading] Cancelled after error');
+            return;
+          }
           console.error('[RecommendationsLoading] Error:', e);
           if (
             !e?.response ||

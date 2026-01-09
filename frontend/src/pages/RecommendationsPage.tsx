@@ -25,12 +25,20 @@ export default function RecommendationsPage() {
   }
 
   useEffect(() => {
+    console.log('[RecommendationsPage] Mounted/re-rendered');
+
     // Liveness check: verify backend is reachable
     const rawBase = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
     const apiBaseUrl = rawBase.endsWith('/api') ? rawBase : `${rawBase}/api`;
 
     // Check if we have prefetched recommendations from the loading page
     const prefetchedData = (location.state as any)?.prefetchedRecommendations;
+    console.log('[RecommendationsPage] Checking for prefetched data:', {
+      hasPrefetchedData: !!prefetchedData,
+      isArray: Array.isArray(prefetchedData),
+      hasItems: prefetchedData?.items !== undefined,
+    });
+
     const prefetchedRecs = Array.isArray(prefetchedData)
       ? prefetchedData as RecommendationItem[]
       : prefetchedData?.items as RecommendationItem[] | undefined;
@@ -45,8 +53,11 @@ export default function RecommendationsPage() {
         setRequestId(prefetchedRequestId);
       }
       setLoading(false);
+      console.log('[RecommendationsPage] Prefetch complete, will render empty state or items');
       return;
     }
+
+    console.log('[RecommendationsPage] No prefetched data, will check backend health');
 
     // Otherwise, check backend health first, then fetch recommendations
     let cancelled = false;
