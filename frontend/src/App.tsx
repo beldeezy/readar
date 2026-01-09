@@ -73,6 +73,44 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, loading, user } = useAuth();
+
+  // Admin email allowlist - must match backend
+  const ADMIN_EMAILS = new Set([
+    'michael@readar.ai',
+    'mbelden35@gmail.com',
+  ]);
+
+  if (loading) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '50vh'
+      }}>
+        Loading...
+      </div>
+    );
+  }
+
+  // If not authenticated, redirect to login
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // If authenticated but not admin, redirect to recommendations
+  const userEmail = user?.email?.toLowerCase().trim() || '';
+  if (!ADMIN_EMAILS.has(userEmail)) {
+    console.warn('[AdminRoute] Access denied for non-admin user:', userEmail);
+    return <Navigate to="/recommendations" replace />;
+  }
+
+  // Admin user - allow access
+  return <>{children}</>;
+}
+
 function AppRoutes() {
   return (
     <Routes>
@@ -120,7 +158,7 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      <Route path="/admin" element={<AdminLayout />}>
+      <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
         <Route path="books" element={<Books />} />
         <Route path="users" element={<Users />} />
         <Route path="engine" element={<Engine />}>

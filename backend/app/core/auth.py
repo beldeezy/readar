@@ -165,15 +165,25 @@ def require_admin_user(
 
     Raises 403 Forbidden if user is not admin.
     """
-    ADMIN_EMAILS = {"michael@readar.ai"}
+    # Admin email allowlist - normalized (lowercased, trimmed)
+    ADMIN_EMAILS = {
+        "michael@readar.ai",
+        "mbelden35@gmail.com",
+    }
 
     if not current_user.email:
+        logger.warning(
+            f"[ADMIN_ACCESS_DENIED] user_id={current_user.id}, email=<missing>"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access denied: email missing"
         )
 
-    if current_user.email.lower() not in ADMIN_EMAILS:
+    # Normalize user email for comparison (lowercase, strip whitespace)
+    normalized_email = current_user.email.lower().strip()
+
+    if normalized_email not in ADMIN_EMAILS:
         logger.warning(
             f"[ADMIN_ACCESS_DENIED] user_id={current_user.id}, email={current_user.email}"
         )
