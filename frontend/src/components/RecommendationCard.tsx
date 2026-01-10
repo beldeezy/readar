@@ -170,8 +170,8 @@ export default function RecommendationCard({
                 <p className="font-medium mb-1" style={{ fontWeight: 600, marginBottom: '0.25rem', fontSize: '0.875rem' }}>
                   Why this book:
                 </p>
-                <p className="text-muted-foreground" style={{ 
-                  color: 'var(--rd-muted)', 
+                <p className="text-muted-foreground" style={{
+                  color: 'var(--rd-muted)',
                   fontSize: '0.875rem',
                   lineHeight: '1.5',
                   margin: 0,
@@ -179,6 +179,29 @@ export default function RecommendationCard({
                 }}>
                   {book.why_this_book}
                 </p>
+              </div>
+            )}
+
+            {/* Explanation section with primary reasons */}
+            {book.explanation && book.explanation.primary_reasons && book.explanation.primary_reasons.length > 0 && (
+              <div className="mt-3 text-sm" style={{ marginTop: '1rem' }}>
+                <p className="font-medium mb-1" style={{ fontWeight: 600, marginBottom: '0.5rem', fontSize: '0.875rem' }}>
+                  Why this book
+                </p>
+                <ul style={{
+                  color: 'var(--rd-muted)',
+                  fontSize: '0.875rem',
+                  lineHeight: '1.5',
+                  margin: 0,
+                  paddingLeft: '1.25rem',
+                  listStyle: 'disc'
+                }}>
+                  {book.explanation.primary_reasons.slice(0, 3).map((reason, idx) => (
+                    <li key={idx} style={{ marginBottom: '0.25rem' }}>
+                      {reason}
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
           </div>

@@ -204,6 +204,28 @@ export default function RecommendationsDebug() {
                                 </div>
                               )}
 
+                              {item.explanation && item.explanation.primary_reasons && item.explanation.primary_reasons.length > 0 && (
+                                <div className="readar-recs-debug-details-section">
+                                  <h4>Why this book</h4>
+                                  <ul className="readar-recs-debug-factors-list">
+                                    {item.explanation.primary_reasons.map((reason, idx) => (
+                                      <li key={idx}>{reason}</li>
+                                    ))}
+                                  </ul>
+                                  {(item.explanation.signals || item.explanation.score_components) && (
+                                    <details style={{ marginTop: '0.5rem' }}>
+                                      <summary style={{ cursor: 'pointer', fontWeight: 500 }}>Explanation debug</summary>
+                                      <pre className="readar-recs-debug-json" style={{ marginTop: '0.5rem' }}>
+                                        {JSON.stringify({
+                                          signals: item.explanation.signals,
+                                          score_components: item.explanation.score_components
+                                        }, null, 2)}
+                                      </pre>
+                                    </details>
+                                  )}
+                                </div>
+                              )}
+
                               <div className="readar-recs-debug-details-section">
                                 <h4>Full Debug Blob</h4>
                                 <details>

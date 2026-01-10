@@ -108,6 +108,11 @@ export interface RecommendationItem {
   why_this_book: string; // Always present, single compelling paragraph explaining why recommended
   why_recommended?: string[]; // Deprecated: use why_this_book instead
   why_signals?: Array<{ type: string; label: string }>;
+  explanation?: {
+    primary_reasons: string[];
+    signals?: Record<string, any>;
+    score_components?: Record<string, number>;
+  };
   // Debug fields (only included when debug=true)
   promise_match?: number;
   framework_match?: number;
