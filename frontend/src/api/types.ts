@@ -109,6 +109,7 @@ export interface RecommendationItem {
   why_recommended?: string[]; // Deprecated: use why_this_book instead
   why_signals?: Array<{ type: string; label: string }>;
   explanation?: {
+    blurb: string;
     primary_reasons: string[];
     signals?: Record<string, any>;
     score_components?: Record<string, number>;

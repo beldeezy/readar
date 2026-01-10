@@ -168,6 +168,88 @@ W_OUTCOME = 0.6
 SIGNAL_THRESHOLD = 10
 
 
+def _generate_explanation_blurb(
+    user_ctx: Dict[str, Any],
+    book: Book,
+    score_factors: ScoreFactors,
+    matched_insights: List[Insight],
+    onboarding: Optional[OnboardingProfile],
+    signals: Dict[str, Any],
+) -> str:
+    """
+    Generate a user-facing 2-3 sentence blurb explaining why the book was recommended.
+
+    Template:
+    - Sentence 1: Tie to user situation (stage/challenge)
+    - Sentence 2: What the book helps them do
+    - Sentence 3 (optional): How to use it / what to look for
+
+    Returns a deterministic 2-3 sentence string (no LLMs).
+    """
+    sentences: List[str] = []
+
+    # Extract user context
+    business_stage = user_ctx.get("business_stage", "")
+    biggest_challenge = user_ctx.get("biggest_challenge", "")
+    business_model = user_ctx.get("business_model", "")
+
+    # Sentence 1: Tie to user situation
+    situation_parts = []
+    if signals.get("stage_match") and business_stage:
+        stage_label = business_stage.replace("_", " ").replace("-", " ")
+        situation_parts.append(f"at the {stage_label} stage")
+
+    if signals.get("challenge_match") and biggest_challenge:
+        # Summarize challenge without pasting full text
+        challenge_clean = biggest_challenge.replace("Struggling with:", "").strip()
+        # Take first clause or truncate if too long
+        if len(challenge_clean) > 60:
+            challenge_clean = challenge_clean[:57] + "..."
+        situation_parts.append(f"working through {challenge_clean}")
+
+    if situation_parts:
+        situation = " and ".join(situation_parts)
+        sentences.append(f"Given you're {situation}, this book is especially relevant.")
+    elif business_model:
+        model_clean = business_model.replace("_", " ").replace("-", " ")
+        sentences.append(f"This book is tailored for {model_clean} founders.")
+
+    # Sentence 2: What the book helps them do
+    help_text = None
+    if hasattr(book, 'promise') and book.promise:
+        help_text = book.promise.strip()
+        if not help_text.endswith('.'):
+            help_text += "."
+        sentences.append(help_text)
+    elif hasattr(book, 'outcomes') and book.outcomes:
+        outcome = book.outcomes[0]
+        sentences.append(f"This book will help you {outcome.lower()}.")
+    elif hasattr(book, 'core_frameworks') and book.core_frameworks:
+        framework = book.core_frameworks[0]
+        sentences.append(f"It introduces the {framework} framework to sharpen your execution.")
+
+    # Sentence 3 (optional): How to use it / what to look for
+    if signals.get("functional_overlap"):
+        overlap_areas = signals["functional_overlap"]
+        if overlap_areas:
+            area_text = ", ".join(overlap_areas[:2])
+            sentences.append(f"Pay special attention to the {area_text} insights.")
+    elif hasattr(book, 'core_frameworks') and book.core_frameworks and not help_text:
+        # Only add if we didn't already mention frameworks
+        framework = book.core_frameworks[0]
+        sentences.append(f"Read it with the goal of applying the {framework} framework to your work.")
+
+    # Fallback if no sentences generated
+    if not sentences:
+        sentences.append("This book is recommended based on your profile and reading history.")
+        if hasattr(book, 'promise') and book.promise:
+            sentences.append(book.promise.strip())
+
+    # Join and limit to 3 sentences max
+    blurb = " ".join(sentences[:3])
+    return blurb
+
+
 def build_recommendation_explanation(
     user_ctx: Dict[str, Any],
     book: Book,
@@ -179,7 +261,8 @@ def build_recommendation_explanation(
     Build a structured explanation for why a book was recommended.
 
     Returns a dict with:
-    - primary_reasons: List[str] - Top 2-3 human-readable reasons
+    - blurb: str - User-facing 2-3 sentence explanation
+    - primary_reasons: List[str] - Top 2-3 human-readable reasons (for admin/debug)
     - signals: Dict[str, Any] - Signal flags (stage_match, challenge_match, etc.)
     - score_components: Dict[str, float] - Score breakdown by component
     """
@@ -277,7 +360,18 @@ def build_recommendation_explanation(
         "areas_score": round(score_factors.areas_fit, 2),
     }
 
+    # Generate user-facing blurb (2-3 sentences)
+    blurb = _generate_explanation_blurb(
+        user_ctx=user_ctx,
+        book=book,
+        score_factors=score_factors,
+        matched_insights=matched_insights,
+        onboarding=onboarding,
+        signals=signals,
+    )
+
     return {
+        "blurb": blurb,
         "primary_reasons": primary_reasons,
         "signals": signals,
         "score_components": score_components,
@@ -704,6 +798,43 @@ def _score_from_interactions(
         scores[book_id] += weight
 
     return scores, blocked
+
+
+def _get_excluded_books_from_reading_history(
+    db: Session,
+    user_id: UUID,
+    title_author_to_id: Dict[Tuple[str, str], UUID],
+) -> Set[UUID]:
+    """
+    Query reading history entries with shelf == "read" and map them to book IDs.
+
+    Returns a set of book IDs to exclude from recommendations.
+    """
+    excluded_ids: Set[UUID] = set()
+
+    # Query reading history entries with shelf == "read"
+    read_entries = (
+        db.query(ReadingHistoryEntry)
+        .filter(
+            ReadingHistoryEntry.user_id == user_id,
+            ReadingHistoryEntry.shelf == "read"
+        )
+        .all()
+    )
+
+    # Map entries to book IDs using title/author lookup
+    for entry in read_entries:
+        # Normalize title and author for matching
+        title_norm = entry.title.strip().lower()
+        author_norm = (entry.author or "").strip().lower()
+        key = (title_norm, author_norm)
+
+        # Look up book ID
+        book_id = title_author_to_id.get(key)
+        if book_id:
+            excluded_ids.add(book_id)
+
+    return excluded_ids
 
 
 def _score_from_history(
@@ -2080,6 +2211,19 @@ def get_personalized_recommendations(
     interaction_scores, blocked_book_ids = _score_from_interactions(interactions)
     history_scores = _score_from_history(history_entries, title_author_to_id)
     user_ctx = _build_user_context(onboarding)
+
+    # Build set of books to exclude from Goodreads reading history (shelf == "read")
+    excluded_from_goodreads = _get_excluded_books_from_reading_history(
+        db, user_id, title_author_to_id
+    )
+
+    # Counters for debug logging
+    candidates_before = len(books)
+    excluded_by_interactions_count = len(blocked_book_ids)
+    excluded_by_goodreads_read_count = len(excluded_from_goodreads)
+
+    # Combine all exclusions
+    all_excluded_book_ids = blocked_book_ids | excluded_from_goodreads
     
     # Build user insights from onboarding profile
     user_insights = _build_user_insights(onboarding)
@@ -2102,10 +2246,11 @@ def get_personalized_recommendations(
         t_scoring_start = now_ms()
     scored_count = 0
     for book in books:
-        if book.id in blocked_book_ids:
+        # Skip books excluded by interactions or Goodreads reading history
+        if book.id in all_excluded_book_ids:
             continue
 
-        # Skip books the user already read (optional – adjust if you want to show re-reads)
+        # Skip books the user already read (from direct interactions)
         # Check if book is in liked/disliked interactions (already read)
         if book.id in {i.book_id for i in interactions if i.status in {UserBookStatus.READ_LIKED, UserBookStatus.READ_DISLIKED}}:
             continue
@@ -2113,7 +2258,7 @@ def get_personalized_recommendations(
         # Check user_book_status for exclusion rules
         book_id_str = str(book.id)
         status = book_status_map.get(book_id_str)
-        
+
         # Hard exclusion rules: skip books with "not_for_me" or "read_disliked"
         if status in ("not_for_me", "read_disliked"):
             continue
@@ -2448,12 +2593,19 @@ def get_personalized_recommendations(
 
     # Ensure recommendations are sorted by relevancy_score descending
     recommendations.sort(key=lambda x: x.relevancy_score, reverse=True)
-    
-    # Final timing summary
+
+    # Final timing summary with exclusion counts
     if settings.DEBUG and t0 is not None:
+        candidates_after = len(recommendations)
+        total_excluded = excluded_by_interactions_count + excluded_by_goodreads_read_count
         total_elapsed = now_ms() - t0
         logger.debug(
             f"user={user_id} phase=total elapsed={total_elapsed:.2f}ms "
+            f"candidates_before={candidates_before} "
+            f"excluded_by_interactions={excluded_by_interactions_count} "
+            f"excluded_by_goodreads_read={excluded_by_goodreads_read_count} "
+            f"total_excluded={total_excluded} "
+            f"candidates_after_scoring={scored_count} "
             f"limit={limit} debug={debug} returned={len(recommendations)}"
         )
 

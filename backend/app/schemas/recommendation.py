@@ -5,7 +5,8 @@ from app.schemas.book import BookResponse
 
 class RecommendationExplanation(BaseModel):
     """Structured explanation for why a book was recommended."""
-    primary_reasons: List[str]  # Top 2-3 human-readable reasons
+    blurb: str  # User-facing 2-3 sentence explanation (deterministic)
+    primary_reasons: List[str]  # Top 2-3 human-readable reasons (for admin/debug only)
     signals: Optional[Dict[str, Any]] = None  # Signal flags (stage_match, challenge_match, etc.)
     score_components: Optional[Dict[str, float]] = None  # Score breakdown by component
 
