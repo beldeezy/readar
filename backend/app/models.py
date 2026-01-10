@@ -242,7 +242,7 @@ class ReadingHistoryEntry(Base):
 
 class EventLog(Base):
     __tablename__ = "event_logs"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     created_at = Column(DateTime(timezone=True), server_default=sa.func.now(), nullable=False, index=True)
     user_id = Column(UUID(as_uuid=True), nullable=True, index=True)
@@ -250,6 +250,32 @@ class EventLog(Base):
     properties = Column(JSONB, nullable=True)
     request_id = Column(String, nullable=True)
     session_id = Column(String, nullable=True)
+
+
+class RecommendationEvent(Base):
+    """
+    Tracks user interactions with recommendations for analytics and feedback loops.
+
+    Events:
+    - recommendation_shown: When a recommendation is displayed to the user
+    - save_interested: User saved book as interested
+    - mark_read_liked: User marked book as read and liked
+    - mark_read_disliked: User marked book as read and disliked
+    - not_for_me: User dismissed the recommendation
+    """
+    __tablename__ = "recommendation_events"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    book_id = Column(UUID(as_uuid=True), ForeignKey("books.id"), nullable=False, index=True)
+    event_type = Column(String, nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=sa.func.now(), nullable=False, index=True)
+    recommendation_session_id = Column(String, nullable=True, index=True)  # Links to request_id from recommendations endpoint
+    metadata = Column(JSONB, nullable=True)  # Stores rank, score, dominant_insight, etc.
+
+    # Relationships
+    user = relationship("User")
+    book = relationship("Book")
 
 
 class UserBookStatusModel(Base):

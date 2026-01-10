@@ -9,6 +9,7 @@ from app.database import get_db
 from app.core.auth import get_current_user
 from app.models import User
 from app.services.feedback_service import submit_feedback
+from app.services.recommendation_events import log_recommendation_event
 from app.utils.instrumentation import log_event_best_effort
 
 router = APIRouter()
@@ -55,7 +56,31 @@ async def post_feedback(
             book_id=book_id_uuid,
             action=request.action,
         )
-        
+
+        # Map action to event_type for recommendation events
+        action_to_event_type = {
+            "save_interested": "save_interested",
+            "read_liked": "mark_read_liked",
+            "read_disliked": "mark_read_disliked",
+            "not_for_me": "not_for_me",
+        }
+        event_type = action_to_event_type.get(request.action)
+
+        # Log recommendation event
+        if event_type:
+            try:
+                log_recommendation_event(
+                    db=db,
+                    user_id=current_user.id,
+                    book_id=book_id_uuid,
+                    event_type=event_type,
+                    recommendation_session_id=None,  # Session ID not available in feedback endpoint
+                    metadata={"action": request.action},
+                )
+            except Exception:
+                # Silently ignore failures
+                pass
+
         # Log instrumentation events (best-effort, non-blocking)
         try:
             log_event_best_effort(
