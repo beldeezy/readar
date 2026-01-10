@@ -11,6 +11,7 @@ from app.database import get_db
 from app import models
 from app.services import recommendation_engine
 from app.services.recommendation_engine import NotEnoughSignalError
+from app.services.recommendation_events import log_recommendation_event
 from app.schemas.recommendation import RecommendationItem, RecommendationRequest, RecommendationsResponse
 from app.schemas.onboarding import OnboardingPayload
 from app.core.auth import get_current_user
@@ -178,8 +179,39 @@ async def get_recommendations(
         },
         request_id=request_id,
     )
+
+    # Log recommendation_shown events for each item
+    for rank, item in enumerate(items):
+        try:
+            # Extract metadata from the recommendation item
+            metadata = {
+                "rank": rank,
+                "score": item.relevancy_score,
+            }
+
+            # Add debug fields if available
+            if hasattr(item, 'dominant_insight') and item.dominant_insight:
+                metadata["dominant_insight"] = item.dominant_insight
+            if hasattr(item, 'explanation') and item.explanation and hasattr(item.explanation, 'signals'):
+                metadata["explanation_signals"] = item.explanation.signals
+
+            # Convert book_id string to UUID
+            book_id_uuid = UUID(item.book_id)
+
+            log_recommendation_event(
+                db=db,
+                user_id=user_id,
+                book_id=book_id_uuid,
+                event_type="recommendation_shown",
+                recommendation_session_id=request_id,
+                metadata=metadata,
+            )
+        except Exception as e:
+            # Log error but continue (non-fatal)
+            logger.warning(f"Failed to log recommendation_shown event for book {item.book_id}: {e}")
+
     db.commit()
-    
+
     # Timing: before response serialization
     if settings.DEBUG:
         t5 = log_elapsed(t4, f"req_id={request_id} user={user_id} event_log_commit", logger.debug)
