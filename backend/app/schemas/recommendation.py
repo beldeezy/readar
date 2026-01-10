@@ -3,6 +3,13 @@ from typing import Optional, List, Dict, Any
 from app.schemas.book import BookResponse
 
 
+class RecommendationExplanation(BaseModel):
+    """Structured explanation for why a book was recommended."""
+    primary_reasons: List[str]  # Top 2-3 human-readable reasons
+    signals: Optional[Dict[str, Any]] = None  # Signal flags (stage_match, challenge_match, etc.)
+    score_components: Optional[Dict[str, float]] = None  # Score breakdown by component
+
+
 class RecommendationItem(BaseModel):
     book_id: str
     title: str
@@ -27,6 +34,7 @@ class RecommendationItem(BaseModel):
     why_this_book: str  # Always present, single compelling paragraph explaining why recommended
     why_recommended: Optional[List[str]] = None  # Deprecated: use why_this_book instead
     why_signals: Optional[List[Dict[str, str]]] = None
+    explanation: Optional[RecommendationExplanation] = None  # Structured explanation (primary_reasons + signals + score_components)
     # Debug fields (only included when debug=true)
     promise_match: Optional[float] = None
     framework_match: Optional[float] = None

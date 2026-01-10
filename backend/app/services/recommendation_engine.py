@@ -168,6 +168,122 @@ W_OUTCOME = 0.6
 SIGNAL_THRESHOLD = 10
 
 
+def build_recommendation_explanation(
+    user_ctx: Dict[str, Any],
+    book: Book,
+    score_factors: ScoreFactors,
+    matched_insights: List[Insight],
+    onboarding: Optional[OnboardingProfile] = None,
+) -> Dict[str, Any]:
+    """
+    Build a structured explanation for why a book was recommended.
+
+    Returns a dict with:
+    - primary_reasons: List[str] - Top 2-3 human-readable reasons
+    - signals: Dict[str, Any] - Signal flags (stage_match, challenge_match, etc.)
+    - score_components: Dict[str, float] - Score breakdown by component
+    """
+    primary_reasons: List[str] = []
+    signals: Dict[str, Any] = {}
+
+    # Extract user context
+    business_stage = user_ctx.get("business_stage", "")
+    biggest_challenge = user_ctx.get("biggest_challenge", "")
+    business_model = user_ctx.get("business_model", "")
+    areas_of_business = user_ctx.get("areas_of_business", [])
+
+    # Check for stage match
+    stage_match = score_factors.stage_fit > 1.0
+    if stage_match and business_stage:
+        stage_label = business_stage.replace("_", "-")
+        primary_reasons.append(f"Relevant for your current stage ({stage_label})")
+        signals["stage_match"] = True
+    else:
+        signals["stage_match"] = False
+
+    # Check for challenge match
+    challenge_match = score_factors.challenge_fit > 0.5
+    if challenge_match and biggest_challenge:
+        # Simplify challenge text (remove prefixes like "Struggling with:")
+        challenge_clean = biggest_challenge.replace("Struggling with:", "").strip()
+        if challenge_clean:
+            primary_reasons.append(f"Addresses your biggest challenge: {challenge_clean}")
+            signals["challenge_match"] = True
+    else:
+        signals["challenge_match"] = False
+
+    # Check for business model fit (services canon / SaaS canon)
+    theme_tags = book.theme_tags or []
+    functional_tags = book.functional_tags or []
+    all_tags = theme_tags + functional_tags
+
+    if "services_canon" in all_tags and business_model:
+        if business_model.lower() in SERVICE_LIKE_BUSINESS_MODELS:
+            primary_reasons.append("Written specifically for service-based businesses")
+            signals["model_match"] = True
+    elif "saas_canon" in all_tags and business_model:
+        if business_model.lower() in SAAS_LIKE_BUSINESS_MODELS:
+            primary_reasons.append("Tailored for SaaS and software founders")
+            signals["model_match"] = True
+    else:
+        signals["model_match"] = False
+
+    # Check for functional area overlap
+    areas_lower = [a.lower() for a in areas_of_business]
+    functional_overlap = []
+
+    if "pricing" in functional_tags and ("pricing" in areas_lower or "price" in biggest_challenge.lower()):
+        functional_overlap.append("pricing")
+    if "marketing" in functional_tags and ("marketing" in areas_lower or "leads" in biggest_challenge.lower()):
+        functional_overlap.append("marketing")
+    if "sales" in functional_tags and ("sales" in areas_lower or "client" in biggest_challenge.lower()):
+        functional_overlap.append("sales")
+    if "operations" in functional_tags and ("operations" in areas_lower or "systems" in biggest_challenge.lower()):
+        functional_overlap.append("operations")
+
+    if functional_overlap:
+        signals["functional_overlap"] = functional_overlap
+
+    # Track framework/outcome matches
+    if score_factors.framework_match > 0:
+        signals["framework_match"] = True
+    if score_factors.outcome_match > 0:
+        signals["outcome_match"] = True
+
+    # Get book difficulty if available
+    if hasattr(book, 'difficulty') and book.difficulty:
+        difficulty_value = book.difficulty.value if hasattr(book.difficulty, 'value') else str(book.difficulty)
+        signals["book_difficulty"] = difficulty_value
+
+    # Limit to top 3 reasons max
+    primary_reasons = primary_reasons[:3]
+
+    # If no specific reasons yet, add generic ones based on matched insights
+    if not primary_reasons and matched_insights:
+        # Get top matched insight
+        top_insight = max(matched_insights, key=lambda x: x["weight"], default=None)
+        if top_insight:
+            primary_reasons.append(top_insight["reason"])
+
+    # Fallback if still no reasons
+    if not primary_reasons:
+        primary_reasons.append("Recommended based on your profile and reading history")
+
+    # Build score components
+    score_components = {
+        "stage_score": round(score_factors.stage_fit, 2),
+        "challenge_score": round(score_factors.challenge_fit, 2),
+        "business_model_score": round(score_factors.business_model_fit, 2),
+        "areas_score": round(score_factors.areas_fit, 2),
+    }
+
+    return {
+        "primary_reasons": primary_reasons,
+        "signals": signals,
+        "score_components": score_components,
+    }
+
+
 def get_generic_recommendations(
     db: Session,
     limit: int = 10,
@@ -2221,7 +2337,16 @@ def get_personalized_recommendations(
         
         # Build why_signals (reason chips)
         why_signals = _build_why_signals(onboarding, book)
-        
+
+        # Build explanation (primary reasons + signals + score components)
+        explanation_data = build_recommendation_explanation(
+            user_ctx=user_ctx,
+            book=book,
+            score_factors=score_factors,
+            matched_insights=matched_insights,
+            onboarding=onboarding,
+        )
+
         # Build purchase URL
         purchase_url = _build_purchase_url(book)
 
@@ -2313,6 +2438,7 @@ def get_personalized_recommendations(
                 why_this_book=why_this_book_text,
                 why_recommended=None,  # Deprecated
                 why_signals=why_signals if why_signals else None,
+                explanation=explanation_data,
                 **debug_fields,
             )
         )
