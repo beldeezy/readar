@@ -698,6 +698,7 @@ def main():
                 })
 
             except Exception as e:
+                db.rollback()
                 stats["failed"] += 1
                 print(f"  [ERROR] Failed: {e}")
                 report_rows.append({
