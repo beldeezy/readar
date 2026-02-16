@@ -271,7 +271,7 @@ class RecommendationEvent(Base):
     event_type = Column(String, nullable=False, index=True)
     created_at = Column(DateTime(timezone=True), server_default=sa.func.now(), nullable=False, index=True)
     recommendation_session_id = Column(String, nullable=True, index=True)  # Links to request_id from recommendations endpoint
-    metadata = Column(JSONB, nullable=True)  # Stores rank, score, dominant_insight, etc.
+    event_metadata = Column(JSONB, nullable=True)  # Stores rank, score, dominant_insight, etc.
 
     # Relationships
     user = relationship("User")

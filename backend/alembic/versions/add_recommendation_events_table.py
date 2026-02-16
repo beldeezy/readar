@@ -29,7 +29,7 @@ def upgrade() -> None:
         sa.Column('event_type', sa.String(), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column('recommendation_session_id', sa.String(), nullable=True),
-        sa.Column('metadata', JSONB, nullable=True),
+        sa.Column('event_metadata', JSONB, nullable=True),
         sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
         sa.ForeignKeyConstraint(['book_id'], ['books.id'], ),
     )

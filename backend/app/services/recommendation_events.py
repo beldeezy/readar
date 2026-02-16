@@ -40,7 +40,7 @@ def log_recommendation_event(
             book_id=book_id,
             event_type=event_type,
             recommendation_session_id=recommendation_session_id,
-            metadata=metadata,
+            event_metadata=metadata,
         )
         db.add(event)
         db.commit()

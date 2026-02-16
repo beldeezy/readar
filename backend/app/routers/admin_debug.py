@@ -174,7 +174,7 @@ def get_recommendation_events(
             "event_type": event.event_type,
             "created_at": event.created_at.isoformat() if event.created_at else None,
             "recommendation_session_id": event.recommendation_session_id,
-            "metadata": event.metadata,
+            "metadata": event.event_metadata,
         })
 
     return {
