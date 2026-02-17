@@ -111,16 +111,19 @@ def _extract_identifiers(volume_info: dict) -> tuple[Optional[str], Optional[str
     return isbn_10, isbn_13
 
 
-def enrich_books(limit: Optional[int] = None, only_missing: bool = True) -> None:
+def enrich_books(limit: Optional[int] = None, only_missing: bool = True, descriptions_only: bool = False) -> None:
     """
     Enrich books in the database with metadata from Google Books.
 
     :param limit: Optional max number of books to process (for testing).
     :param only_missing: If True, only update fields that are currently null / placeholder.
+    :param descriptions_only: If True, only process books with placeholder descriptions.
     """
     db: Session = SessionLocal()
     try:
         query = db.query(models.Book).order_by(models.Book.created_at.asc())
+        if descriptions_only:
+            query = query.filter(models.Book.description == "No description available.")
         if limit:
             query = query.limit(limit)
 
@@ -164,10 +167,15 @@ def enrich_books(limit: Optional[int] = None, only_missing: bool = True) -> None
                 book.categories = categories
                 changed = True
 
-            # Description – only override if empty or generic fallback
+            # Description – override if empty, placeholder, or generic fallback
             generic_prefix = f"A book by {book.author_name}"
             if description:
-                if not book.description or book.description.startswith(generic_prefix):
+                is_placeholder = (
+                    not book.description
+                    or book.description == "No description available."
+                    or book.description.startswith(generic_prefix)
+                )
+                if is_placeholder:
                     book.description = description
                     changed = True
 
@@ -235,7 +243,12 @@ if __name__ == "__main__":
         action="store_true",
         help="Update fields even if they are already populated (not just missing).",
     )
+    parser.add_argument(
+        "--descriptions-only",
+        action="store_true",
+        help="Only process books with placeholder descriptions.",
+    )
     args = parser.parse_args()
 
     only_missing = not args.all
-    enrich_books(limit=args.limit, only_missing=only_missing)
+    enrich_books(limit=args.limit, only_missing=only_missing, descriptions_only=args.descriptions_only)
