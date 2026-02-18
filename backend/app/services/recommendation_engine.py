@@ -98,6 +98,30 @@ def is_saas_canon(book: Book) -> bool:
     return "saas_canon" in tags
 
 
+def _stage_distance(stage_a: str, stage_b: str) -> Optional[int]:
+    """
+    Return the absolute distance between two stages in STAGE_ORDER.
+    Returns None if either stage is not found.
+    """
+    try:
+        idx_a = STAGE_ORDER.index(stage_a)
+        idx_b = STAGE_ORDER.index(stage_b)
+        return abs(idx_a - idx_b)
+    except ValueError:
+        return None
+
+
+def _confidence_multiplier(interaction_count: int) -> float:
+    """
+    Return a multiplier for stage_fit scores based on interaction count.
+    More interactions = higher confidence = stage matters more.
+    """
+    for threshold, multiplier in CONFIDENCE_TIERS:
+        if interaction_count <= threshold:
+            return multiplier
+    return 1.0
+
+
 def score_promise_match(book: Book, profile: OnboardingProfile) -> float:
     """Score match between book promise and user's biggest challenge."""
     if not book.promise or not profile.biggest_challenge:
@@ -163,6 +187,28 @@ W_MODEL = 0.8
 W_PROMISE = 1.2
 W_FRAMEWORK = 0.6
 W_OUTCOME = 0.6
+
+# --- Stage scoring improvement constants ---
+# Ordered stage progression (index = ordinal position)
+STAGE_ORDER = ["idea", "pre-revenue", "early-revenue", "scaling"]
+
+# Adjacent-stage scoring tiers
+STAGE_FIT_ADJACENT = 1.5       # One step away from user's stage
+STAGE_FIT_TWO_STEPS = 0.5      # Two steps away from user's stage
+
+# Revenue-based stage weight (up from 0.35)
+REVENUE_STAGE_SCORE = 1.75
+
+# Progression boost for books one stage ahead of user
+STAGE_PROGRESSION_BOOST = 0.75
+
+# Confidence multiplier tiers based on interaction count
+CONFIDENCE_TIERS = [
+    (2, 0.8),                   # 0-2 interactions: low confidence
+    (5, 1.0),                   # 3-5 interactions: baseline
+    (10, 1.2),                  # 6-10 interactions: confident
+    (float('inf'), 1.4),        # 11+: high confidence
+]
 
 # Signal threshold for determining if user has enough data
 SIGNAL_THRESHOLD = 10
@@ -1661,13 +1707,16 @@ def _score_from_stage_fit(
     user_ctx: Dict[str, Optional[str]],
     book: Book,
     onboarding: Optional[OnboardingProfile] = None,
+    interaction_count: int = 0,
 ) -> Tuple[float, ScoreFactors]:
     """
-    Simple rule-based fit:
-    - boost books whose tags match the user's business_stage, business_model, or areas_of_business.
-    - prioritize services canon books for service-like business models.
-    - incorporate insight-based matches (promise, frameworks, outcomes).
-    
+    Rule-based fit scoring with tiered stage matching:
+    - Exact stage match: +3.0, adjacent (1 step): +1.5, two steps: +0.5
+    - Progression boost: +0.75 for books one stage ahead
+    - Confidence multiplier scales stage scores by interaction count
+    - Revenue stage matching at 1.75 (was 0.35)
+    - Business model, areas, challenge, canon, and insight matching
+
     Returns: (score contribution from stage/model/challenge fit, score factors)
     """
     score = 0.0
@@ -1688,14 +1737,42 @@ def _score_from_stage_fit(
     is_service_like = business_model in SERVICE_LIKE_BUSINESS_MODELS
     is_saas_like = business_model in SAAS_LIKE_BUSINESS_MODELS
 
-    if business_stage and business_stage in book_stage_tags:
-        stage_score = 3.0
+    # Stage matching with adjacency tiers
+    if business_stage and book_stage_tags:
+        stage_score = 0.0
+
+        if business_stage in book_stage_tags:
+            # Exact match
+            stage_score = 3.0
+        else:
+            # Adjacent-stage scoring: find minimum distance
+            min_distance = None
+            for tag in book_stage_tags:
+                dist = _stage_distance(business_stage, tag)
+                if dist is not None and (min_distance is None or dist < min_distance):
+                    min_distance = dist
+
+            if min_distance == 1:
+                stage_score = STAGE_FIT_ADJACENT       # 1.5
+            elif min_distance == 2:
+                stage_score = STAGE_FIT_TWO_STEPS      # 0.5
+
+        # Progression boost: extra credit for books one stage AHEAD
+        user_idx = STAGE_ORDER.index(business_stage) if business_stage in STAGE_ORDER else -1
+        if user_idx >= 0 and user_idx < len(STAGE_ORDER) - 1:
+            next_stage = STAGE_ORDER[user_idx + 1]
+            if next_stage in book_stage_tags:
+                stage_score += STAGE_PROGRESSION_BOOST  # +0.75
+
+        # Apply confidence multiplier
+        confidence = _confidence_multiplier(interaction_count)
+        stage_score *= confidence
+
         score += stage_score
         factors.stage_fit = stage_score
 
     # Revenue stage matching: boost if book's stage_tags match user's revenue stage
     if revenue_stage and book.business_stage_tags:
-        # Map revenue stage to book stage tags
         revenue_to_book_stages = {
             "early": ["idea", "pre-revenue"],
             "early_mid": ["pre-revenue", "early-revenue"],
@@ -1705,7 +1782,7 @@ def _score_from_stage_fit(
         }
         matching_stages = revenue_to_book_stages.get(revenue_stage, [])
         if any(stage in book.business_stage_tags for stage in matching_stages):
-            revenue_score = 0.35
+            revenue_score = REVENUE_STAGE_SCORE
             score += revenue_score
             factors.stage_fit += revenue_score
 
@@ -1918,53 +1995,79 @@ def _calculate_category_boost(
 def _calculate_stage_fit_score(
     book: Book,
     onboarding: Optional[OnboardingProfile],
+    interaction_count: int = 0,
 ) -> Tuple[float, List[str], ScoreFactors]:
     """
-    Calculate stage_fit_score from onboarding data.
-    
+    Calculate stage_fit_score from onboarding data with tiered stage matching.
+
+    Uses adjacency tiers, progression boost, confidence multiplier, and
+    strengthened revenue matching (consistent with _score_from_stage_fit).
+
     Returns: (score, reasons, score_factors)
     """
     score = 0.0
     reasons: List[str] = []
     factors = ScoreFactors()
-    
+
     if not onboarding:
         return score, reasons, factors
-    
-    # Business stage match
+
+    # Business stage match with adjacency tiers
     if onboarding.business_stage:
         business_stage_str = (
-            onboarding.business_stage.value 
-            if hasattr(onboarding.business_stage, 'value') 
+            onboarding.business_stage.value
+            if hasattr(onboarding.business_stage, 'value')
             else str(onboarding.business_stage)
         )
-        
+
         if book.business_stage_tags:
+            stage_score = 0.0
+            reason = ""
+
             if business_stage_str in book.business_stage_tags:
-                stage_score = WEIGHTS["STAGE_FIT_STRONG"]
+                # Exact match
+                stage_score = WEIGHTS["STAGE_FIT_STRONG"]  # 3.0
+                reason = "Strong match for your business stage."
+            else:
+                # Adjacent-stage scoring: find minimum distance
+                min_distance = None
+                for tag in book.business_stage_tags:
+                    dist = _stage_distance(business_stage_str, tag)
+                    if dist is not None and (min_distance is None or dist < min_distance):
+                        min_distance = dist
+
+                if min_distance == 1:
+                    stage_score = STAGE_FIT_ADJACENT       # 1.5
+                    reason = "Good match for your business stage."
+                elif min_distance == 2:
+                    stage_score = STAGE_FIT_TWO_STEPS      # 0.5
+                    reason = "Somewhat relevant to your business stage."
+
+            # Progression boost: extra credit for books one stage AHEAD
+            user_idx = STAGE_ORDER.index(business_stage_str) if business_stage_str in STAGE_ORDER else -1
+            if user_idx >= 0 and user_idx < len(STAGE_ORDER) - 1:
+                next_stage = STAGE_ORDER[user_idx + 1]
+                if next_stage in book.business_stage_tags:
+                    stage_score += STAGE_PROGRESSION_BOOST  # +0.75
+                    if not reason:
+                        reason = "Prepares you for your next business stage."
+                    else:
+                        reason += " Prepares you for what's next."
+
+            # Apply confidence multiplier
+            confidence = _confidence_multiplier(interaction_count)
+            stage_score *= confidence
+
+            if stage_score > 0:
                 score += stage_score
                 factors.stage_fit = stage_score
-                reasons.append("Strong match for your business stage.")
-            else:
-                # Check for related stages (e.g., idea/pre-revenue are similar)
-                related_stages = {
-                    "idea": ["pre-revenue"],
-                    "pre-revenue": ["idea"],
-                    "early-revenue": ["scaling"],
-                    "scaling": ["early-revenue"],
-                }
-                related = related_stages.get(business_stage_str, [])
-                if any(rel in book.business_stage_tags for rel in related):
-                    stage_score = WEIGHTS["STAGE_FIT_MEDIUM"]
-                    score += stage_score
-                    factors.stage_fit = stage_score
-                    reasons.append("Good match for your business stage.")
-    
-    # Revenue stage matching: boost if book's stage_tags match user's revenue stage
+                if reason:
+                    reasons.append(reason)
+
+    # Revenue stage matching
     if getattr(onboarding, "current_gross_revenue", None):
         user_revenue_stage = REVENUE_STAGE.get(onboarding.current_gross_revenue)
         if user_revenue_stage and book.business_stage_tags:
-            # Map revenue stage to book stage tags
             revenue_to_book_stages = {
                 "early": ["idea", "pre-revenue"],
                 "early_mid": ["pre-revenue", "early-revenue"],
@@ -1974,11 +2077,9 @@ def _calculate_stage_fit_score(
             }
             matching_stages = revenue_to_book_stages.get(user_revenue_stage, [])
             if any(stage in book.business_stage_tags for stage in matching_stages):
-                revenue_score = 0.35
+                revenue_score = REVENUE_STAGE_SCORE
                 score += revenue_score
                 factors.stage_fit += revenue_score
-                # Optionally add a reason if we want to surface this
-                # reasons.append("Matches your revenue stage.")
     
     # Business model match (simple keyword matching in functional_tags)
     is_service_like = False
@@ -2268,10 +2369,12 @@ def get_personalized_recommendations(
         total_scores[book.id] += history_scores.get(book.id, 0.0)
 
         # Stage / model / challenge fit
-        stage_fit_score, score_factors = _score_from_stage_fit(user_ctx, book, onboarding)
+        stage_fit_score, score_factors = _score_from_stage_fit(
+            user_ctx, book, onboarding, interaction_count=len(interactions)
+        )
         total_scores[book.id] += stage_fit_score
         book_score_factors[book.id] = score_factors
-        
+
         # Store base score before insight and status adjustments
         base_scores[book.id] = total_scores[book.id]
         
@@ -3021,7 +3124,7 @@ def get_recommendations_for_user(
         )
         
         stage_fit_score, stage_reasons, score_factors = _calculate_stage_fit_score(
-            book, onboarding
+            book, onboarding, interaction_count=len(interactions)
         )
         
         category_boost, cat_reasons = _calculate_category_boost(
