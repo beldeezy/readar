@@ -86,9 +86,12 @@ def seed(database_url: str, commit: bool, verbose: bool) -> None:
                 continue
 
             # Build only the columns that exist on the Book model
+            # description is NOT NULL in the schema — fall back to empty string if missing
+            description = raw.get("description") or ""
             book_kwargs = {
                 "title": title,
                 "author_name": author,
+                "description": description,
             }
 
             optional_fields = [
