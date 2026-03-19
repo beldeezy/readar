@@ -12,7 +12,7 @@ services:
       - key: DEBUG
         value: "false"
       - key: FRONTEND_ORIGINS
-        value: http://localhost:5173
+        value: https://readar.ai,https://www.readar.ai,https://readar-chi.vercel.app
       # Secrets should be set in Render dashboard:
       # - DATABASE_URL (from Render Postgres)
       # - SUPABASE_URL
