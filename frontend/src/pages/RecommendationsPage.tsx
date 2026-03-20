@@ -350,22 +350,15 @@ export default function RecommendationsPage() {
           {recommendations.map((book, index) => {
             const pitch = pitches[book.book_id];
             return (
-              <div key={book.book_id} className="recommendation-with-pitch">
-                <RecommendationCard
-                  book={book}
-                  onAction={handleBookAction}
-                  isTopMatch={index === 0}
-                  requestId={requestId || undefined}
-                  position={index}
-                />
-                {pitch && (
-                  <div className="book-pitch">
-                    {pitch.challenge && <p className="book-pitch__text">{pitch.challenge}</p>}
-                    {pitch.solution && <p className="book-pitch__text">{pitch.solution}</p>}
-                    {pitch.outcome && <p className="book-pitch__text">{pitch.outcome}</p>}
-                  </div>
-                )}
-              </div>
+              <RecommendationCard
+                key={book.book_id}
+                book={book}
+                onAction={handleBookAction}
+                isTopMatch={index === 0}
+                requestId={requestId || undefined}
+                position={index}
+                pitch={pitch}
+              />
             );
           })}
         </div>
