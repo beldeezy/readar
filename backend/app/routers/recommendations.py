@@ -536,26 +536,27 @@ async def get_presentation_pitches(
 - Outcomes: {book.outcomes or 'Not available'}
 - Description: {book.description or 'Not available'}"""
 
-            prompt = f"""You are writing a personalized 3-part book pitch for a specific entrepreneur.
+            prompt = f"""You are writing a personalized 3-sentence book pitch for a specific entrepreneur.
 
 {user_context}
 
 {book_context}
 
-Write a 3-part pitch with exactly these 3 labeled sections. Each part should be 1-2 sentences:
+Write exactly 3 sentences using these internal structures as your guide (do NOT include any labels or headers in your output):
 
-CHALLENGE: One of the biggest challenges that entrepreneurs [in their specific industry/stage/context] experience is [specific problem this book addresses that maps to their situation].
+CHALLENGE sentence: "One of the biggest challenges that entrepreneurs [infer their specific industry, stage, or business type from all context — even if not explicitly stated] experience is [the specific problem this book addresses that maps to what they described]."
 
-SOLUTION: The way "{book.title}" solves that for entrepreneurs like you is [specific approach or framework the book uses, tied to their primary problem].
+SOLUTION sentence: "The way this book solves that for entrepreneurs like you is [specific approach, framework, or insight from the book tied to their primary problem — use the book's actual content, not generic descriptions]."
 
-OUTCOME: What that means for you is [concrete, specific result relevant to their vision or future they described].
+OUTCOME sentence: "What that means for you is [concrete, specific result tied to their future vision, dream outcome, or what they said they want — use their own words where possible]."
 
 Rules:
-- Be specific to THEIR situation — reference their industry, stage, or challenge by name
-- Do not use generic phrases like "this book will help you" or "a great read"
-- Use the book's actual promise/outcomes/frameworks, not generic descriptions
+- Output ONLY the 3 plain sentences, one after another, with no labels, headers, bullets, or extra text
+- Infer industry and stage from their answers even if those fields say "Not provided"
+- Reference their specific situation — their business type, challenge, or vision — by name
+- Use the book's actual promise, frameworks, or outcomes — not generic praise
 - Write in second person ("you", "your business")
-- Return only the 3 labeled sections — no preamble, no extra commentary"""
+- Each sentence should be 1-2 sentences maximum"""
 
             message = client.messages.create(
                 model="claude-haiku-4-5",
@@ -565,23 +566,18 @@ Rules:
 
             text = message.content[0].text.strip()
 
-            # Parse the 3 labeled sections
-            challenge = solution = outcome = ""
-            for line in text.split("\n"):
-                line = line.strip()
-                if line.upper().startswith("CHALLENGE:"):
-                    challenge = line[len("CHALLENGE:"):].strip()
-                elif line.upper().startswith("SOLUTION:"):
-                    solution = line[len("SOLUTION:"):].strip()
-                elif line.upper().startswith("OUTCOME:"):
-                    outcome = line[len("OUTCOME:"):].strip()
+            # Split into 3 plain sentences (no labels expected)
+            # Try paragraph split first, then fallback to non-empty lines
+            parts = [p.strip() for p in text.split("\n\n") if p.strip()]
+            if len(parts) < 3:
+                parts = [p.strip() for p in text.split("\n") if p.strip()]
+            if len(parts) < 3:
+                # Last resort: treat the whole text as sentence 1
+                parts = [text, "", ""]
 
-            # Fallback: if parsing fails, split by paragraph blocks
-            if not challenge:
-                parts = [p.strip() for p in text.split("\n\n") if p.strip()]
-                challenge = parts[0] if len(parts) > 0 else text
-                solution = parts[1] if len(parts) > 1 else ""
-                outcome = parts[2] if len(parts) > 2 else ""
+            challenge = parts[0] if len(parts) > 0 else text
+            solution = parts[1] if len(parts) > 1 else ""
+            outcome = parts[2] if len(parts) > 2 else ""
 
             pitches.append(PresentationPitchItem(
                 book_id=book.book_id,
