@@ -42,6 +42,9 @@ class Settings(BaseSettings):
 
     # Email configuration (Resend)
     RESEND_API_KEY: Optional[str] = None
+
+    # Anthropic (Claude) - used for transition summary + book presentation pitches
+    ANTHROPIC_API_KEY: Optional[str] = None
     
     model_config = SettingsConfigDict(
         # Load from backend/.env (relative to this file's parent's parent)

@@ -105,6 +105,10 @@ export interface RecommendationItem {
   functional_tags?: string[];
   business_stage_tags?: string[];
   purchase_url?: string;
+  description?: string;
+  promise?: string;
+  best_for?: string;
+  outcomes?: string[];
   why_this_book: string; // Always present, single compelling paragraph explaining why recommended
   why_recommended?: string[]; // Deprecated: use why_this_book instead
   why_signals?: Array<{ type: string; label: string }>;

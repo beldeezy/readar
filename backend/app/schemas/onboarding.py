@@ -61,6 +61,24 @@ class OnboardingPayload(BaseModel):
     has_prior_reading_history: Optional[bool] = None
     book_preferences: Optional[List[OnboardingBookPreference]] = None
 
+    # Consultative onboarding fields
+    business_name: Optional[str] = None
+    business_age: Optional[str] = None
+    business_origin: Optional[str] = None
+    primary_problems: Optional[str] = None
+    root_cause: Optional[str] = None
+    personal_impact: Optional[str] = None
+    secondary_problems: Optional[str] = None
+    why_book_not_random: Optional[str] = None
+    solutions_tried: Optional[str] = None
+    ideal_book_description: Optional[str] = None
+    future_vision: Optional[str] = None
+    consequence_if_unsolved: Optional[str] = None
+    why_now: Optional[str] = None
+    transition_summary: Optional[str] = None
+    transition_confirmed: Optional[bool] = None
+    transition_correction: Optional[str] = None
+
     @field_validator("business_stage", mode="before")
     @classmethod
     def normalize_business_stage(cls, value):
@@ -126,6 +144,24 @@ class OnboardingPatchPayload(BaseModel):
     current_gross_revenue: Optional[RevenueRange] = None
     has_prior_reading_history: Optional[bool] = None
 
+    # Consultative onboarding fields
+    business_name: Optional[str] = None
+    business_age: Optional[str] = None
+    business_origin: Optional[str] = None
+    primary_problems: Optional[str] = None
+    root_cause: Optional[str] = None
+    personal_impact: Optional[str] = None
+    secondary_problems: Optional[str] = None
+    why_book_not_random: Optional[str] = None
+    solutions_tried: Optional[str] = None
+    ideal_book_description: Optional[str] = None
+    future_vision: Optional[str] = None
+    consequence_if_unsolved: Optional[str] = None
+    why_now: Optional[str] = None
+    transition_summary: Optional[str] = None
+    transition_confirmed: Optional[bool] = None
+    transition_correction: Optional[str] = None
+
     @field_validator("business_stage", mode="before")
     @classmethod
     def normalize_business_stage(cls, value):
@@ -180,5 +216,24 @@ class OnboardingProfileResponse(BaseModel):
     blockers: Optional[str]
     current_gross_revenue: Optional[RevenueRange]
     has_prior_reading_history: Optional[bool]
+
+    # Consultative onboarding fields
+    business_name: Optional[str]
+    business_age: Optional[str]
+    business_origin: Optional[str]
+    primary_problems: Optional[str]
+    root_cause: Optional[str]
+    personal_impact: Optional[str]
+    secondary_problems: Optional[str]
+    why_book_not_random: Optional[str]
+    solutions_tried: Optional[str]
+    ideal_book_description: Optional[str]
+    future_vision: Optional[str]
+    consequence_if_unsolved: Optional[str]
+    why_now: Optional[str]
+    transition_summary: Optional[str]
+    transition_confirmed: Optional[bool]
+    transition_correction: Optional[str]
+
     created_at: datetime
     updated_at: datetime

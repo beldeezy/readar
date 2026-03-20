@@ -632,6 +632,48 @@ class ApiClient {
   async saveBookInteractions(books: Array<{ external_id: string; status: string }>): Promise<void> {
     await this.client.post('/onboarding/book-interactions', { books });
   }
+
+  /**
+   * Generate a personalized Transition Stage summary using Claude.
+   * Accepts the user's collected onboarding answers and an optional
+   * correction string if regenerating after the user said it was wrong.
+   */
+  async getTransitionSummary(
+    answers: Record<string, any>,
+    correction?: string
+  ): Promise<{ summary: string }> {
+    const response = await this.client.post('/onboarding/transition-summary', {
+      answers,
+      correction: correction ?? null,
+    });
+    return response.data;
+  }
+
+  /**
+   * Generate personalized 3-part book pitches (Challenge / Solution / Outcome)
+   * for each recommended book, tailored to the user's onboarding answers.
+   */
+  async getPresentationPitches(
+    answers: Record<string, any>,
+    books: Array<{
+      book_id: string;
+      title: string;
+      author_name: string;
+      promise?: string | null;
+      best_for?: string | null;
+      outcomes?: any;
+      description?: string | null;
+    }>
+  ): Promise<Array<{
+    book_id: string;
+    pitch: { challenge: string; solution: string; outcome: string };
+  }>> {
+    const response = await this.client.post('/recommendations/presentation', {
+      answers,
+      books,
+    });
+    return response.data;
+  }
 }
 
 export const apiClient = new ApiClient();

@@ -151,3 +151,148 @@
     padding: 1.5rem 1rem;
   }
 }
+
+/* ── Transition Stage ─────────────────────────────────────────────────── */
+.transition-stage {
+  max-width: 640px;
+  margin: 1.5rem auto;
+  padding: 0 1rem;
+}
+
+.transition-stage__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 2rem;
+}
+
+.transition-stage__spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(255, 255, 255, 0.15);
+  border-top-color: #00e5c0;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.transition-stage__loading-text {
+  color: var(--rd-muted, #888);
+  font-size: 0.9rem;
+}
+
+.transition-stage__summary-card {
+  background: rgba(0, 229, 192, 0.06);
+  border: 1px solid rgba(0, 229, 192, 0.25);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.transition-stage__summary-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #00e5c0;
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+}
+
+.transition-stage__summary-text {
+  color: #f0f0f0;
+  font-size: 1rem;
+  line-height: 1.65;
+  margin: 0;
+}
+
+.transition-stage__confirm-question {
+  color: #ccc;
+  font-size: 0.95rem;
+  margin-bottom: 1rem;
+}
+
+.transition-stage__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.transition-stage__btn {
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  border: none;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  text-align: left;
+}
+
+.transition-stage__btn:hover {
+  opacity: 0.85;
+}
+
+.transition-stage__btn--confirm {
+  background: #00e5c0;
+  color: #000;
+}
+
+.transition-stage__btn--correct {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ccc;
+}
+
+.transition-stage__correction-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.transition-stage__correction-label {
+  color: #ccc;
+  font-size: 0.9rem;
+}
+
+.transition-stage__correction-input {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 0.75rem;
+  color: #f0f0f0;
+  font-size: 0.95rem;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.transition-stage__correction-input:focus {
+  outline: none;
+  border-color: #00e5c0;
+}
+
+.transition-stage__correction-error {
+  color: #ff6b6b;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.transition-stage__correction-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.transition-stage__btn--submit-correction {
+  background: #00e5c0;
+  color: #000;
+  flex: 1;
+}
+
+.transition-stage__btn--cancel {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #888;
+}

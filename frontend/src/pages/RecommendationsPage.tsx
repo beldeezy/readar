@@ -7,6 +7,17 @@ import Card from '../components/Card';
 import { useAuth } from '../auth/AuthProvider';
 import './RecommendationsPage.css';
 
+interface BookPitch {
+  challenge: string;
+  solution: string;
+  outcome: string;
+}
+
+interface PresentationPitch {
+  book_id: string;
+  pitch: BookPitch;
+}
+
 const PREVIEW_RECS_KEY = 'readar_preview_recs';
 
 export default function RecommendationsPage() {
@@ -14,6 +25,8 @@ export default function RecommendationsPage() {
   const [requestId, setRequestId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pitches, setPitches] = useState<Record<string, BookPitch>>({});
+  const [pitchesLoading, setPitchesLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { user: authUser } = useAuth();
@@ -159,6 +172,43 @@ export default function RecommendationsPage() {
     };
   }, [location.state]);
 
+  // Fetch personalized pitches once recommendations are loaded
+  useEffect(() => {
+    if (!recommendations.length) return;
+
+    const onboardingAnswers = (location.state as any)?.onboardingAnswers;
+    if (!onboardingAnswers) return; // Only show pitches if we came from onboarding
+
+    const fetchPitches = async () => {
+      setPitchesLoading(true);
+      try {
+        const booksForPitch = recommendations.map((rec) => ({
+          book_id: rec.book_id,
+          title: rec.title,
+          author_name: rec.author_name || '',
+          promise: rec.promise ?? null,
+          best_for: rec.best_for ?? null,
+          outcomes: rec.outcomes ?? null,
+          description: rec.description ?? null,
+        }));
+
+        const results = await apiClient.getPresentationPitches(onboardingAnswers, booksForPitch);
+        const pitchMap: Record<string, BookPitch> = {};
+        for (const item of results) {
+          pitchMap[item.book_id] = item.pitch;
+        }
+        setPitches(pitchMap);
+      } catch (err) {
+        console.error('[RecommendationsPage] Failed to fetch pitches:', err);
+        // Non-fatal — page still works without pitches
+      } finally {
+        setPitchesLoading(false);
+      }
+    };
+
+    fetchPitches();
+  }, [recommendations]);
+
   const handleBookAction = async (
     bookId: string,
     status: BookPreferenceStatus
@@ -277,27 +327,56 @@ export default function RecommendationsPage() {
     );
   }
 
+  const hasPitches = Object.keys(pitches).length > 0;
+
   return (
     <div className="readar-recommendations-page">
       <div className="container">
         <div className="readar-recommendations-header">
           <h1 className="readar-recommendations-title">Your recommendations</h1>
           <p className="readar-recommendations-subtitle">
-            Based on your stage, focus areas, and reading history.
+            {hasPitches
+              ? "Here's why each of these books is a strong fit for you."
+              : "Based on your stage, focus areas, and reading history."}
           </p>
+          {pitchesLoading && (
+            <p style={{ fontSize: 'var(--rd-font-size-sm)', color: 'var(--rd-muted)', marginTop: '0.25rem' }}>
+              Personalizing your book pitches…
+            </p>
+          )}
         </div>
 
         <div className="readar-recommendations-grid">
-          {recommendations.map((book, index) => (
-            <RecommendationCard
-              key={book.book_id}
-              book={book}
-              onAction={handleBookAction}
-              isTopMatch={index === 0}
-              requestId={requestId || undefined}
-              position={index}
-            />
-          ))}
+          {recommendations.map((book, index) => {
+            const pitch = pitches[book.book_id];
+            return (
+              <div key={book.book_id} className="recommendation-with-pitch">
+                <RecommendationCard
+                  book={book}
+                  onAction={handleBookAction}
+                  isTopMatch={index === 0}
+                  requestId={requestId || undefined}
+                  position={index}
+                />
+                {pitch && (
+                  <div className="book-pitch">
+                    <div className="book-pitch__item">
+                      <span className="book-pitch__label">The Challenge</span>
+                      <p className="book-pitch__text">{pitch.challenge}</p>
+                    </div>
+                    <div className="book-pitch__item">
+                      <span className="book-pitch__label">The Solution</span>
+                      <p className="book-pitch__text">{pitch.solution}</p>
+                    </div>
+                    <div className="book-pitch__item">
+                      <span className="book-pitch__label">What That Means For You</span>
+                      <p className="book-pitch__text">{pitch.outcome}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

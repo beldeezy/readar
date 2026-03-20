@@ -6,14 +6,17 @@ import type { OnboardingPayload } from '../api/types';
 import {
   CHAT_QUESTIONS,
   INDUSTRIES_BY_SECTOR,
-  CALIBRATION_BOOKS,
+  ALL_INDUSTRIES,
+  CONNECTION_MESSAGES,
   calculateProgress,
   getNextQuestion,
   validateOnboardingComplete,
+  mapAnswersForBackend,
   ChatQuestion,
 } from '../config/chatOnboarding';
 import ChatMessage from '../components/Onboarding/ChatMessage';
 import ChatInput from '../components/Onboarding/ChatInput';
+import TransitionStage from '../components/Onboarding/TransitionStage';
 import './ChatOnboardingPage.css';
 
 interface Message {
@@ -35,6 +38,8 @@ const dedupeById = (list: Message[]) => {
   return Array.from(map.values());
 };
 
+type PageMode = 'questions' | 'transition' | 'complete';
+
 const ChatOnboardingPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -48,6 +53,11 @@ const ChatOnboardingPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [profileCreated, setProfileCreated] = useState(false);
 
+  // Transition stage state
+  const [pageMode, setPageMode] = useState<PageMode>('questions');
+  const [transitionSummary, setTransitionSummary] = useState('');
+  const [transitionLoading, setTransitionLoading] = useState(false);
+
   // Guard to prevent double execution in React StrictMode
   const initializedRef = useRef(false);
 
@@ -58,11 +68,10 @@ const ChatOnboardingPage: React.FC = () => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, pageMode]);
 
   // Load saved progress from localStorage and initialize chat
   useEffect(() => {
-    // Guard to prevent double execution in React StrictMode
     if (initializedRef.current) return;
     initializedRef.current = true;
 
@@ -80,16 +89,18 @@ const ChatOnboardingPage: React.FC = () => {
       }
     }
 
-    // Start with welcome message (with deterministic questionId)
-    addBotMessage(
-      'Welcome to Readar. Answer a few questions to get personalized book recommendations for your business.',
-      'system_welcome'
-    );
+    // Connection stage — show intro messages before first question
+    addBotMessage(CONNECTION_MESSAGES[0], 'system_welcome');
 
-    // Show first question after a brief delay
     setTimeout(() => {
-      showNextQuestion(loadedAnswers);
-    }, 1000);
+      addBotMessage(CONNECTION_MESSAGES[1], 'system_welcome_2');
+      setTimeout(() => {
+        addBotMessage(CONNECTION_MESSAGES[2], 'system_welcome_3');
+        setTimeout(() => {
+          showNextQuestion(loadedAnswers);
+        }, 800);
+      }, 700);
+    }, 800);
   }, []);
 
   // Save progress to localStorage whenever answers change
@@ -125,16 +136,27 @@ const ChatOnboardingPage: React.FC = () => {
     const nextQuestion = getNextQuestion(currentAnswers);
 
     if (!nextQuestion) {
-      handleOnboardingComplete();
+      // All questions answered — move to Transition Stage
+      enterTransitionStage(currentAnswers);
       return;
     }
 
-    // Update industry options based on sector selection
+    // Show stage label as a bot message if this is the first question in that stage
+    if (nextQuestion.stageLabel) {
+      const alreadyShownLabel = messages.some(
+        (m) => m.questionId === `stage_${nextQuestion.stage}`
+      );
+      if (!alreadyShownLabel) {
+        addBotMessage(`— ${nextQuestion.stageLabel} —`, `stage_${nextQuestion.stage}`);
+      }
+    }
+
+    // Update industry options: use sector-filtered list if known, else all industries
     if (nextQuestion.id === 'industry') {
       const sector = currentAnswers.economic_sector;
-      if (sector && INDUSTRIES_BY_SECTOR[sector]) {
-        nextQuestion.options = INDUSTRIES_BY_SECTOR[sector];
-      }
+      nextQuestion.options = sector && INDUSTRIES_BY_SECTOR[sector]
+        ? INDUSTRIES_BY_SECTOR[sector]
+        : ALL_INDUSTRIES;
     }
 
     setCurrentQuestion(nextQuestion);
@@ -155,16 +177,13 @@ const ChatOnboardingPage: React.FC = () => {
       addUserMessage(displayText);
     }
 
-    const updatedAnswers = {
-      ...answers,
-      [questionId]: answer,
-    };
+    const updatedAnswers = { ...answers, [questionId]: answer };
     setAnswers(updatedAnswers);
 
     // Save to backend incrementally using the UPDATED answers snapshot
     try {
       await saveToBackend(questionId, answer, updatedAnswers);
-      } catch (err: any) {
+    } catch (err: any) {
       setError(`Failed to save: ${err.message}`);
       const question = CHAT_QUESTIONS.find((q) => q.id === questionId);
       if (question?.required) {
@@ -173,10 +192,8 @@ const ChatOnboardingPage: React.FC = () => {
       }
     }
 
-
     setTimeout(() => {
       addBotMessage(getAcknowledgment(questionId));
-
       setTimeout(() => {
         showNextQuestion(updatedAnswers);
         setIsProcessing(false);
@@ -186,19 +203,24 @@ const ChatOnboardingPage: React.FC = () => {
 
   const getAcknowledgment = (questionId: string): string => {
     const acknowledgments: Record<string, string[]> = {
-      entrepreneur_status: ['Got it', 'Thanks', 'Noted'],
-      economic_sector: ['Understood', 'Got it', 'Thanks'],
-      industry: ['Noted', 'Got it', 'Thanks'],
-      business_model: ['Got it', 'Thanks', 'Understood'],
-      business_stage: ['Noted', 'Got it', 'Thanks'],
-      current_gross_revenue: ['Thanks', 'Got it', 'Noted'],
-      org_size: ['Understood', 'Got it', 'Thanks'],
-      business_experience: ['Thanks', 'Noted', 'Got it'],
-      areas_of_business: ['Got it', 'Noted', 'Thanks'],
-      vision_6_12_months: ['Noted', 'Thanks', 'Got it'],
-      biggest_challenge: ['Thanks', 'Noted', 'Got it'],
-      book_preferences: ['Thanks', 'Noted', 'Got it'],
+      business_name: ['Great, thanks!', 'Got it!', 'Noted!'],
+      business_age: ['Got it', 'Thanks', 'Noted'],
+      business_origin: ['That makes sense', 'Thanks for sharing that', 'Understood'],
+      primary_problems: ['Thanks for being so open about that', 'Noted', 'I hear you'],
+      root_cause: ['That\'s a really important insight', 'Understood', 'Thanks'],
+      personal_impact: ['I appreciate you sharing that', 'Noted', 'Thanks for your honesty'],
+      secondary_problems: ['Got it, thanks', 'Noted', 'Understood'],
+      why_book_not_random: ['That\'s a great reason', 'Totally makes sense', 'Got it'],
+      solutions_tried: ['Good to know what you\'ve tried', 'Thanks', 'Noted'],
+      book_preferences: ['Great taste!', 'Thanks', 'Noted'],
       reading_history_csv: ['Thanks', 'Got it', 'Noted'],
+      ideal_book_description: ['Good to know', 'Noted', 'Got it'],
+      future_vision: ['That\'s a great goal', 'Noted', 'Thanks for sharing'],
+      consequence_if_unsolved: ['That\'s a real risk worth addressing', 'Noted', 'Understood'],
+      why_now: ['Got it — timing matters', 'Noted', 'Understood'],
+      business_stage: ['Got it', 'Noted', 'Thanks'],
+      business_model: ['Got it', 'Thanks', 'Understood'],
+      industry: ['Noted', 'Got it', 'Thanks'],
     };
 
     const options = acknowledgments[questionId] || ['Got it'];
@@ -208,140 +230,174 @@ const ChatOnboardingPage: React.FC = () => {
   /**
    * Ensures profile exists by creating it once all required fields are collected.
    * Required fields: business_model, business_stage, biggest_challenge
-   * Returns true if profile was created or already exists, false if required fields are missing.
    */
   const ensureProfileExists = async (currentAnswers?: Record<string, any>): Promise<boolean> => {
     if (profileCreated || !user) return profileCreated;
 
-    // Use provided answers or fall back to state
     const answersToCheck = currentAnswers || answers;
+    const mapped = mapAnswersForBackend(answersToCheck);
 
-    // Check if we have all required fields
-    const hasBusinessModel = answersToCheck.business_model &&
-      (Array.isArray(answersToCheck.business_model) ? answersToCheck.business_model.length > 0 : answersToCheck.business_model);
-    const hasBusinessStage = answersToCheck.business_stage;
-    const hasBiggestChallenge = answersToCheck.biggest_challenge;
+    const hasBusinessModel = mapped.business_model &&
+      (Array.isArray(mapped.business_model) ? mapped.business_model.length > 0 : mapped.business_model);
+    const hasBusinessStage = mapped.business_stage;
+    const hasBiggestChallenge = mapped.biggest_challenge;
 
-    if (!hasBusinessModel || !hasBusinessStage || !hasBiggestChallenge) {
-      // Not ready to create profile yet
-      return false;
-    }
-
-    console.log('[Onboarding] All required fields collected, creating profile');
+    if (!hasBusinessModel || !hasBusinessStage || !hasBiggestChallenge) return false;
 
     try {
-      // Normalize business_model (array to CSV string)
-      let normalizedBusinessModel = answersToCheck.business_model;
+      let normalizedBusinessModel = mapped.business_model;
       if (Array.isArray(normalizedBusinessModel)) {
-        normalizedBusinessModel = normalizedBusinessModel.map(String).map(s => s.trim()).filter(Boolean).join(',');
+        normalizedBusinessModel = normalizedBusinessModel.map(String).map((s: string) => s.trim()).filter(Boolean).join(',');
       }
 
-      // Prepare payload with all current answers
       const payload: any = {
         business_model: normalizedBusinessModel,
-        business_stage: answersToCheck.business_stage,
-        biggest_challenge: answersToCheck.biggest_challenge,
+        business_stage: mapped.business_stage,
+        biggest_challenge: mapped.biggest_challenge,
       };
 
-      // Include optional fields if they exist
-      // NOTE: Exclude book_preferences - already saved via /api/onboarding/book-interactions
-      const optionalFields = [
+      const newOptionalFields = [
         'full_name', 'age', 'occupation', 'entrepreneur_status', 'location',
         'economic_sector', 'industry', 'business_experience', 'areas_of_business',
         'org_size', 'is_student', 'vision_6_12_months', 'blockers',
-        'current_gross_revenue', 'has_prior_reading_history'
+        'current_gross_revenue', 'has_prior_reading_history',
+        // New consultative fields
+        'business_name', 'business_age', 'business_origin', 'primary_problems',
+        'root_cause', 'personal_impact', 'secondary_problems', 'why_book_not_random',
+        'solutions_tried', 'ideal_book_description', 'future_vision',
+        'consequence_if_unsolved', 'why_now',
       ];
 
-      for (const field of optionalFields) {
-        if (answersToCheck[field] !== undefined && answersToCheck[field] !== null && answersToCheck[field] !== '') {
-          let value = answersToCheck[field];
-
-          // Normalize current_gross_revenue
+      for (const field of newOptionalFields) {
+        if (mapped[field] !== undefined && mapped[field] !== null && mapped[field] !== '') {
+          let value = mapped[field];
           if (field === 'current_gross_revenue' && typeof value === 'string') {
-            const revenueMap: Record<string, string> = {
-              'pre-revenue': 'pre_revenue',
-            };
+            const revenueMap: Record<string, string> = { 'pre-revenue': 'pre_revenue' };
             value = revenueMap[value.trim()] ?? value;
           }
-
           payload[field] = value;
         }
       }
 
-      // Create profile using POST
-      console.log('[Onboarding] Creating profile via POST with payload:', Object.keys(payload));
-      const response = await apiClient.saveOnboarding(payload);
+      await apiClient.saveOnboarding(payload);
       setProfileCreated(true);
-      console.log('[Onboarding] Profile created successfully, status:', response ? 'success' : 'unknown');
       return true;
     } catch (err: any) {
       console.error('[Onboarding] Failed to create profile:', err.message || err);
-      // Don't throw - let onboarding continue, will retry on final submit
       return false;
     }
   };
 
   const saveToBackend = async (questionId: string, value: any, currentAnswers?: Record<string, any>) => {
     if (!user) return;
-
-    if (value === null || value === undefined || value === '' || value === 'skipped') {
-      return;
-    }
-
-    const payload: any = {};
+    if (value === null || value === undefined || value === '' || value === 'skipped') return;
 
     if (questionId === 'book_preferences') {
       const bookInteractions = Object.entries(value).map(([externalId, status]) => ({
         external_id: externalId,
         status: status as string,
       }));
-
       await apiClient.saveBookInteractions(bookInteractions);
-    } else if (questionId === 'reading_history_csv') {
       return;
-    } else {
-      // Regular field
-      let normalizedValue = value;
+    }
 
-      // Backend expects business_model as a CSV string, but UI multi-select returns string[]
-      if (questionId === 'business_model') {
-        if (Array.isArray(value)) {
-          normalizedValue = value.map(String).map(s => s.trim()).filter(Boolean).join(',');
-        } else if (typeof value !== 'string') {
-          normalizedValue = String(value ?? '');
-        }
+    if (questionId === 'reading_history_csv') return;
+
+    const payload: any = {};
+    let normalizedValue = value;
+
+    if (questionId === 'business_model') {
+      if (Array.isArray(value)) {
+        normalizedValue = value.map(String).map((s: string) => s.trim()).filter(Boolean).join(',');
+      } else if (typeof value !== 'string') {
+        normalizedValue = String(value ?? '');
       }
+    }
 
-      // Normalize current_gross_revenue to backend RevenueRange literals (legacy-safe)
-      if (questionId === 'current_gross_revenue' && typeof normalizedValue === 'string') {
-        const v = normalizedValue.trim();
-        const revenueMap: Record<string, string> = {
-          'pre-revenue': 'pre_revenue', // legacy hyphenated value
-        };
-        normalizedValue = revenueMap[v] ?? v;
-      }
+    if (questionId === 'current_gross_revenue' && typeof normalizedValue === 'string') {
+      const revenueMap: Record<string, string> = { 'pre-revenue': 'pre_revenue' };
+      normalizedValue = revenueMap[normalizedValue.trim()] ?? normalizedValue;
+    }
 
-      payload[questionId] = normalizedValue;
+    // Map primary_problems → biggest_challenge for backend compat
+    if (questionId === 'primary_problems') {
+      payload['biggest_challenge'] = normalizedValue;
+    }
 
-      // Try to create profile if we have all required fields (using updated answers)
-      const profileCreatedNow = await ensureProfileExists(currentAnswers);
+    // Map future_vision → vision_6_12_months for backend compat
+    if (questionId === 'future_vision') {
+      payload['vision_6_12_months'] = normalizedValue;
+    }
 
-      // Only attempt PATCH if profile exists
-      if (profileCreated || profileCreatedNow) {
-        // Save incremental progress to backend using PATCH
-        const result = await apiClient.patchOnboarding(payload);
-        if (result === null) {
-          console.log(`[Onboarding] Unexpected: PATCH returned null even though profile should exist (question: ${questionId})`);
-        }
-      } else {
-        console.log(`[Onboarding] Profile not yet created (missing required fields), skipping PATCH for question: ${questionId}`);
+    payload[questionId] = normalizedValue;
+
+    const profileCreatedNow = await ensureProfileExists(currentAnswers);
+
+    if (profileCreated || profileCreatedNow) {
+      const result = await apiClient.patchOnboarding(payload);
+      if (result === null) {
+        console.log(`[Onboarding] PATCH returned null for question: ${questionId}`);
       }
     }
   };
 
-  const handleOnboardingComplete = async () => {
-    addBotMessage("Perfect! You're all set. Let me find the best books for you...");
+  /**
+   * Enter the Transition Stage — call Claude to generate a personalized summary.
+   */
+  const enterTransitionStage = async (currentAnswers: Record<string, any>) => {
+    setCurrentQuestion(null);
+    setIsProcessing(false);
+    addBotMessage("Great — I have everything I need. Let me put together what I've heard from you...");
 
+    setTimeout(() => {
+      setPageMode('transition');
+      fetchTransitionSummary(currentAnswers);
+    }, 1200);
+  };
+
+  const fetchTransitionSummary = async (currentAnswers: Record<string, any>, correction?: string) => {
+    setTransitionLoading(true);
+    setTransitionSummary('');
+    try {
+      const result = await apiClient.getTransitionSummary(currentAnswers, correction);
+      setTransitionSummary(result.summary);
+
+      // Persist transition summary to backend
+      if (profileCreated && user) {
+        await apiClient.patchOnboarding({
+          transition_summary: result.summary,
+          transition_correction: correction ?? undefined,
+        } as any);
+      }
+    } catch (err) {
+      console.error('[Transition] Failed to generate summary:', err);
+      // Graceful fallback — proceed to recommendations without a summary
+      setTransitionSummary(
+        "Based on what you've shared, I've found a few books that should work well for you. Let's take a look."
+      );
+    } finally {
+      setTransitionLoading(false);
+    }
+  };
+
+  const handleTransitionConfirm = async () => {
+    setPageMode('complete');
+
+    // Save confirmed state
+    if (profileCreated && user) {
+      try {
+        await apiClient.patchOnboarding({ transition_confirmed: true } as any);
+      } catch { /* non-fatal */ }
+    }
+
+    await handleOnboardingComplete();
+  };
+
+  const handleTransitionCorrect = (correction: string) => {
+    fetchTransitionSummary(answers, correction);
+  };
+
+  const handleOnboardingComplete = async () => {
     setIsProcessing(true);
 
     try {
@@ -350,48 +406,40 @@ const ChatOnboardingPage: React.FC = () => {
         throw new Error('Please answer all required questions');
       }
 
-// Filter answers to only include non-empty, non-skipped values
-// NOTE: Exclude book_preferences and reading_history_csv - already saved via separate endpoints
-const filteredAnswers = Object.entries(answers).reduce((acc, [key, value]) => {
-  // Skip book_preferences (already saved via /api/onboarding/book-interactions)
-  // Skip reading_history_csv (already saved via CSV upload)
-  if (key === 'book_preferences' || key === 'reading_history_csv') {
-    return acc;
-  }
+      const mapped = mapAnswersForBackend(answers);
 
-  // Skip empty, null, undefined, and "skipped" values
-  if (value !== null && value !== undefined && value !== '' && value !== 'skipped') {
-    acc[key] = value;
-  }
-  return acc;
-}, {} as Record<string, any>) as OnboardingPayload;
+      const filteredAnswers = Object.entries(mapped).reduce((acc, [key, value]) => {
+        if (key === 'book_preferences' || key === 'reading_history_csv') return acc;
+        if (value !== null && value !== undefined && value !== '' && value !== 'skipped') {
+          acc[key] = value;
+        }
+        return acc;
+      }, {} as Record<string, any>) as OnboardingPayload;
 
-
-      // Normalize business_model to CSV string for backend schema
+      // Normalize business_model to CSV string
       if (Array.isArray(filteredAnswers.business_model)) {
-        filteredAnswers.business_model = filteredAnswers.business_model
+        filteredAnswers.business_model = (filteredAnswers.business_model as string[])
           .map(String).map((s: string) => s.trim()).filter(Boolean).join(',');
       }
 
-      // Normalize current_gross_revenue for backend schema (legacy-safe)
+      // Normalize current_gross_revenue
       if (typeof filteredAnswers.current_gross_revenue === 'string') {
         const v = filteredAnswers.current_gross_revenue.trim();
-        if (v === 'pre-revenue') filteredAnswers.current_gross_revenue = 'pre_revenue';
+        if (v === 'pre-revenue') filteredAnswers.current_gross_revenue = 'pre_revenue' as any;
       }
 
-      // Final save to backend (full profile) using apiClient
       if (user) {
         await apiClient.saveOnboarding(filteredAnswers);
       }
 
       localStorage.removeItem('readar_pending_onboarding');
 
-      setTimeout(() => {
-        navigate('/recommendations/loading');
-      }, 1500);
+      // Pass answers to recommendations page so it can generate pitches
+      navigate('/recommendations/loading', {
+        state: { onboardingAnswers: answers },
+      });
     } catch (err: any) {
       setError(err.message);
-      addBotMessage("Oops! Something went wrong. Let me try to help you fix that.");
       setIsProcessing(false);
     }
   };
@@ -402,15 +450,12 @@ const filteredAnswers = Object.entries(answers).reduce((acc, [key, value]) => {
       addBotMessage('No problem');
 
       setTimeout(() => {
-        const updatedAnswers = {
-          ...answers,
-          [currentQuestion.id]: 'skipped',
-        };
+        const updatedAnswers = { ...answers, [currentQuestion.id]: 'skipped' };
         setAnswers(updatedAnswers);
 
         const nextQuestion = getNextQuestion(updatedAnswers);
         if (!nextQuestion) {
-          handleOnboardingComplete();
+          enterTransitionStage(updatedAnswers);
         } else {
           showNextQuestion(updatedAnswers);
         }
@@ -427,14 +472,18 @@ const filteredAnswers = Object.entries(answers).reduce((acc, [key, value]) => {
             <div className="progress-bar">
               <div
                 className="progress-fill"
-                style={{ width: `${progress}%` }}
+                style={{ width: `${pageMode === 'transition' || pageMode === 'complete' ? 100 : progress}%` }}
                 role="progressbar"
-                aria-valuenow={progress}
+                aria-valuenow={pageMode === 'transition' || pageMode === 'complete' ? 100 : progress}
                 aria-valuemin={0}
                 aria-valuemax={100}
               />
             </div>
-            <span className="progress-text">{progress}% complete</span>
+            <span className="progress-text">
+              {pageMode === 'transition' || pageMode === 'complete'
+                ? 'Almost there!'
+                : `${progress}% complete`}
+            </span>
           </div>
         </div>
       </header>
@@ -450,15 +499,41 @@ const filteredAnswers = Object.entries(answers).reduce((acc, [key, value]) => {
           </div>
         )}
 
-        {currentQuestion && !isProcessing && (
-          <ChatInput
-            question={currentQuestion}
-            onAnswer={handleAnswer}
-            onSkip={currentQuestion.required ? undefined : handleSkipQuestion}
+        {/* Questions mode */}
+        {pageMode === 'questions' && (
+          <>
+            {currentQuestion && !isProcessing && (
+              <ChatInput
+                question={currentQuestion}
+                onAnswer={handleAnswer}
+                onSkip={currentQuestion.required ? undefined : handleSkipQuestion}
+              />
+            )}
+
+            {isProcessing && (
+              <div className="chat-processing">
+                <div className="typing-indicator">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Transition stage */}
+        {pageMode === 'transition' && (
+          <TransitionStage
+            summary={transitionSummary}
+            isLoading={transitionLoading}
+            onConfirm={handleTransitionConfirm}
+            onCorrect={handleTransitionCorrect}
           />
         )}
 
-        {isProcessing && (
+        {/* Complete mode — loading state while navigating */}
+        {pageMode === 'complete' && (
           <div className="chat-processing">
             <div className="typing-indicator">
               <span></span>

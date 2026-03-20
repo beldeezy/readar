@@ -1,8 +1,15 @@
 /**
- * Chat Onboarding Configuration
+ * Chat Onboarding Configuration — Consultative Sales Flow
  *
- * Simplified questions with 5th-grade reading level in active voice
- * for the conversational chat interface.
+ * 6-stage consultative flow designed to deeply understand the user's
+ * situation before making recommendations. Stages:
+ *   1. Connection    — set expectations
+ *   2. Situation     — understand context
+ *   3. Problem       — surface pain points
+ *   4. Solution      — gauge awareness
+ *   5. Consequences  — create urgency
+ *   6. Qualifying    — confirm motivation
+ *   + Fallback       — structured rec engine signals if not inferred
  */
 
 // Question types
@@ -14,60 +21,197 @@ export type QuestionType =
   | 'book-calibration'
   | 'file-upload';
 
+export type OnboardingStage =
+  | 'connection'
+  | 'situation'
+  | 'problem'
+  | 'solution'
+  | 'consequences'
+  | 'qualifying'
+  | 'fallback';
+
 export interface ChatQuestion {
   id: string;
   question: string;
   type: QuestionType;
   required: boolean;
+  stage: OnboardingStage;
   options?: { value: string; label: string }[];
   condition?: (answers: Record<string, any>) => boolean;
   order: number;
   helpText?: string;
+  /** If true, show a stage label banner above this question */
+  stageLabel?: string;
 }
 
 /**
  * All onboarding questions in order
  */
 export const CHAT_QUESTIONS: ChatQuestion[] = [
+
+  // ── SITUATION STAGE ────────────────────────────────────────────────────────
   {
-    id: 'entrepreneur_status',
-    question: 'Are you working on your business full-time, part-time, or just thinking about it?',
-    type: 'select',
-    required: false,
-    options: [
-      { value: 'considering', label: 'Just thinking about it' },
-      { value: 'part_time', label: 'Part-time (I have another job)' },
-      { value: 'full_time', label: 'Full-time (this is my main focus)' },
-    ],
+    id: 'business_name',
+    question: 'What business do you have?',
+    type: 'text',
+    required: true,
+    stage: 'situation',
+    stageLabel: 'Your Situation',
     order: 1,
+    helpText: 'Give us a quick description — e.g. "a digital marketing agency" or "a SaaS for restaurants"',
   },
   {
-    id: 'economic_sector',
-    question: 'What type of work does your business do?',
-    type: 'select',
-    required: true,
-    options: [
-      { value: 'primary', label: 'Making physical things (farming, mining, manufacturing)' },
-      { value: 'secondary', label: 'Building things (construction, utilities)' },
-      { value: 'tertiary', label: 'Selling things or services (retail, hospitality)' },
-      { value: 'quaternary', label: 'Information and knowledge (tech, finance, consulting)' },
-      { value: 'quinary', label: 'People services (healthcare, education, government)' },
-    ],
+    id: 'business_age',
+    question: 'How long have you owned the business?',
+    type: 'text',
+    required: false,
+    stage: 'situation',
     order: 2,
+    helpText: 'e.g. "6 months", "3 years", "just started"',
   },
   {
-    id: 'industry',
-    question: 'Which industry best describes your business?',
+    id: 'business_origin',
+    question: 'What caused you to choose that business?',
+    type: 'textarea',
+    required: false,
+    stage: 'situation',
+    order: 3,
+  },
+
+  // ── PROBLEM AWARENESS STAGE ────────────────────────────────────────────────
+  {
+    id: 'primary_problems',
+    question: 'What are your biggest problems right now?',
+    type: 'textarea',
+    required: true,
+    stage: 'problem',
+    stageLabel: 'Your Problems',
+    order: 4,
+  },
+  {
+    id: 'root_cause',
+    question: "What do you think is the root cause of those problems?",
+    type: 'textarea',
+    required: false,
+    stage: 'problem',
+    order: 5,
+  },
+  {
+    id: 'personal_impact',
+    question: 'How are those problems affecting you personally?',
+    type: 'textarea',
+    required: false,
+    stage: 'problem',
+    order: 6,
+  },
+  {
+    id: 'secondary_problems',
+    question: 'Besides those, what other challenges are you experiencing?',
+    type: 'textarea',
+    required: false,
+    stage: 'problem',
+    order: 7,
+  },
+  {
+    id: 'why_book_not_random',
+    question: 'Why do you want to find the right book, rather than just getting random recommendations from friends or social media?',
+    type: 'textarea',
+    required: false,
+    stage: 'problem',
+    order: 8,
+  },
+
+  // ── SOLUTION AWARENESS STAGE ───────────────────────────────────────────────
+  {
+    id: 'solutions_tried',
+    question: 'What have you already tried to solve these problems?',
+    type: 'textarea',
+    required: false,
+    stage: 'solution',
+    stageLabel: 'What You\'ve Tried',
+    order: 9,
+  },
+  {
+    id: 'book_preferences',
+    question: "Here are some popular business books. Tell me which ones you've read or are interested in!",
+    type: 'book-calibration',
+    required: true,
+    stage: 'solution',
+    helpText: 'Rate at least 4 books to continue',
+    order: 10,
+  },
+  {
+    id: 'reading_history_csv',
+    question: "Do you use Goodreads? You can upload your reading history so I can give you better recommendations.",
+    type: 'file-upload',
+    required: false,
+    stage: 'solution',
+    order: 11,
+  },
+  {
+    id: 'ideal_book_description',
+    question: 'What would your ideal book include?',
+    type: 'textarea',
+    required: false,
+    stage: 'solution',
+    order: 12,
+    helpText: 'e.g. "practical frameworks I can apply immediately", "case studies from similar businesses"',
+  },
+  {
+    id: 'future_vision',
+    question: 'How would things be different if your problems were solved?',
+    type: 'textarea',
+    required: false,
+    stage: 'solution',
+    order: 13,
+  },
+
+  // ── CONSEQUENCES STAGE ────────────────────────────────────────────────────
+  {
+    id: 'consequence_if_unsolved',
+    question: 'What could happen to your business if you don\'t find the right information?',
+    type: 'textarea',
+    required: false,
+    stage: 'consequences',
+    stageLabel: 'The Stakes',
+    order: 14,
+  },
+
+  // ── QUALIFYING STAGE ──────────────────────────────────────────────────────
+  {
+    id: 'why_now',
+    question: 'Why is finding the right book important to you right now specifically?',
+    type: 'textarea',
+    required: false,
+    stage: 'qualifying',
+    stageLabel: 'Why Now',
+    order: 15,
+  },
+
+  // ── FALLBACK STRUCTURED SIGNALS (shown only if not already inferred) ───────
+  {
+    id: 'business_stage',
+    question: "Just to make sure I match you with the right books — where would you say your business is right now?",
     type: 'select',
     required: true,
-    options: [], // Dynamically populated based on economic_sector
-    order: 3,
+    stage: 'fallback',
+    stageLabel: 'One last thing...',
+    condition: (answers) => !answers.business_stage,
+    options: [
+      { value: 'idea', label: 'Just an idea (planning stage)' },
+      { value: 'pre-revenue', label: 'Started but not making money yet' },
+      { value: 'early-revenue', label: 'Making some money' },
+      { value: 'scaling', label: 'Growing and scaling up' },
+    ],
+    order: 16,
   },
   {
     id: 'business_model',
     question: 'How does your business make money? (Pick all that apply)',
     type: 'multi-select',
     required: true,
+    stage: 'fallback',
+    condition: (answers) => !answers.business_model,
     options: [
       { value: 'product', label: 'Selling products' },
       { value: 'service', label: 'Providing services' },
@@ -80,103 +224,22 @@ export const CHAT_QUESTIONS: ChatQuestion[] = [
       { value: 'franchise', label: 'Running a franchise' },
       { value: 'hybrid', label: 'A mix of different ways' },
     ],
-    order: 4,
+    order: 17,
   },
   {
-    id: 'business_stage',
-    question: 'What stage is your business at right now?',
-    type: 'select',
-    required: true,
-    options: [
-      { value: 'idea', label: 'Just an idea (planning stage)' },
-      { value: 'pre-revenue', label: 'Started but not making money yet' },
-      { value: 'early-revenue', label: 'Making some money' },
-      { value: 'scaling', label: 'Growing and scaling up' },
-    ],
-    order: 5,
-  },
-  {
-    id: 'current_gross_revenue',
-    question: 'How much money does your business make each year?',
+    id: 'industry',
+    question: 'Which industry best describes your business?',
     type: 'select',
     required: false,
-    options: [
-      { value: 'pre_revenue', label: 'Not making money yet' },
-      { value: 'lt_100k', label: 'Less than $100,000' },
-      { value: '100k_300k', label: '$100,000 - $300,000' },
-      { value: '300k_500k', label: '$300,000 - $500,000' },
-      { value: '500k_1m', label: '$500,000 - $1 million' },
-      { value: '1m_3m', label: '$1 million+' },
-    ],
-    condition: (answers) => answers.business_stage !== 'idea',
-    order: 6,
-  },
-  {
-    id: 'org_size',
-    question: 'How many people work in your business? (Including you)',
-    type: 'text',
-    required: false,
-    helpText: 'You can write a number like "1" or a range like "5-10"',
-    order: 7,
-  },
-  {
-    id: 'business_experience',
-    question: 'Tell me about your business experience so far. What have you done? What have you learned?',
-    type: 'textarea',
-    required: false,
-    order: 8,
-  },
-  {
-    id: 'areas_of_business',
-    question: 'Which parts of your business do you spend the most time on? (Pick all that apply)',
-    type: 'multi-select',
-    required: false,
-    options: [
-      { value: 'everything', label: 'Everything (I wear all the hats!)' },
-      { value: 'product-offer', label: 'Building the product or service' },
-      { value: 'marketing-growth', label: 'Marketing and getting customers' },
-      { value: 'customer-success-support', label: 'Taking care of customers' },
-      { value: 'finance-metrics', label: 'Managing money and finances' },
-      { value: 'operations-systems', label: 'Running day-to-day operations' },
-      { value: 'people-hiring', label: 'Managing people and hiring' },
-      { value: 'technology-engineering', label: 'Technology and systems' },
-      { value: 'other', label: 'Something else' },
-    ],
-    order: 9,
-  },
-  {
-    id: 'vision_6_12_months',
-    question: 'Where do you want your business to be in 6-12 months?',
-    type: 'textarea',
-    required: false,
-    order: 10,
-  },
-  {
-    id: 'biggest_challenge',
-    question: "What's the biggest challenge holding you back right now?",
-    type: 'textarea',
-    required: true,
-    order: 11,
-  },
-  {
-    id: 'book_preferences',
-    question: 'Here are 6 popular business books. Tell me which ones you like!',
-    type: 'book-calibration',
-    required: true,
-    helpText: 'Pick at least 4 books',
-    order: 12,
-  },
-  {
-    id: 'reading_history_csv',
-    question: 'Do you use Goodreads to track your reading? You can upload your reading history to help me recommend better books!',
-    type: 'file-upload',
-    required: false,
-    order: 13,
+    stage: 'fallback',
+    condition: (answers) => !answers.industry,
+    options: [], // Dynamically populated based on economic_sector if known, else full list
+    order: 18,
   },
 ];
 
 /**
- * Industries organized by economic sector
+ * Industries organized by economic sector (used for dynamic industry filtering)
  */
 export const INDUSTRIES_BY_SECTOR: Record<string, { value: string; label: string }[]> = {
   primary: [
@@ -203,6 +266,9 @@ export const INDUSTRIES_BY_SECTOR: Record<string, { value: string; label: string
     { value: 'government_nonprofit', label: 'Government & Nonprofit' },
   ],
 };
+
+/** All industries flat list (used when sector is unknown) */
+export const ALL_INDUSTRIES = Object.values(INDUSTRIES_BY_SECTOR).flat();
 
 /**
  * Calibration books for book preference step
@@ -256,30 +322,35 @@ export const CALIBRATION_BOOKS = [
  * Book status options
  */
 export const BOOK_STATUS_OPTIONS = [
-  { value: 'read_liked', label: '👍 Read it and loved it', emoji: '👍' },
-  { value: 'read_disliked', label: '👎 Read it but didn\'t like it', emoji: '👎' },
+  { value: 'read_liked', label: "👍 Read it and loved it", emoji: '👍' },
+  { value: 'read_disliked', label: "👎 Read it but didn't like it", emoji: '👎' },
   { value: 'interested', label: '📚 Want to read it', emoji: '📚' },
   { value: 'not_interested', label: '🚫 Not interested', emoji: '🚫' },
+];
+
+/**
+ * Connection stage intro messages (shown before questions start)
+ */
+export const CONNECTION_MESSAGES = [
+  "Before I make any recommendations, I want to understand your situation.",
+  "The more honest detail you share, the better I can match you with the right book.",
+  "Let's start with the basics about your business.",
 ];
 
 /**
  * Calculate onboarding progress based on answered questions
  */
 export function calculateProgress(answers: Record<string, any>): number {
-  const totalQuestions = CHAT_QUESTIONS.length;
+  // Count only non-fallback questions for progress (fallback is a bonus step)
+  const mainQuestions = CHAT_QUESTIONS.filter(q => q.stage !== 'fallback');
   let answeredCount = 0;
 
-  for (const question of CHAT_QUESTIONS) {
+  for (const question of mainQuestions) {
+    if (question.condition && !question.condition(answers)) continue;
+
     const answer = answers[question.id];
 
-    // Check if question should be shown based on condition
-    if (question.condition && !question.condition(answers)) {
-      continue; // Skip this question in progress calculation
-    }
-
-    // Check if answered
     if (question.id === 'book_preferences') {
-      // Special case: book calibration needs at least 4 books rated
       const bookCount = answer ? Object.keys(answer).length : 0;
       if (bookCount >= 4) answeredCount++;
     } else if (Array.isArray(answer)) {
@@ -289,7 +360,7 @@ export function calculateProgress(answers: Record<string, any>): number {
     }
   }
 
-  return Math.round((answeredCount / totalQuestions) * 100);
+  return Math.round((answeredCount / mainQuestions.length) * 100);
 }
 
 /**
@@ -297,12 +368,8 @@ export function calculateProgress(answers: Record<string, any>): number {
  */
 export function getNextQuestion(answers: Record<string, any>): ChatQuestion | null {
   for (const question of CHAT_QUESTIONS) {
-    // Check condition
-    if (question.condition && !question.condition(answers)) {
-      continue;
-    }
+    if (question.condition && !question.condition(answers)) continue;
 
-    // Check if already answered
     const answer = answers[question.id];
 
     if (question.id === 'book_preferences') {
@@ -329,11 +396,7 @@ export function validateOnboardingComplete(answers: Record<string, any>): {
 
   for (const question of CHAT_QUESTIONS) {
     if (!question.required) continue;
-
-    // Check condition
-    if (question.condition && !question.condition(answers)) {
-      continue;
-    }
+    if (question.condition && !question.condition(answers)) continue;
 
     const answer = answers[question.id];
 
@@ -351,4 +414,23 @@ export function validateOnboardingComplete(answers: Record<string, any>): {
     isComplete: missingRequired.length === 0,
     missingRequired,
   };
+}
+
+/**
+ * Map primary_problems → biggest_challenge for backward compat with rec engine
+ */
+export function mapAnswersForBackend(answers: Record<string, any>): Record<string, any> {
+  const mapped = { ...answers };
+
+  // biggest_challenge is required by rec engine — map from primary_problems if not set
+  if (!mapped.biggest_challenge && mapped.primary_problems) {
+    mapped.biggest_challenge = mapped.primary_problems;
+  }
+
+  // vision_6_12_months — map from future_vision if not set
+  if (!mapped.vision_6_12_months && mapped.future_vision) {
+    mapped.vision_6_12_months = mapped.future_vision;
+  }
+
+  return mapped;
 }

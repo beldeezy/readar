@@ -463,7 +463,140 @@ async def get_recommendations_post(
 
 from typing import Any, Dict, List, Optional, Union
 from fastapi import Body, Depends, HTTPException, Query
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
+
+
+# ---------------------------------------------------------------------------
+# Presentation pitches endpoint — generates per-book AI pitches for the user
+# ---------------------------------------------------------------------------
+
+class BookForPitch(BaseModel):
+    book_id: str
+    title: str
+    author_name: str
+    promise: Optional[str] = None
+    best_for: Optional[str] = None
+    outcomes: Optional[Any] = None
+    description: Optional[str] = None
+
+
+class PresentationRequest(BaseModel):
+    answers: Dict[str, Any]
+    books: List[BookForPitch]
+
+
+class BookPitch(BaseModel):
+    challenge: str
+    solution: str
+    outcome: str
+
+
+class PresentationPitchItem(BaseModel):
+    book_id: str
+    pitch: BookPitch
+
+
+@router.post("/recommendations/presentation", response_model=List[PresentationPitchItem])
+async def get_presentation_pitches(
+    payload: PresentationRequest,
+    user: User = Depends(get_current_user),
+):
+    """
+    Generate personalized 3-part book pitches using Claude for each recommended book.
+    Each pitch follows: Challenge → Solution → Outcome, tailored to the user's situation.
+    """
+    if not settings.ANTHROPIC_API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI pitch service is not configured."
+        )
+
+    try:
+        import anthropic
+        client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+
+        answers = payload.answers
+        user_context = f"""Entrepreneur context:
+- Business: {answers.get('business_name', 'Not provided')}
+- Industry: {answers.get('industry', 'Not provided')}
+- Stage: {answers.get('business_stage', 'Not provided')}
+- Business model: {answers.get('business_model', 'Not provided')}
+- Primary problems: {answers.get('primary_problems', answers.get('biggest_challenge', 'Not provided'))}
+- Root cause: {answers.get('root_cause', 'Not provided')}
+- Personal impact: {answers.get('personal_impact', 'Not provided')}
+- Future vision: {answers.get('future_vision', answers.get('vision_6_12_months', 'Not provided'))}
+- Solutions already tried: {answers.get('solutions_tried', 'Not provided')}"""
+
+        pitches: List[PresentationPitchItem] = []
+
+        for book in payload.books:
+            book_context = f"""Book: "{book.title}" by {book.author_name}
+- Promise: {book.promise or 'Not available'}
+- Best for: {book.best_for or 'Not available'}
+- Outcomes: {book.outcomes or 'Not available'}
+- Description: {book.description or 'Not available'}"""
+
+            prompt = f"""You are writing a personalized 3-part book pitch for a specific entrepreneur.
+
+{user_context}
+
+{book_context}
+
+Write a 3-part pitch with exactly these 3 labeled sections. Each part should be 1-2 sentences:
+
+CHALLENGE: One of the biggest challenges that entrepreneurs [in their specific industry/stage/context] experience is [specific problem this book addresses that maps to their situation].
+
+SOLUTION: The way "{book.title}" solves that for entrepreneurs like you is [specific approach or framework the book uses, tied to their primary problem].
+
+OUTCOME: What that means for you is [concrete, specific result relevant to their vision or future they described].
+
+Rules:
+- Be specific to THEIR situation — reference their industry, stage, or challenge by name
+- Do not use generic phrases like "this book will help you" or "a great read"
+- Use the book's actual promise/outcomes/frameworks, not generic descriptions
+- Write in second person ("you", "your business")
+- Return only the 3 labeled sections — no preamble, no extra commentary"""
+
+            message = client.messages.create(
+                model="claude-haiku-4-5",
+                max_tokens=300,
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            text = message.content[0].text.strip()
+
+            # Parse the 3 labeled sections
+            challenge = solution = outcome = ""
+            for line in text.split("\n"):
+                line = line.strip()
+                if line.upper().startswith("CHALLENGE:"):
+                    challenge = line[len("CHALLENGE:"):].strip()
+                elif line.upper().startswith("SOLUTION:"):
+                    solution = line[len("SOLUTION:"):].strip()
+                elif line.upper().startswith("OUTCOME:"):
+                    outcome = line[len("OUTCOME:"):].strip()
+
+            # Fallback: if parsing fails, split by paragraph blocks
+            if not challenge:
+                parts = [p.strip() for p in text.split("\n\n") if p.strip()]
+                challenge = parts[0] if len(parts) > 0 else text
+                solution = parts[1] if len(parts) > 1 else ""
+                outcome = parts[2] if len(parts) > 2 else ""
+
+            pitches.append(PresentationPitchItem(
+                book_id=book.book_id,
+                pitch=BookPitch(challenge=challenge, solution=solution, outcome=outcome)
+            ))
+
+        return pitches
+
+    except Exception as e:
+        logger.exception(f"[presentation-pitches] Failed for user_id={user.id}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate book pitches. Please try again."
+        )
+
 
 @router.post("/recommendations/preview", response_model=List[RecommendationItem])
 async def get_preview_recommendations(

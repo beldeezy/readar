@@ -104,9 +104,28 @@ class OnboardingProfile(Base):
     blockers = Column(Text, nullable=True)
     current_gross_revenue = Column(String, nullable=True)
     has_prior_reading_history = Column(Boolean, nullable=True)
+
+    # New consultative onboarding fields
+    business_name = Column(String, nullable=True)
+    business_age = Column(String, nullable=True)
+    business_origin = Column(Text, nullable=True)
+    primary_problems = Column(Text, nullable=True)
+    root_cause = Column(Text, nullable=True)
+    personal_impact = Column(Text, nullable=True)
+    secondary_problems = Column(Text, nullable=True)
+    why_book_not_random = Column(Text, nullable=True)
+    solutions_tried = Column(Text, nullable=True)
+    ideal_book_description = Column(Text, nullable=True)
+    future_vision = Column(Text, nullable=True)
+    consequence_if_unsolved = Column(Text, nullable=True)
+    why_now = Column(Text, nullable=True)
+    transition_summary = Column(Text, nullable=True)
+    transition_confirmed = Column(Boolean, nullable=True)
+    transition_correction = Column(Text, nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     # Relationships
     user = relationship("User", back_populates="onboarding_profile")
 

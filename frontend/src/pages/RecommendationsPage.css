@@ -59,3 +59,42 @@
   }
 }
 
+
+/* ── Presentation Stage — Per-book pitches ────────────────────────────── */
+.recommendation-with-pitch {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.book-pitch {
+  background: rgba(0, 229, 192, 0.04);
+  border: 1px solid rgba(0, 229, 192, 0.15);
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.book-pitch__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.book-pitch__label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #00e5c0;
+  font-weight: 600;
+}
+
+.book-pitch__text {
+  font-size: 0.875rem;
+  color: #ccc;
+  line-height: 1.6;
+  margin: 0;
+}

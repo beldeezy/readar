@@ -1,10 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from uuid import UUID
+from typing import Optional, Dict, Any
+from pydantic import BaseModel
 from app.database import get_db
 from app.models import User, OnboardingProfile, UserBookInteraction, Book, UserBookStatus, BusinessStage
 from app.schemas.onboarding import OnboardingPayload, OnboardingPatchPayload, OnboardingProfileResponse
 from app.core.auth import get_current_user
+from app.core.config import settings
 from app.utils.instrumentation import log_event_best_effort
 from datetime import datetime
 import uuid
@@ -378,4 +381,91 @@ async def save_book_interactions(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
+        )
+
+
+# ---------------------------------------------------------------------------
+# Transition Summary endpoint — generates AI summary of user's situation
+# ---------------------------------------------------------------------------
+
+class TransitionSummaryRequest(BaseModel):
+    answers: Dict[str, Any]
+    correction: Optional[str] = None  # User's free-text correction if regenerating
+
+
+class TransitionSummaryResponse(BaseModel):
+    summary: str
+
+
+@router.post("/transition-summary", response_model=TransitionSummaryResponse)
+async def generate_transition_summary(
+    payload: TransitionSummaryRequest,
+    user: User = Depends(get_current_user),
+):
+    """
+    Generate a personalized Transition Stage summary using Claude.
+    Summarizes the user's dream outcome, logical problem, and emotional impact
+    to demonstrate that the recommendation engine understands their situation.
+    Optionally accepts a correction from the user to regenerate a revised summary.
+    """
+    if not settings.ANTHROPIC_API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI summary service is not configured."
+        )
+
+    try:
+        import anthropic
+        client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+
+        answers = payload.answers
+        correction_note = (
+            f"\n\nThe user reviewed the previous summary and provided this correction:\n\"{payload.correction}\"\nPlease revise the summary to address their feedback."
+            if payload.correction else ""
+        )
+
+        prompt = f"""You are summarizing a user's business situation for a book recommendation engine.
+Based on their answers below, write a concise Transition Stage summary in 4 sentences following this exact structure:
+
+1. "Based on what you've shared, there are a few books that would actually work for you."
+2. "Because you said you wanted [their dream outcome from future_vision or ideal_book_description]..."
+3. "But [logical problem from root_cause or primary_problems] is getting in the way..."
+4. "And because of that, it's making you feel [emotional impact from personal_impact]..."
+
+Rules:
+- Use their exact words and phrases where possible — do not paraphrase into generic language
+- Keep the tone empathetic, direct, and conversational
+- Do not add any extra sentences or commentary outside the 4-sentence structure
+- If a field is missing, infer naturally from other answers
+
+User's answers:
+- Business: {answers.get('business_name', 'Not provided')}
+- How long: {answers.get('business_age', 'Not provided')}
+- Why they chose it: {answers.get('business_origin', 'Not provided')}
+- Primary problems: {answers.get('primary_problems', 'Not provided')}
+- Root cause: {answers.get('root_cause', 'Not provided')}
+- Personal impact: {answers.get('personal_impact', 'Not provided')}
+- Other challenges: {answers.get('secondary_problems', 'Not provided')}
+- Solutions tried: {answers.get('solutions_tried', 'Not provided')}
+- Ideal book: {answers.get('ideal_book_description', 'Not provided')}
+- Future vision: {answers.get('future_vision', 'Not provided')}
+- Consequence if unsolved: {answers.get('consequence_if_unsolved', 'Not provided')}
+- Why now: {answers.get('why_now', 'Not provided')}{correction_note}
+
+Write only the 4-sentence summary. No preamble, no labels, no extra text."""
+
+        message = client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=400,
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        summary = message.content[0].text.strip()
+        return TransitionSummaryResponse(summary=summary)
+
+    except Exception as e:
+        logger.exception(f"[transition-summary] Failed for user_id={user.id}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate summary. Please try again."
         )
