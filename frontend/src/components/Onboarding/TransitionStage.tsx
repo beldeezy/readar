@@ -56,14 +56,11 @@ const TransitionStage: React.FC<TransitionStageProps> = ({
       {!isLoading && summary && (
         <>
           <div className="transition-stage__summary-card">
-            <p className="transition-stage__summary-label">
-              Here's what we heard:
-            </p>
             <p className="transition-stage__summary-text">{summary}</p>
           </div>
 
           <p className="transition-stage__confirm-question">
-            Does that sound right?
+            Would you like to clarify anything, or would you like to see your book recommendations?
           </p>
 
           {!showCorrectionInput ? (
@@ -72,13 +69,13 @@ const TransitionStage: React.FC<TransitionStageProps> = ({
                 className="transition-stage__btn transition-stage__btn--confirm"
                 onClick={onConfirm}
               >
-                ✅ Yes, that's right — show me my books
+                📚 Show me my recommendations
               </button>
               <button
                 className="transition-stage__btn transition-stage__btn--correct"
                 onClick={handleCorrectClick}
               >
-                ✏️ Actually, let me clarify something…
+                ✏️ Let me clarify something first…
               </button>
             </div>
           ) : (
