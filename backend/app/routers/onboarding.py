@@ -470,7 +470,28 @@ Write only the summary sentences. No preamble, no labels, no extra text."""
             messages=[{"role": "user", "content": prompt}]
         )
 
-        summary = message.content[0].text.strip()
+        raw_summary = message.content[0].text.strip()
+
+        # Editing pass — polish grammar and flow while preserving the user's exact words
+        edit_message = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=400,
+            messages=[{"role": "user", "content": f"""You are a copy editor. The following is a book recommendation summary written for a user.
+
+Your job is to make one light editing pass to ensure it flows naturally and reads grammatically correctly.
+
+Rules:
+- Do NOT change the meaning, structure, or the user's own words
+- Do NOT add or remove sentences
+- Only fix grammar, punctuation, and awkward phrasing
+- Keep the warm, conversational tone
+- Return only the edited summary — no commentary
+
+Summary to edit:
+{raw_summary}"""}]
+        )
+
+        summary = edit_message.content[0].text.strip()
         return TransitionSummaryResponse(summary=summary)
 
     except Exception as e:
