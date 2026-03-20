@@ -141,16 +141,6 @@ const ChatOnboardingPage: React.FC = () => {
       return;
     }
 
-    // Show stage label as a bot message if this is the first question in that stage
-    if (nextQuestion.stageLabel) {
-      const alreadyShownLabel = messages.some(
-        (m) => m.questionId === `stage_${nextQuestion.stage}`
-      );
-      if (!alreadyShownLabel) {
-        addBotMessage(`— ${nextQuestion.stageLabel} —`, `stage_${nextQuestion.stage}`);
-      }
-    }
-
     // Update industry options: use sector-filtered list if known, else all industries
     if (nextQuestion.id === 'industry') {
       const sector = currentAnswers.economic_sector;

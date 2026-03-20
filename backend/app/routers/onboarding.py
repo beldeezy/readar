@@ -424,19 +424,29 @@ async def generate_transition_summary(
             if payload.correction else ""
         )
 
-        prompt = f"""You are summarizing a user's business situation for a book recommendation engine.
-Based on their answers below, write a concise Transition Stage summary in 4 sentences following this exact structure:
+        personal_impact = answers.get('personal_impact', '').strip()
+        has_emotional_content = bool(personal_impact and personal_impact.lower() not in ['not provided', 'n/a', 'none', '-'])
 
-1. "Based on what you've shared, there are a few books that would actually work for you."
-2. "Because you said you wanted [their dream outcome from future_vision or ideal_book_description]..."
-3. "But [logical problem from root_cause or primary_problems] is getting in the way..."
-4. "And because of that, it's making you feel [emotional impact from personal_impact]..."
+        emotional_instruction = (
+            f'4. "And because of that, it\'s making you feel — I believe you mentioned a little bit... [repeat back their emotion from personal_impact] sometimes…" — include this sentence ONLY because the user provided emotional content.'
+            if has_emotional_content else
+            '4. OMIT sentence 4 entirely — the user did not share emotional content.'
+        )
+
+        prompt = f"""You are summarizing a user's business situation for a book recommendation engine.
+Based on their answers below, write a Transition Stage summary using this exact sentence structure:
+
+1. "Just so I'm understanding your situation — based on what you said, there are a few books that could work for you."
+2. "Because you know how you said [repeat back what they said they wanted, using their words from future_vision or ideal_book_description]?"
+3. "But because of [repeat back the logical problem preventing that, using their words from root_cause or primary_problems]..."
+4. {emotional_instruction}
 
 Rules:
-- Use their exact words and phrases where possible — do not paraphrase into generic language
-- Keep the tone empathetic, direct, and conversational
-- Do not add any extra sentences or commentary outside the 4-sentence structure
-- If a field is missing, infer naturally from other answers
+- CRITICAL: Use the user's exact words and phrases — do not paraphrase into generic language
+- Keep the tone warm, empathetic, and conversational — like a trusted advisor reflecting back what they heard
+- Do not add any extra sentences, commentary, or labels outside this structure
+- Sentences must flow naturally into each other
+- If future_vision and ideal_book_description are both missing, infer the dream outcome from other answers
 
 User's answers:
 - Business: {answers.get('business_name', 'Not provided')}
@@ -444,7 +454,7 @@ User's answers:
 - Why they chose it: {answers.get('business_origin', 'Not provided')}
 - Primary problems: {answers.get('primary_problems', 'Not provided')}
 - Root cause: {answers.get('root_cause', 'Not provided')}
-- Personal impact: {answers.get('personal_impact', 'Not provided')}
+- Personal impact: {personal_impact or 'Not provided'}
 - Other challenges: {answers.get('secondary_problems', 'Not provided')}
 - Solutions tried: {answers.get('solutions_tried', 'Not provided')}
 - Ideal book: {answers.get('ideal_book_description', 'Not provided')}
@@ -452,7 +462,7 @@ User's answers:
 - Consequence if unsolved: {answers.get('consequence_if_unsolved', 'Not provided')}
 - Why now: {answers.get('why_now', 'Not provided')}{correction_note}
 
-Write only the 4-sentence summary. No preamble, no labels, no extra text."""
+Write only the summary sentences. No preamble, no labels, no extra text."""
 
         message = client.messages.create(
             model="claude-haiku-4-5",

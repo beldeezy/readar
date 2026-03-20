@@ -90,7 +90,7 @@ export const CHAT_QUESTIONS: ChatQuestion[] = [
   },
   {
     id: 'root_cause',
-    question: "What do you think is the root cause of those problems?",
+    question: "What do you feel is the root cause of those problems?",
     type: 'textarea',
     required: false,
     stage: 'problem',
@@ -169,7 +169,7 @@ export const CHAT_QUESTIONS: ChatQuestion[] = [
   // ── CONSEQUENCES STAGE ────────────────────────────────────────────────────
   {
     id: 'consequence_if_unsolved',
-    question: 'What could happen to your business if you don\'t find the right information?',
+    question: 'What do you feel could happen to your business if you don\'t solve this?',
     type: 'textarea',
     required: false,
     stage: 'consequences',
@@ -180,7 +180,7 @@ export const CHAT_QUESTIONS: ChatQuestion[] = [
   // ── QUALIFYING STAGE ──────────────────────────────────────────────────────
   {
     id: 'why_now',
-    question: 'Why is finding the right book important to you right now specifically?',
+    question: 'Why do you feel finding the right book is so important to you right now?',
     type: 'textarea',
     required: false,
     stage: 'qualifying',
@@ -332,9 +332,9 @@ export const BOOK_STATUS_OPTIONS = [
  * Connection stage intro messages (shown before questions start)
  */
 export const CONNECTION_MESSAGES = [
-  "Before I make any recommendations, I want to understand your situation.",
-  "The more honest detail you share, the better I can match you with the right book.",
-  "Let's start with the basics about your business.",
+  "The first part of these questions is to see where you are at in your business, the condition that it's in, and where you are hoping to go in order to recommend the best fit book for you.",
+  "By the end of this exercise, you may find out how to solve your own problem or receive tailored book recommendations for your situation.",
+  "So to best help you, it helps us if you provide as much honest information in your answers as possible.",
 ];
 
 /**
