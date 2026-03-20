@@ -56,7 +56,11 @@ const TransitionStage: React.FC<TransitionStageProps> = ({
       {!isLoading && summary && (
         <>
           <div className="transition-stage__summary-card">
-            <p className="transition-stage__summary-text">{summary}</p>
+            {summary.split(/(?<=[.?])\s+/).map((sentence, i) =>
+              sentence.trim() ? (
+                <p key={i} className="transition-stage__summary-text">{sentence.trim()}</p>
+              ) : null
+            )}
           </div>
 
           <p className="transition-stage__confirm-question">
