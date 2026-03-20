@@ -360,18 +360,9 @@ export default function RecommendationsPage() {
                 />
                 {pitch && (
                   <div className="book-pitch">
-                    <div className="book-pitch__item">
-                      <span className="book-pitch__label">The Challenge</span>
-                      <p className="book-pitch__text">{pitch.challenge}</p>
-                    </div>
-                    <div className="book-pitch__item">
-                      <span className="book-pitch__label">The Solution</span>
-                      <p className="book-pitch__text">{pitch.solution}</p>
-                    </div>
-                    <div className="book-pitch__item">
-                      <span className="book-pitch__label">What That Means For You</span>
-                      <p className="book-pitch__text">{pitch.outcome}</p>
-                    </div>
+                    {pitch.challenge && <p className="book-pitch__text">{pitch.challenge}</p>}
+                    {pitch.solution && <p className="book-pitch__text">{pitch.solution}</p>}
+                    {pitch.outcome && <p className="book-pitch__text">{pitch.outcome}</p>}
                   </div>
                 )}
               </div>

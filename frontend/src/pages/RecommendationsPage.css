@@ -78,19 +78,6 @@
   gap: 1rem;
 }
 
-.book-pitch__item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.book-pitch__label {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #00e5c0;
-  font-weight: 600;
-}
 
 .book-pitch__text {
   font-size: 0.875rem;
