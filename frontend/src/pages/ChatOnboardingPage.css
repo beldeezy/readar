@@ -206,7 +206,11 @@
   color: #f0f0f0;
   font-size: 1rem;
   line-height: 1.65;
-  margin: 0;
+  margin: 0 0 0.85rem 0;
+}
+
+.transition-stage__summary-text:last-child {
+  margin-bottom: 0;
 }
 
 .transition-stage__confirm-question {

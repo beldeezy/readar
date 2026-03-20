@@ -336,6 +336,9 @@ export default function RecommendationsPage() {
   }
 
   const hasPitches = Object.keys(pitches).length > 0;
+  const [carouselIndex, setCarouselIndex] = useState(0);
+  const currentBook = recommendations[carouselIndex];
+  const currentPitch = currentBook ? pitches[currentBook.book_id] : undefined;
 
   return (
     <div className="readar-recommendations-page">
@@ -354,21 +357,52 @@ export default function RecommendationsPage() {
           )}
         </div>
 
-        <div className="readar-recommendations-grid">
-          {recommendations.map((book, index) => {
-            const pitch = pitches[book.book_id];
-            return (
+        {/* Carousel — one book at a time */}
+        <div className="recommendations-carousel">
+          <div className="recommendations-carousel__card">
+            {currentBook && (
               <RecommendationCard
-                key={book.book_id}
-                book={book}
+                key={currentBook.book_id}
+                book={currentBook}
                 onAction={handleBookAction}
-                isTopMatch={index === 0}
+                isTopMatch={carouselIndex === 0}
                 requestId={requestId || undefined}
-                position={index}
-                pitch={pitch}
+                position={carouselIndex}
+                pitch={currentPitch}
               />
-            );
-          })}
+            )}
+          </div>
+
+          <div className="recommendations-carousel__nav">
+            <button
+              className="recommendations-carousel__btn"
+              onClick={() => setCarouselIndex(i => Math.max(0, i - 1))}
+              disabled={carouselIndex === 0}
+              aria-label="Previous book"
+            >
+              ←
+            </button>
+
+            <div className="recommendations-carousel__dots">
+              {recommendations.map((_, i) => (
+                <button
+                  key={i}
+                  className={`recommendations-carousel__dot${i === carouselIndex ? ' recommendations-carousel__dot--active' : ''}`}
+                  onClick={() => setCarouselIndex(i)}
+                  aria-label={`Book ${i + 1}`}
+                />
+              ))}
+            </div>
+
+            <button
+              className="recommendations-carousel__btn"
+              onClick={() => setCarouselIndex(i => Math.min(recommendations.length - 1, i + 1))}
+              disabled={carouselIndex === recommendations.length - 1}
+              aria-label="Next book"
+            >
+              →
+            </button>
+          </div>
         </div>
       </div>
     </div>
