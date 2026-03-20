@@ -27,6 +27,7 @@ export default function RecommendationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [pitches, setPitches] = useState<Record<string, BookPitch>>({});
   const [pitchesLoading, setPitchesLoading] = useState(false);
+  const [carouselIndex, setCarouselIndex] = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
   const { user: authUser } = useAuth();
@@ -336,7 +337,6 @@ export default function RecommendationsPage() {
   }
 
   const hasPitches = Object.keys(pitches).length > 0;
-  const [carouselIndex, setCarouselIndex] = useState(0);
   const currentBook = recommendations[carouselIndex];
   const currentPitch = currentBook ? pitches[currentBook.book_id] : undefined;
 
