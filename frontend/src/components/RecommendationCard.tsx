@@ -10,12 +10,19 @@ import Button from './Button';
 import GetBookCTA from './GetBookCTA';
 import './BookCard.css';
 
+interface BookPitch {
+  challenge: string;
+  solution: string;
+  outcome: string;
+}
+
 interface RecommendationCardProps {
   book: RecommendationItem;
   onAction: (bookId: string, status: BookPreferenceStatus) => void;
   isTopMatch?: boolean;
   requestId?: string;
   position?: number;
+  pitch?: BookPitch;
 }
 
 /**
@@ -28,12 +35,13 @@ function buildAmazonSearchUrl(title: string, author?: string): string {
   return `https://www.amazon.com/s?k=${encodedQuery}`;
 }
 
-export default function RecommendationCard({ 
-  book, 
-  onAction, 
+export default function RecommendationCard({
+  book,
+  onAction,
   isTopMatch = false,
   requestId,
   position = 0,
+  pitch,
 }: RecommendationCardProps) {
   const navigate = useNavigate();
   const [savingStatus, setSavingStatus] = useState<string | null>(null);
@@ -164,8 +172,26 @@ export default function RecommendationCard({
               </p>
             )}
 
-            {/* Explanation section with blurb (2-3 sentences) */}
-            {book.explanation && book.explanation.blurb && (
+            {/* Why this book — pitch sentences when available, fallback to blurb */}
+            {pitch ? (
+              <div className="mt-3 text-sm" style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {pitch.challenge && (
+                  <p style={{ color: 'var(--rd-muted)', fontSize: '0.875rem', lineHeight: '1.5', margin: 0 }}>
+                    {pitch.challenge}
+                  </p>
+                )}
+                {pitch.solution && (
+                  <p style={{ color: 'var(--rd-muted)', fontSize: '0.875rem', lineHeight: '1.5', margin: 0 }}>
+                    {pitch.solution}
+                  </p>
+                )}
+                {pitch.outcome && (
+                  <p style={{ color: 'var(--rd-muted)', fontSize: '0.875rem', lineHeight: '1.5', margin: 0 }}>
+                    {pitch.outcome}
+                  </p>
+                )}
+              </div>
+            ) : book.explanation && book.explanation.blurb ? (
               <div className="mt-3 text-sm" style={{ marginTop: '1rem' }}>
                 <p className="font-medium mb-1" style={{ fontWeight: 600, marginBottom: '0.5rem', fontSize: '0.875rem' }}>
                   Why this book
@@ -179,7 +205,7 @@ export default function RecommendationCard({
                   {book.explanation.blurb}
                 </p>
               </div>
-            )}
+            ) : null}
           </div>
 
           <div className="readar-book-actions">
