@@ -424,6 +424,9 @@ const ChatOnboardingPage: React.FC = () => {
 
       localStorage.removeItem('readar_pending_onboarding');
 
+      // Persist answers so RecommendationsPage can generate pitches even on direct navigation
+      localStorage.setItem('readar_onboarding_answers', JSON.stringify(answers));
+
       // Pass answers to recommendations page so it can generate pitches
       navigate('/recommendations/loading', {
         state: { onboardingAnswers: answers },

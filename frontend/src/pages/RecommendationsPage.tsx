@@ -176,8 +176,16 @@ export default function RecommendationsPage() {
   useEffect(() => {
     if (!recommendations.length) return;
 
-    const onboardingAnswers = (location.state as any)?.onboardingAnswers;
-    if (!onboardingAnswers) return; // Only show pitches if we came from onboarding
+    // Use answers from navigation state, or fall back to localStorage (direct navigation)
+    const onboardingAnswers =
+      (location.state as any)?.onboardingAnswers ||
+      (() => {
+        try {
+          const saved = localStorage.getItem('readar_onboarding_answers');
+          return saved ? JSON.parse(saved) : null;
+        } catch { return null; }
+      })();
+    if (!onboardingAnswers) return; // No answers available — skip pitches
 
     const fetchPitches = async () => {
       setPitchesLoading(true);
