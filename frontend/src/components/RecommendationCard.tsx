@@ -23,6 +23,7 @@ interface RecommendationCardProps {
   requestId?: string;
   position?: number;
   pitch?: BookPitch;
+  pitchLoading?: boolean;
 }
 
 /**
@@ -42,6 +43,7 @@ export default function RecommendationCard({
   requestId,
   position = 0,
   pitch,
+  pitchLoading = false,
 }: RecommendationCardProps) {
   const navigate = useNavigate();
   const [savingStatus, setSavingStatus] = useState<string | null>(null);
@@ -172,7 +174,7 @@ export default function RecommendationCard({
               </p>
             )}
 
-            {/* Why this book — pitch sentences when available, fallback to blurb */}
+            {/* Tailored pitch sentences — skeleton while loading, never show generic blurb */}
             {pitch ? (
               <div className="mt-3 text-sm" style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 {pitch.challenge && (
@@ -191,19 +193,17 @@ export default function RecommendationCard({
                   </p>
                 )}
               </div>
-            ) : book.explanation && book.explanation.blurb ? (
-              <div className="mt-3 text-sm" style={{ marginTop: '1rem' }}>
-                <p className="font-medium mb-1" style={{ fontWeight: 600, marginBottom: '0.5rem', fontSize: '0.875rem' }}>
-                  Why this book
-                </p>
-                <p className="text-muted-foreground" style={{
-                  color: 'var(--rd-muted)',
-                  fontSize: '0.875rem',
-                  lineHeight: '1.5',
-                  margin: 0
-                }}>
-                  {book.explanation.blurb}
-                </p>
+            ) : pitchLoading ? (
+              <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                {[100, 85, 90].map((w, i) => (
+                  <div key={i} style={{
+                    height: '0.8rem',
+                    width: `${w}%`,
+                    borderRadius: '4px',
+                    backgroundColor: 'rgba(255,255,255,0.07)',
+                    animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                  }} />
+                ))}
               </div>
             ) : null}
           </div>

@@ -384,6 +384,7 @@ export default function RecommendationsPage() {
                 requestId={requestId || undefined}
                 position={carouselIndex}
                 pitch={currentPitch}
+                pitchLoading={pitchesLoading}
               />
             )}
           </div>
