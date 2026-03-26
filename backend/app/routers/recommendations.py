@@ -551,7 +551,13 @@ SOLUTION sentence: "The way this book solves that for entrepreneurs like you is 
 OUTCOME sentence: "What that means for you is [concrete, specific result tied to their future vision, dream outcome, or what they said they want — use their own words where possible]."
 
 Rules:
-- Output ONLY the 3 plain sentences, one after another, with no labels, headers, bullets, or extra text
+- Output ONLY the 3 sentences with a blank line between each one — no labels, headers, bullets, or extra text
+- CRITICAL FORMAT: Each sentence must be on its own line, separated by a blank line, like this:
+  Sentence one here.
+
+  Sentence two here.
+
+  Sentence three here.
 - Infer industry and stage from their answers even if those fields say "Not provided"
 - Reference their specific situation — their business type, challenge, or vision — by name
 - Use the book's actual promise, frameworks, or outcomes — not generic praise
@@ -566,14 +572,18 @@ Rules:
 
             text = message.content[0].text.strip()
 
-            # Split into 3 plain sentences (no labels expected)
-            # Try paragraph split first, then fallback to non-empty lines
+            # Split into 3 parts — expect blank-line separation from the prompt
+            # Try double-newline split first, then single-newline, then sentence split
             parts = [p.strip() for p in text.split("\n\n") if p.strip()]
             if len(parts) < 3:
                 parts = [p.strip() for p in text.split("\n") if p.strip()]
             if len(parts) < 3:
-                # Last resort: treat the whole text as sentence 1
-                parts = [text, "", ""]
+                # Last resort: split on sentence boundaries (". " followed by capital letter)
+                import re
+                sentence_parts = re.split(r'(?<=\.)\s+(?=[A-Z])', text.strip())
+                parts = [s.strip() for s in sentence_parts if s.strip()]
+            if len(parts) < 3:
+                parts = parts + [""] * (3 - len(parts))
 
             challenge = parts[0] if len(parts) > 0 else text
             solution = parts[1] if len(parts) > 1 else ""
