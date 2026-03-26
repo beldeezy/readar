@@ -42,6 +42,8 @@ export interface ChatQuestion {
   helpText?: string;
   /** If true, show a stage label banner above this question */
   stageLabel?: string;
+  /** Selectable example chips shown above textarea to reduce cognitive load */
+  exampleChips?: string[];
 }
 
 /**
@@ -155,7 +157,15 @@ export const CHAT_QUESTIONS: ChatQuestion[] = [
     required: false,
     stage: 'solution',
     order: 12,
-    helpText: 'e.g. "practical frameworks I can apply immediately", "case studies from similar businesses"',
+    helpText: 'Select any that resonate, or describe it in your own words.',
+    exampleChips: [
+      'Step-by-step frameworks I can apply right away',
+      'Real-world case studies from similar businesses',
+      'Short chapters I can read between meetings',
+      'Stories that help concepts click, not just theory',
+      'Checklists and templates I can use immediately',
+      'Big-picture thinking to shift my mindset',
+    ],
   },
   {
     id: 'future_vision',

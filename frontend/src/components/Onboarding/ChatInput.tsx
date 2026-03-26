@@ -122,8 +122,41 @@ const ChatInput: React.FC<ChatInputProps> = ({ question, onAnswer, onSkip }) => 
   }
 
   if (question.type === 'text' || question.type === 'textarea') {
+    const chips = question.exampleChips ?? [];
+    const activeChips = chips.filter((chip) => textValue.includes(chip));
+
+    const handleChipToggle = (chip: string) => {
+      if (activeChips.includes(chip)) {
+        // Remove chip from value
+        setTextValue((prev) =>
+          prev
+            .split('\n')
+            .filter((line) => line.trim() !== chip.trim())
+            .join('\n')
+            .trim()
+        );
+      } else {
+        // Append chip as a new line
+        setTextValue((prev) => (prev.trim() ? `${prev.trim()}\n${chip}` : chip));
+      }
+    };
+
     return (
       <div className="chat-input">
+        {chips.length > 0 && (
+          <div className="example-chips">
+            {chips.map((chip) => (
+              <button
+                key={chip}
+                type="button"
+                className={`example-chip${activeChips.includes(chip) ? ' selected' : ''}`}
+                onClick={() => handleChipToggle(chip)}
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="text-input-container">
           {question.type === 'text' ? (
             <input
@@ -140,9 +173,8 @@ const ChatInput: React.FC<ChatInputProps> = ({ question, onAnswer, onSkip }) => 
               className="textarea-input"
               value={textValue}
               onChange={(e) => setTextValue(e.target.value)}
-              placeholder="Type your answer..."
+              placeholder="Or describe it in your own words..."
               rows={3}
-              autoFocus
             />
           )}
         </div>

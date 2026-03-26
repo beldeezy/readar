@@ -428,7 +428,7 @@ async def generate_transition_summary(
         has_emotional_content = bool(personal_impact and personal_impact.lower() not in ['not provided', 'n/a', 'none', '-'])
 
         emotional_instruction = (
-            f'4. "And because of that, it\'s making you feel — I believe you mentioned a little bit... [repeat back their emotion from personal_impact] sometimes…" — include this sentence ONLY because the user provided emotional content.'
+            f'4. "And because of that, it\'s making you feel — I believe you mentioned a little bit... [slightly downplayed version of their emotion from personal_impact] sometimes…" — include this sentence ONLY because the user provided emotional content.'
             if has_emotional_content else
             '4. OMIT sentence 4 entirely — the user did not share emotional content.'
         )
@@ -443,6 +443,7 @@ Based on their answers below, write a Transition Stage summary using this exact 
 
 Rules:
 - CRITICAL: Use the user's exact words and phrases — do not paraphrase into generic language
+- EMOTION DOWNPLAY: In sentence 4, slightly reduce the intensity of the emotion the user expressed — do not mirror it back at full strength. The goal is to appear less assumptive and draw them in rather than overwhelm them. Examples: "extremely stressed" → "somewhat stressed", "completely overwhelmed" → "a bit overwhelmed", "totally burned out" → "a little drained". Keep it natural — one step down in intensity, not dismissive.
 - Keep the tone warm, empathetic, and conversational — like a trusted advisor reflecting back what they heard
 - Do not add any extra sentences, commentary, or labels outside this structure
 - Sentences must flow naturally into each other

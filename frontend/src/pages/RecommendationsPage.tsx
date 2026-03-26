@@ -19,6 +19,7 @@ interface PresentationPitch {
 }
 
 const PREVIEW_RECS_KEY = 'readar_preview_recs';
+const PITCHES_CACHE_KEY = 'readar_pitches_cache';
 
 export default function RecommendationsPage() {
   const [recommendations, setRecommendations] = useState<RecommendationItem[]>([]);
@@ -27,6 +28,7 @@ export default function RecommendationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [pitches, setPitches] = useState<Record<string, BookPitch>>({});
   const [pitchesLoading, setPitchesLoading] = useState(false);
+  const [carouselIndex, setCarouselIndex] = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
   const { user: authUser } = useAuth();
@@ -176,6 +178,16 @@ export default function RecommendationsPage() {
   useEffect(() => {
     if (!recommendations.length) return;
 
+    // Check sessionStorage cache first — avoids re-fetching on back-navigation
+    const cacheKey = `${PITCHES_CACHE_KEY}_${recommendations.map(r => r.book_id).join(',')}`;
+    try {
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        setPitches(JSON.parse(cached));
+        return;
+      }
+    } catch { /* ignore */ }
+
     // Use answers from navigation state, or fall back to localStorage (direct navigation)
     const onboardingAnswers =
       (location.state as any)?.onboardingAnswers ||
@@ -206,6 +218,10 @@ export default function RecommendationsPage() {
           pitchMap[item.book_id] = item.pitch;
         }
         setPitches(pitchMap);
+        // Cache for this session so back-navigation restores pitches instantly
+        try {
+          sessionStorage.setItem(cacheKey, JSON.stringify(pitchMap));
+        } catch { /* ignore quota errors */ }
       } catch (err) {
         console.error('[RecommendationsPage] Failed to fetch pitches:', err);
         // Non-fatal — page still works without pitches
@@ -336,7 +352,6 @@ export default function RecommendationsPage() {
   }
 
   const hasPitches = Object.keys(pitches).length > 0;
-  const [carouselIndex, setCarouselIndex] = useState(0);
   const currentBook = recommendations[carouselIndex];
   const currentPitch = currentBook ? pitches[currentBook.book_id] : undefined;
 
@@ -369,6 +384,7 @@ export default function RecommendationsPage() {
                 requestId={requestId || undefined}
                 position={carouselIndex}
                 pitch={currentPitch}
+                pitchLoading={pitchesLoading}
               />
             )}
           </div>
