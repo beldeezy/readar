@@ -176,9 +176,23 @@ export default function RecommendationCard({
 
             {/* Tailored pitch sentences — skeleton while loading, never show generic blurb */}
             {pitch ? (
-              <p style={{ color: 'var(--rd-muted)', fontSize: '0.875rem', lineHeight: '1.8', margin: '1rem 0 0', whiteSpace: 'pre-line' }}>
-                {[pitch.challenge, pitch.solution, pitch.outcome].filter(Boolean).join('\n')}
-              </p>
+              <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {pitch.challenge && (
+                  <p style={{ color: 'var(--rd-muted)', fontSize: '0.875rem', lineHeight: '1.5', margin: 0 }}>
+                    {pitch.challenge}
+                  </p>
+                )}
+                {pitch.solution && (
+                  <p style={{ color: 'var(--rd-muted)', fontSize: '0.875rem', lineHeight: '1.5', margin: 0 }}>
+                    {pitch.solution}
+                  </p>
+                )}
+                {pitch.outcome && (
+                  <p style={{ color: 'var(--rd-muted)', fontSize: '0.875rem', lineHeight: '1.5', margin: 0 }}>
+                    {pitch.outcome}
+                  </p>
+                )}
+              </div>
             ) : pitchLoading ? (
               <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                 {[100, 85, 90].map((w, i) => (
