@@ -176,7 +176,7 @@ export default function RecommendationCard({
 
             {/* Tailored pitch sentences — skeleton while loading, never show generic blurb */}
             {pitch ? (
-              <div className="mt-3 text-sm" style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div className="mt-3 text-sm" style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                 {pitch.challenge && (
                   <p style={{ color: 'var(--rd-muted)', fontSize: '0.875rem', lineHeight: '1.5', margin: 0 }}>
                     {pitch.challenge}

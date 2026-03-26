@@ -80,6 +80,41 @@
   color: #000000;
 }
 
+/* Example chips (for textarea questions with exampleChips) */
+.example-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.875rem;
+}
+
+.example-chip {
+  padding: 0.45rem 0.9rem;
+  font-size: 0.8125rem;
+  font-family: inherit;
+  background-color: white;
+  border: 1.5px solid #054745;
+  border-radius: 999px;
+  color: #054745;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  line-height: 1.4;
+}
+
+.example-chip:hover {
+  background-color: #e8fff9;
+  border-color: #054745;
+  box-shadow: 0 1px 4px rgba(83, 255, 201, 0.25);
+}
+
+.example-chip.selected {
+  background-color: #53FFC9;
+  border-color: #054745;
+  color: #000000;
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(83, 255, 201, 0.4);
+}
+
 /* Text inputs */
 .text-input-container {
   margin-bottom: 1rem;
