@@ -176,14 +176,15 @@ export default function RecommendationCard({
 
             {/* Tailored pitch sentences — skeleton while loading, never show generic blurb */}
             {pitch ? (
-              <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div style={{ marginTop: '1rem' }}>
+                {(() => { console.log('[RecommendationCard] pitch fields:', { challenge: pitch.challenge?.slice(0,40), solution: pitch.solution?.slice(0,40), outcome: pitch.outcome?.slice(0,40) }); return null; })()}
                 {pitch.challenge && (
-                  <p style={{ color: 'var(--rd-muted)', fontSize: '0.875rem', lineHeight: '1.5', margin: 0 }}>
+                  <p style={{ color: 'var(--rd-muted)', fontSize: '0.875rem', lineHeight: '1.5', margin: 0, marginBottom: '1.25rem' }}>
                     {pitch.challenge}
                   </p>
                 )}
                 {pitch.solution && (
-                  <p style={{ color: 'var(--rd-muted)', fontSize: '0.875rem', lineHeight: '1.5', margin: 0 }}>
+                  <p style={{ color: 'var(--rd-muted)', fontSize: '0.875rem', lineHeight: '1.5', margin: 0, marginBottom: '1.25rem' }}>
                     {pitch.solution}
                   </p>
                 )}
