@@ -542,31 +542,41 @@ async def get_presentation_pitches(
 
 {book_context}
 
-Use the pitch_sentences tool to return exactly 3 parts:
+Write exactly 3 separate sentences and place each one in its own field of the pitch_sentences tool:
 
-- challenge: "One of the biggest challenges that entrepreneurs [infer their specific industry, stage, or business type from all context — even if not explicitly stated] experience is [the specific problem this book addresses that maps to what they described]."
-- solution: "The way this book solves that for entrepreneurs like you is [specific approach, framework, or insight from the book tied to their primary problem — use the book's actual content, not generic descriptions]."
-- outcome: "What that means for you is [concrete, specific result tied to their future vision, dream outcome, or what they said they want — use their own words where possible]."
+1. challenge field ONLY: One sentence starting with "One of the biggest challenges that [their specific type of entrepreneur] experience is [the problem this book addresses]."
+2. solution field ONLY: One sentence starting with "The way [book title] solves that for entrepreneurs like you is [specific approach or framework from the book]."
+3. outcome field ONLY: One sentence starting with "What that means for you is [concrete result tied to their vision or goals]."
+
+Each field must contain exactly one sentence — do not combine sentences or put multiple sentences in one field.
 
 Rules:
-- Infer industry and stage from their answers even if those fields say "Not provided"
-- Reference their specific situation — their business type, challenge, or vision — by name
-- Use the book's actual promise, frameworks, or outcomes — not generic praise
-- Write in second person ("you", "your business")
-- Each part should be 1-2 sentences maximum"""
+- Infer industry and stage from their answers even if fields say "Not provided"
+- Reference their specific situation by name
+- Use the book's actual promise and frameworks — not generic praise
+- Write in second person ("you", "your business")"""
 
             message = client.messages.create(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=400,
+                max_tokens=600,
                 tools=[{
                     "name": "pitch_sentences",
-                    "description": "Return the 3-part personalized book pitch as structured fields.",
+                    "description": "Store the 3 pitch sentences in separate fields. Each field must contain exactly one sentence only.",
                     "input_schema": {
                         "type": "object",
                         "properties": {
-                            "challenge": {"type": "string", "description": "The challenge sentence."},
-                            "solution": {"type": "string", "description": "The solution sentence."},
-                            "outcome": {"type": "string", "description": "The outcome sentence."},
+                            "challenge": {
+                                "type": "string",
+                                "description": "Exactly one sentence only: the challenge sentence starting with 'One of the biggest challenges...'"
+                            },
+                            "solution": {
+                                "type": "string",
+                                "description": "Exactly one sentence only: the solution sentence starting with 'The way [book title] solves that...'"
+                            },
+                            "outcome": {
+                                "type": "string",
+                                "description": "Exactly one sentence only: the outcome sentence starting with 'What that means for you is...'"
+                            },
                         },
                         "required": ["challenge", "solution", "outcome"],
                     },
@@ -584,7 +594,9 @@ Rules:
                 challenge = tool_block.input.get("challenge", "")
                 solution = tool_block.input.get("solution", "")
                 outcome = tool_block.input.get("outcome", "")
+                logger.info(f"[presentation-pitches] book={book.book_id} challenge={bool(challenge)} solution={bool(solution)} outcome={bool(outcome)}")
             else:
+                logger.warning(f"[presentation-pitches] No tool_use block returned for book={book.book_id}")
                 challenge = ""
                 solution = ""
                 outcome = ""
