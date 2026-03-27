@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import Optional
 from uuid import UUID
+from datetime import datetime
 from app.database import get_db
 from app.services import recommendation_engine
 from app.core.auth import require_admin_user
@@ -180,5 +181,106 @@ def get_recommendation_events(
     return {
         "count": len(results),
         "events": results,
+    }
+
+
+@router.get("/engagement-stats")
+def get_engagement_stats(
+    since: Optional[str] = Query(None, description="ISO date filter start, e.g. 2024-01-01"),
+    until: Optional[str] = Query(None, description="ISO date filter end, e.g. 2024-12-31"),
+    user_id: Optional[str] = Query(None, description="Filter by user UUID"),
+    current_user: User = Depends(require_admin_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Engagement rates computed from recommendation_events.
+
+    Metrics:
+    - ctr / save_rate: save_interested / recommendation_shown
+    - read_liked_rate: mark_read_liked / recommendation_shown
+    - dislike_rate: (mark_read_disliked + not_for_me) / recommendation_shown
+    - session_ctr: sessions with ≥1 save / sessions with ≥1 shown event
+      (only counts sessions where recommendation_session_id is present)
+
+    Optional filters: since, until (ISO date strings), user_id.
+    """
+    filters = []
+
+    if since:
+        try:
+            filters.append(RecommendationEvent.created_at >= datetime.fromisoformat(since))
+        except ValueError:
+            pass
+
+    if until:
+        try:
+            filters.append(RecommendationEvent.created_at <= datetime.fromisoformat(until))
+        except ValueError:
+            pass
+
+    if user_id:
+        try:
+            filters.append(RecommendationEvent.user_id == UUID(user_id))
+        except ValueError:
+            pass
+
+    # --- Counts by event type ---
+    count_rows = (
+        db.query(
+            RecommendationEvent.event_type,
+            func.count(RecommendationEvent.id).label("count"),
+        )
+        .filter(*filters)
+        .group_by(RecommendationEvent.event_type)
+        .all()
+    )
+    counts = {row.event_type: row.count for row in count_rows}
+
+    shown        = counts.get("recommendation_shown", 0)
+    saved        = counts.get("save_interested", 0)
+    read_liked   = counts.get("mark_read_liked", 0)
+    read_disliked = counts.get("mark_read_disliked", 0)
+    not_for_me   = counts.get("not_for_me", 0)
+
+    # --- Session-level CTR (requires recommendation_session_id to be set) ---
+    session_filter = [
+        RecommendationEvent.recommendation_session_id.isnot(None),
+        *filters,
+    ]
+    sessions_shown = (
+        db.query(func.count(func.distinct(RecommendationEvent.recommendation_session_id)))
+        .filter(RecommendationEvent.event_type == "recommendation_shown", *session_filter)
+        .scalar() or 0
+    )
+    sessions_saved = (
+        db.query(func.count(func.distinct(RecommendationEvent.recommendation_session_id)))
+        .filter(RecommendationEvent.event_type == "save_interested", *session_filter)
+        .scalar() or 0
+    )
+
+    def rate(numerator: int, denominator: int) -> Optional[float]:
+        if denominator == 0:
+            return None
+        return round(numerator / denominator, 4)
+
+    return {
+        # Raw counts
+        "by_event_type": counts,
+        "total_shown": shown,
+        "total_saves": saved,
+        "total_read_liked": read_liked,
+        "total_read_disliked": read_disliked,
+        "total_not_for_me": not_for_me,
+        # Rates (None when no impression data yet)
+        "ctr": rate(saved, shown),
+        "save_rate": rate(saved, shown),
+        "read_liked_rate": rate(read_liked, shown),
+        "dislike_rate": rate(read_disliked + not_for_me, shown),
+        "read_disliked_rate": rate(read_disliked, shown),
+        "not_for_me_rate": rate(not_for_me, shown),
+        # Session-level CTR (only sessions where session_id was forwarded)
+        "session_ctr": rate(sessions_saved, sessions_shown),
+        "sessions_with_shown": sessions_shown,
+        "sessions_with_save": sessions_saved,
     }
 

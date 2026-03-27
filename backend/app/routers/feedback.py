@@ -18,6 +18,7 @@ router = APIRouter()
 class FeedbackRequest(BaseModel):
     book_id: str
     action: str  # One of: save_interested, read_liked, read_disliked, not_for_me
+    recommendation_session_id: str | None = None  # Links this event back to the recommendation response
 
 
 class FeedbackResponse(BaseModel):
@@ -66,7 +67,7 @@ async def post_feedback(
         }
         event_type = action_to_event_type.get(request.action)
 
-        # Log recommendation event
+        # Log recommendation event (linked to session when available)
         if event_type:
             try:
                 log_recommendation_event(
@@ -74,8 +75,11 @@ async def post_feedback(
                     user_id=current_user.id,
                     book_id=book_id_uuid,
                     event_type=event_type,
-                    recommendation_session_id=None,  # Session ID not available in feedback endpoint
-                    metadata={"action": request.action},
+                    recommendation_session_id=request.recommendation_session_id,
+                    metadata={
+                        "action": request.action,
+                        "recommendation_session_id": request.recommendation_session_id,
+                    },
                 )
             except Exception:
                 # Silently ignore failures
@@ -89,6 +93,7 @@ async def post_feedback(
                 properties={
                     "book_id": request.book_id,
                     "action": request.action,
+                    "recommendation_session_id": request.recommendation_session_id,
                 },
             )
             log_event_best_effort(
@@ -96,6 +101,7 @@ async def post_feedback(
                 user_id=current_user.id,
                 properties={
                     "action": request.action,
+                    "recommendation_session_id": request.recommendation_session_id,
                 },
             )
         except Exception:
