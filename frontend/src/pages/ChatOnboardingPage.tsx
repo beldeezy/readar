@@ -8,12 +8,20 @@ import {
   INDUSTRIES_BY_SECTOR,
   ALL_INDUSTRIES,
   CONNECTION_MESSAGES,
-  calculateProgress,
   getNextQuestion,
   validateOnboardingComplete,
   mapAnswersForBackend,
   ChatQuestion,
 } from '../config/chatOnboarding';
+
+// Main (non-fallback) questions in display order — used for progress tracking
+const MAIN_QUESTIONS = CHAT_QUESTIONS.filter(q => q.stage !== 'fallback');
+
+function getProgressForQuestion(questionId: string): number {
+  const idx = MAIN_QUESTIONS.findIndex(q => q.id === questionId);
+  if (idx < 0) return 0;
+  return Math.round(((idx + 1) / MAIN_QUESTIONS.length) * 100);
+}
 import ChatMessage from '../components/Onboarding/ChatMessage';
 import ChatInput from '../components/Onboarding/ChatInput';
 import TransitionStage from '../components/Onboarding/TransitionStage';
@@ -83,7 +91,6 @@ const ChatOnboardingPage: React.FC = () => {
         const parsed = JSON.parse(savedData);
         loadedAnswers = parsed;
         setAnswers(parsed);
-        setProgress(calculateProgress(parsed));
       } catch (err) {
         console.error('Failed to load saved progress:', err);
       }
@@ -103,11 +110,10 @@ const ChatOnboardingPage: React.FC = () => {
     }, 800);
   }, []);
 
-  // Save progress to localStorage whenever answers change
+  // Save answers to localStorage whenever they change
   useEffect(() => {
     if (Object.keys(answers).length > 0) {
       localStorage.setItem('readar_pending_onboarding', JSON.stringify(answers));
-      setProgress(calculateProgress(answers));
     }
   }, [answers]);
 
@@ -149,6 +155,8 @@ const ChatOnboardingPage: React.FC = () => {
         : ALL_INDUSTRIES;
     }
 
+    // Advance progress as soon as the question is displayed
+    setProgress(getProgressForQuestion(nextQuestion.id));
     setCurrentQuestion(nextQuestion);
     addBotMessage(nextQuestion.question, nextQuestion.id);
 
