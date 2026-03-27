@@ -420,7 +420,7 @@ async def generate_transition_summary(
 
         answers = payload.answers
         correction_note = (
-            f"\n\nThe user reviewed the previous summary and provided this correction:\n\"{payload.correction}\"\nPlease revise the summary to address their feedback."
+            f"\n\nThe user reviewed the previous summary and provided this correction:\n{payload.correction}\nPlease revise the summary to address their feedback."
             if payload.correction else ""
         )
 
@@ -436,14 +436,15 @@ async def generate_transition_summary(
         prompt = f"""You are summarizing a user's business situation for a book recommendation engine.
 Based on their answers below, write a Transition Stage summary using this exact sentence structure:
 
-1. "Just so I'm understanding your situation — based on what you said, there are a few books that could work for you."
-2. "Because you know how you said [repeat back what they said they wanted, using their words from future_vision or ideal_book_description]?"
-3. "But because of [repeat back the logical problem preventing that, using their words from root_cause or primary_problems]..."
+1. Just so I'm understanding your situation — based on what you said, there are a few books that could work for you.
+2. Because you know how you said [repeat back what they said they wanted, using their words from future_vision or ideal_book_description]?
+3. But because of [repeat back the logical problem preventing that, using their words from root_cause or primary_problems]...
 4. {emotional_instruction}
 
 Rules:
 - CRITICAL: Use the user's exact words and phrases — do not paraphrase into generic language
-- EMOTION DOWNPLAY: In sentence 4, reduce the emotion by exactly one step in intensity — not two steps, not neutral, just slightly softer than what the user said. The goal is to appear less assumptive and draw them in rather than overwhelm them. Examples: "very frustrated" → "frustrated", "extremely stressed" → "very stressed", "completely overwhelmed" → "overwhelmed", "really burned out" → "burned out". Remove intensifiers like "very", "extremely", "really", "completely" — do not swap the emotion word itself for a milder synonym. Keep it natural and not dismissive.
+- Do NOT use quotation marks anywhere in the output
+- EMOTION DOWNPLAY: In sentence 4, reduce the emotion by exactly one step in intensity — not two steps, not neutral, just slightly softer than what the user said. The goal is to appear less assumptive and draw them in rather than overwhelm them. Examples: very frustrated → frustrated, extremely stressed → very stressed, completely overwhelmed → overwhelmed, really burned out → burned out. Remove intensifiers like very, extremely, really, completely — do not swap the emotion word itself for a milder synonym. Keep it natural and not dismissive.
 - Keep the tone warm, empathetic, and conversational — like a trusted advisor reflecting back what they heard
 - Do not add any extra sentences, commentary, or labels outside this structure
 - Sentences must flow naturally into each other

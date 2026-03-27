@@ -201,31 +201,44 @@ export default function RecommendationsPage() {
 
     const fetchPitches = async () => {
       setPitchesLoading(true);
-      try {
-        const booksForPitch = recommendations.map((rec) => ({
-          book_id: rec.book_id,
-          title: rec.title,
-          author_name: rec.author_name || '',
-          promise: rec.promise ?? null,
-          best_for: rec.best_for ?? null,
-          outcomes: rec.outcomes ?? null,
-          description: rec.description ?? null,
-        }));
+      const pitchMap: Record<string, BookPitch> = {};
 
-        const results = await apiClient.getPresentationPitches(onboardingAnswers, booksForPitch);
-        const pitchMap: Record<string, BookPitch> = {};
-        for (const item of results) {
-          pitchMap[item.book_id] = item.pitch;
+      const toBook = (rec: typeof recommendations[0]) => ({
+        book_id: rec.book_id,
+        title: rec.title,
+        author_name: rec.author_name || '',
+        promise: rec.promise ?? null,
+        best_for: rec.best_for ?? null,
+        outcomes: rec.outcomes ?? null,
+        description: rec.description ?? null,
+      });
+
+      try {
+        // Fetch first book immediately so the carousel shows a pitch right away
+        const firstResults = await apiClient.getPresentationPitches(
+          onboardingAnswers,
+          [toBook(recommendations[0])]
+        );
+        for (const item of firstResults) pitchMap[item.book_id] = item.pitch;
+        setPitches({ ...pitchMap });
+        setPitchesLoading(false);
+
+        // Fetch remaining books in the background
+        if (recommendations.length > 1) {
+          const restResults = await apiClient.getPresentationPitches(
+            onboardingAnswers,
+            recommendations.slice(1).map(toBook)
+          );
+          for (const item of restResults) pitchMap[item.book_id] = item.pitch;
+          setPitches({ ...pitchMap });
         }
-        setPitches(pitchMap);
-        // Cache for this session so back-navigation restores pitches instantly
+
+        // Cache complete set for back-navigation
         try {
           sessionStorage.setItem(cacheKey, JSON.stringify(pitchMap));
         } catch { /* ignore quota errors */ }
       } catch (err) {
         console.error('[RecommendationsPage] Failed to fetch pitches:', err);
-        // Non-fatal — page still works without pitches
-      } finally {
         setPitchesLoading(false);
       }
     };
