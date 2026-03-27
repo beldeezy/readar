@@ -536,58 +536,58 @@ async def get_presentation_pitches(
 - Outcomes: {book.outcomes or 'Not available'}
 - Description: {book.description or 'Not available'}"""
 
-            prompt = f"""You are writing a personalized 3-sentence book pitch for a specific entrepreneur.
+            prompt = f"""You are writing a personalized 3-part book pitch for a specific entrepreneur.
 
 {user_context}
 
 {book_context}
 
-Write exactly 3 sentences using these internal structures as your guide (do NOT include any labels or headers in your output):
+Use the pitch_sentences tool to return exactly 3 parts:
 
-CHALLENGE sentence: "One of the biggest challenges that entrepreneurs [infer their specific industry, stage, or business type from all context — even if not explicitly stated] experience is [the specific problem this book addresses that maps to what they described]."
-
-SOLUTION sentence: "The way this book solves that for entrepreneurs like you is [specific approach, framework, or insight from the book tied to their primary problem — use the book's actual content, not generic descriptions]."
-
-OUTCOME sentence: "What that means for you is [concrete, specific result tied to their future vision, dream outcome, or what they said they want — use their own words where possible]."
+- challenge: "One of the biggest challenges that entrepreneurs [infer their specific industry, stage, or business type from all context — even if not explicitly stated] experience is [the specific problem this book addresses that maps to what they described]."
+- solution: "The way this book solves that for entrepreneurs like you is [specific approach, framework, or insight from the book tied to their primary problem — use the book's actual content, not generic descriptions]."
+- outcome: "What that means for you is [concrete, specific result tied to their future vision, dream outcome, or what they said they want — use their own words where possible]."
 
 Rules:
-- Output ONLY the 3 sentences with a blank line between each one — no labels, headers, bullets, or extra text
-- CRITICAL FORMAT: Each sentence must be on its own line, separated by a blank line, like this:
-  Sentence one here.
-
-  Sentence two here.
-
-  Sentence three here.
 - Infer industry and stage from their answers even if those fields say "Not provided"
 - Reference their specific situation — their business type, challenge, or vision — by name
 - Use the book's actual promise, frameworks, or outcomes — not generic praise
 - Write in second person ("you", "your business")
-- Each sentence should be 1-2 sentences maximum"""
+- Each part should be 1-2 sentences maximum"""
 
             message = client.messages.create(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=300,
+                max_tokens=400,
+                tools=[{
+                    "name": "pitch_sentences",
+                    "description": "Return the 3-part personalized book pitch as structured fields.",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "challenge": {"type": "string", "description": "The challenge sentence."},
+                            "solution": {"type": "string", "description": "The solution sentence."},
+                            "outcome": {"type": "string", "description": "The outcome sentence."},
+                        },
+                        "required": ["challenge", "solution", "outcome"],
+                    },
+                }],
+                tool_choice={"type": "tool", "name": "pitch_sentences"},
                 messages=[{"role": "user", "content": prompt}]
             )
 
-            text = message.content[0].text.strip()
-
-            # Split into 3 parts — expect blank-line separation from the prompt
-            # Try double-newline split first, then single-newline, then sentence split
-            parts = [p.strip() for p in text.split("\n\n") if p.strip()]
-            if len(parts) < 3:
-                parts = [p.strip() for p in text.split("\n") if p.strip()]
-            if len(parts) < 3:
-                # Last resort: split on sentence boundaries (". " followed by capital letter)
-                import re
-                sentence_parts = re.split(r'(?<=\.)\s+(?=[A-Z])', text.strip())
-                parts = [s.strip() for s in sentence_parts if s.strip()]
-            if len(parts) < 3:
-                parts = parts + [""] * (3 - len(parts))
-
-            challenge = parts[0] if len(parts) > 0 else text
-            solution = parts[1] if len(parts) > 1 else ""
-            outcome = parts[2] if len(parts) > 2 else ""
+            # Extract structured fields directly from tool use — no text parsing needed
+            tool_block = next(
+                (b for b in message.content if b.type == "tool_use" and b.name == "pitch_sentences"),
+                None
+            )
+            if tool_block:
+                challenge = tool_block.input.get("challenge", "")
+                solution = tool_block.input.get("solution", "")
+                outcome = tool_block.input.get("outcome", "")
+            else:
+                challenge = ""
+                solution = ""
+                outcome = ""
 
             pitches.append(PresentationPitchItem(
                 book_id=book.book_id,
