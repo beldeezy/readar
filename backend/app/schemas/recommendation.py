@@ -45,7 +45,8 @@ class RecommendationItem(BaseModel):
     insight_score_total: Optional[float] = None  # Total score contribution from insights
     base_score: Optional[float] = None  # Score before insight and status adjustments
     final_score: Optional[float] = None  # Final score after all adjustments
-    dominant_insight: Optional[str] = None  # Dominant insight key (highest-weight matched insight)
+    dominant_insight: Optional[str] = None  # Dominant insight key (highest-weight matched insight); always populated when insights matched
+    confidence_score: Optional[float] = None  # 0.0–1.0 confidence in this recommendation based on signal richness
     diversity_penalty_applied: Optional[float] = None  # Diversity penalty applied to discourage over-representation
     diversity_rank_index: Optional[int] = None  # Rank index for this dominant insight (0 = first, 1 = second, etc.)
 

@@ -637,74 +637,119 @@ def _get_dominant_insight(matched_insights: List[Insight]) -> Optional[str]:
     return sorted_insights[0]["key"]
 
 
+def _calculate_confidence_score(
+    matched_insights: List[Insight],
+    score_factors: ScoreFactors,
+) -> float:
+    """
+    Calculate a 0.0–1.0 confidence score reflecting how well the available
+    signals justify a recommendation.
+
+    Two components:
+    - Insight signal: normalized total weight of matched onboarding insights.
+      Max expected ≈ 4.1 (stage 1.2 + challenge 1.1 + model 1.0 + one area 0.8).
+    - Factor signal: normalized sum of stage / challenge / model / areas fit.
+
+    Returns a float in [0.0, 1.0].
+    """
+    # Insight signal
+    MAX_INSIGHT_WEIGHT = 4.1
+    insight_weight_total = sum(i["weight"] for i in matched_insights)
+    insight_signal = min(1.0, insight_weight_total / MAX_INSIGHT_WEIGHT)
+
+    # Factor signal — each sub-component contributes up to a cap of 2.0 total
+    factor_score = 0.0
+    if score_factors.stage_fit >= 3.0:
+        factor_score += 1.0
+    elif score_factors.stage_fit >= 1.5:
+        factor_score += 0.6
+    elif score_factors.stage_fit > 0:
+        factor_score += 0.3
+    if score_factors.challenge_fit > 0:
+        factor_score += 0.5
+    if score_factors.business_model_fit > 0:
+        factor_score += 0.3
+    if score_factors.areas_fit > 0:
+        factor_score += 0.2
+    factor_signal = min(1.0, factor_score / 2.0)
+
+    confidence = insight_signal * 0.6 + factor_signal * 0.4
+    return round(min(1.0, max(0.0, confidence)), 2)
+
+
 def _apply_diversity_penalty(
     scored_items: List[Tuple[UUID, float]],
     book_dominant_insights: Dict[UUID, Optional[str]],
+    books_by_id: Optional[Dict[UUID, "Book"]] = None,
 ) -> Tuple[List[Tuple[UUID, float]], Dict[UUID, Dict[str, Any]]]:
     """
     Apply diversity penalty to discourage over-representation of the same dominant insight.
     
     Algorithm:
     - Sort books by score (descending)
-    - Iterate in order, maintaining seen_insight_counts
-    - For each book, if dominant_insight has been seen before, apply penalty:
-      score -= 0.15 * seen_insight_counts[dominant_insight]
-    - First occurrence is untouched
+    - Iterate in order, maintaining seen_insight_counts and seen_author_counts
+    - For each book:
+      * If dominant_insight has been seen before: score -= 0.15 * count (insight penalty)
+      * If author has been seen before: score -= 0.3 * count (author deduplication penalty)
+    - First occurrence of each insight/author is untouched
     - Never reduce score below zero
-    
+
     Returns:
     - Re-ranked scored_items with diversity penalties applied
     - Debug info dict mapping book_id to diversity info
     """
     # Sort by score descending
     sorted_items = sorted(scored_items, key=lambda x: x[1], reverse=True)
-    
+
     seen_insight_counts: Dict[str, int] = {}
+    seen_author_counts: Dict[str, int] = {}
     diversity_info: Dict[UUID, Dict[str, Any]] = {}
     re_ranked_items: List[Tuple[UUID, float]] = []
-    
+
+    INSIGHT_PENALTY_RATE = 0.15  # per repeated dominant insight
+    AUTHOR_PENALTY_RATE = 0.3    # per repeated author
+
     for book_id, score in sorted_items:
         dominant_insight = book_dominant_insights.get(book_id)
-        
-        diversity_penalty = 0.0
+
+        # --- Insight-based penalty ---
+        insight_penalty = 0.0
         diversity_rank_index = None
-        
-        if dominant_insight is None:
-            # No penalty for books without dominant insight
-            diversity_rank_index = None
-        else:
-            # Check if we've seen this insight before
-            count = seen_insight_counts.get(dominant_insight, 0)
-            
-            if count >= 1:
-                # Apply penalty: 0.15 * count
-                diversity_penalty = 0.15 * count
-                diversity_rank_index = count  # 0 = first, 1 = second, 2 = third, etc.
-            else:
-                # First occurrence - no penalty
-                diversity_rank_index = 0
-            
-            # Increment counter for next time
-            seen_insight_counts[dominant_insight] = count + 1
-        
-        # Apply penalty (never go below zero)
-        adjusted_score = max(0.0, score - diversity_penalty)
-        re_ranked_items.append((book_id, adjusted_score))
-        
-        # Store debug info
+
         if dominant_insight is not None:
-            diversity_info[book_id] = {
-                "dominant_insight": dominant_insight,
-                "diversity_penalty_applied": round(diversity_penalty, 2),
-                "diversity_rank_index": diversity_rank_index,
-            }
-        else:
-            diversity_info[book_id] = {
-                "dominant_insight": None,
-                "diversity_penalty_applied": 0.0,
-                "diversity_rank_index": None,
-            }
-    
+            count = seen_insight_counts.get(dominant_insight, 0)
+            if count >= 1:
+                insight_penalty = INSIGHT_PENALTY_RATE * count
+                diversity_rank_index = count
+            else:
+                diversity_rank_index = 0
+            seen_insight_counts[dominant_insight] = count + 1
+
+        # --- Author-based penalty ---
+        author_penalty = 0.0
+        if books_by_id is not None:
+            book = books_by_id.get(book_id)
+            if book and getattr(book, "author_name", None):
+                author_key = book.author_name.strip().lower()
+                author_count = seen_author_counts.get(author_key, 0)
+                if author_count >= 1:
+                    author_penalty = AUTHOR_PENALTY_RATE * author_count
+                seen_author_counts[author_key] = author_count + 1
+
+        # Apply combined penalty (never go below zero)
+        total_penalty = insight_penalty + author_penalty
+        adjusted_score = max(0.0, score - total_penalty)
+        re_ranked_items.append((book_id, adjusted_score))
+
+        # Store debug info
+        diversity_info[book_id] = {
+            "dominant_insight": dominant_insight,
+            "diversity_penalty_applied": round(total_penalty, 2),
+            "insight_penalty": round(insight_penalty, 2),
+            "author_penalty": round(author_penalty, 2),
+            "diversity_rank_index": diversity_rank_index,
+        }
+
     return re_ranked_items, diversity_info
 
 
@@ -2489,11 +2534,14 @@ def get_personalized_recommendations(
         matched_insights = book_matched_insights.get(book_id, [])
         book_dominant_insights[book_id] = _get_dominant_insight(matched_insights)
 
+    # Build mapping for quick lookup (needed by diversity penalty)
+    books_by_id = {b.id: b for b in books}
+
     # Apply diversity penalty before sorting/limiting
     scored_items, diversity_info = _apply_diversity_penalty(
-        scored_items, book_dominant_insights
+        scored_items, book_dominant_insights, books_by_id
     )
-    
+
     # Update total_scores with diversity-adjusted scores for final ranking
     for book_id, adjusted_score in scored_items:
         total_scores[book_id] = adjusted_score
@@ -2505,9 +2553,6 @@ def get_personalized_recommendations(
         business_model = (onboarding.business_model or "").strip().lower()
         is_service_like = business_model in SERVICE_LIKE_BUSINESS_MODELS
         is_saas_like = business_model in SAAS_LIKE_BUSINESS_MODELS
-
-    # Build mapping for quick lookup
-    books_by_id = {b.id: b for b in books}
 
     # E) Sorting/limiting (now using diversity-adjusted scores)
     if settings.DEBUG:
@@ -2599,14 +2644,13 @@ def get_personalized_recommendations(
         purchase_url = _build_purchase_url(book)
 
         relevancy_score = round(total_scores[book_id], 2)
-        
-        # Calculate insight score total for debug
+
+        # Always-on metadata
         insight_score_total = sum(insight["weight"] for insight in matched_insights)
         base_score = base_scores.get(book_id, original_scores.get(book_id, 0.0))
-        
-        # Get diversity info for this book
         book_diversity_info = diversity_info.get(book_id, {})
-        
+        confidence_score = _calculate_confidence_score(matched_insights, score_factors)
+
         # Include debug fields if debug mode is enabled
         debug_fields = {}
         if debug:
@@ -2635,11 +2679,10 @@ def get_personalized_recommendations(
                 "insight_score_total": round(insight_score_total, 2),
                 "base_score": round(base_score, 2),
                 "final_score": relevancy_score,
-                "dominant_insight": book_diversity_info.get("dominant_insight"),
                 "diversity_penalty_applied": book_diversity_info.get("diversity_penalty_applied", 0.0),
                 "diversity_rank_index": book_diversity_info.get("diversity_rank_index"),
             }
-            
+
             # Add user_book_status debug trace if available
             book_id_str = str(book_id)
             status = book_status_map.get(book_id_str)
@@ -2660,7 +2703,7 @@ def get_personalized_recommendations(
                         "applied_status": status,
                         "note": "Status present but no score adjustment applied",
                     }
-        
+
         recommendations.append(
             RecommendationItem(
                 book_id=str(book.id),
@@ -2687,6 +2730,8 @@ def get_personalized_recommendations(
                 why_recommended=None,  # Deprecated
                 why_signals=why_signals if why_signals else None,
                 explanation=explanation_data,
+                dominant_insight=book_diversity_info.get("dominant_insight"),
+                confidence_score=confidence_score,
                 **debug_fields,
             )
         )
@@ -2850,15 +2895,18 @@ def get_recommendations_from_payload(
         matched_insights = book_matched_insights.get(book_id, [])
         book_dominant_insights[book_id] = _get_dominant_insight(matched_insights)
 
+    # Build mapping for quick lookup (needed by diversity penalty)
+    books_by_id = {b.id: b for b in books}
+
     # Apply diversity penalty before sorting/limiting
     scored_items, diversity_info = _apply_diversity_penalty(
-        scored_items, book_dominant_insights
+        scored_items, book_dominant_insights, books_by_id
     )
-    
+
     # Update total_scores with diversity-adjusted scores for final ranking
     for book_id, adjusted_score in scored_items:
         total_scores[book_id] = adjusted_score
-    
+
     # Check if business model is service-like or SaaS-like
     is_service_like = False
     is_saas_like = False
@@ -2866,9 +2914,6 @@ def get_recommendations_from_payload(
         business_model = onboarding.business_model.strip().lower()
         is_service_like = business_model in SERVICE_LIKE_BUSINESS_MODELS
         is_saas_like = business_model in SAAS_LIKE_BUSINESS_MODELS
-    
-    # Build mapping for quick lookup
-    books_by_id = {b.id: b for b in books}
     
     if not is_service_like and not is_saas_like:
         # Non-service, non-SaaS behavior: sort by score only
@@ -2937,14 +2982,13 @@ def get_recommendations_from_payload(
         purchase_url = _build_purchase_url(book)
         
         relevancy_score = round(total_scores[book_id], 2)
-        
-        # Calculate insight score total for debug
+
+        # Always-on metadata
         insight_score_total = sum(insight["weight"] for insight in matched_insights)
         base_score = base_scores.get(book_id, relevancy_score - insight_score_total)
-        
-        # Get diversity info for this book
         book_diversity_info = diversity_info.get(book_id, {})
-        
+        confidence_score = _calculate_confidence_score(matched_insights, score_factors)
+
         # Include debug fields if debug mode is enabled
         debug_fields = {}
         if debug:
@@ -2973,11 +3017,10 @@ def get_recommendations_from_payload(
                 "insight_score_total": round(insight_score_total, 2),
                 "base_score": round(base_score, 2),
                 "final_score": relevancy_score,
-                "dominant_insight": book_diversity_info.get("dominant_insight"),
                 "diversity_penalty_applied": book_diversity_info.get("diversity_penalty_applied", 0.0),
                 "diversity_rank_index": book_diversity_info.get("diversity_rank_index"),
             }
-        
+
         recommendations.append(
             RecommendationItem(
                 book_id=str(book.id),
@@ -3003,6 +3046,8 @@ def get_recommendations_from_payload(
                 why_this_book=why_this_book_text,
                 why_recommended=None,  # Deprecated
                 why_signals=why_signals if why_signals else None,
+                dominant_insight=book_diversity_info.get("dominant_insight"),
+                confidence_score=confidence_score,
                 **debug_fields,
             )
         )
