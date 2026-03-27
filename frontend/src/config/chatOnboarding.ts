@@ -332,10 +332,10 @@ export const CALIBRATION_BOOKS = [
  * Book status options
  */
 export const BOOK_STATUS_OPTIONS = [
-  { value: 'read_liked', label: "👍 Read it and loved it", emoji: '👍' },
-  { value: 'read_disliked', label: "👎 Read it but didn't like it", emoji: '👎' },
-  { value: 'interested', label: '📚 Want to read it', emoji: '📚' },
-  { value: 'not_interested', label: '🚫 Not interested', emoji: '🚫' },
+  { value: 'read_disliked', label: 'Disliked' },
+  { value: 'not_interested', label: 'Not Interested' },
+  { value: 'interested', label: 'Interested' },
+  { value: 'read_liked', label: 'Liked' },
 ];
 
 /**

@@ -7,14 +7,44 @@ interface BookCalibrationInputProps {
   questionId: string;
 }
 
+const STATUS_ICONS: Record<string, React.ReactElement> = {
+  read_disliked: (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/>
+      <path d="M17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/>
+    </svg>
+  ),
+  not_interested: (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="8" y1="12" x2="16" y2="12"/>
+    </svg>
+  ),
+  interested: (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+    </svg>
+  ),
+  read_liked: (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/>
+      <path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+    </svg>
+  ),
+};
+
 const BookCalibrationInput: React.FC<BookCalibrationInputProps> = ({ onAnswer, questionId }) => {
   const [bookStatuses, setBookStatuses] = useState<Record<string, string>>({});
 
   const handleBookStatus = (externalId: string, status: string) => {
+    const current = bookStatuses[externalId];
     const newStatuses = {
       ...bookStatuses,
-      [externalId]: status,
+      // Clicking the active segment again deselects it (skip/no-rating)
+      [externalId]: current === status ? '' : status,
     };
+    // Remove the key entirely if deselected so it doesn't count
+    if (newStatuses[externalId] === '') delete newStatuses[externalId];
     setBookStatuses(newStatuses);
   };
 
@@ -24,17 +54,7 @@ const BookCalibrationInput: React.FC<BookCalibrationInputProps> = ({ onAnswer, q
       alert('Please rate at least 4 books!');
       return;
     }
-
-    const displayText = `Rated ${count} books`;
-    onAnswer(questionId, bookStatuses, displayText);
-  };
-
-  const getStatusEmoji = (externalId: string): string => {
-    const status = bookStatuses[externalId];
-    if (!status) return '';
-
-    const option = BOOK_STATUS_OPTIONS.find((opt) => opt.value === status);
-    return option?.emoji || '';
+    onAnswer(questionId, bookStatuses, `Rated ${count} books`);
   };
 
   const ratedCount = Object.keys(bookStatuses).length;
@@ -48,25 +68,25 @@ const BookCalibrationInput: React.FC<BookCalibrationInputProps> = ({ onAnswer, q
               <div className="book-title-row">
                 <span className="book-title">{book.title}</span>
                 <div className="book-info-icon" data-tooltip={book.description}>
-                  ℹ️
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
                 </div>
               </div>
               <span className="book-author">by {book.author}</span>
-              {bookStatuses[book.externalId] && (
-                <span className="book-status-emoji">{getStatusEmoji(book.externalId)}</span>
-              )}
             </div>
-            <div className="book-status-buttons">
+            <div className="book-status-selector">
               {BOOK_STATUS_OPTIONS.map((option) => (
                 <button
                   key={option.value}
-                  className={`status-button ${
-                    bookStatuses[book.externalId] === option.value ? 'active' : ''
-                  }`}
+                  className={`selector-segment ${bookStatuses[book.externalId] === option.value ? 'active' : ''}`}
                   onClick={() => handleBookStatus(book.externalId, option.value)}
-                  title={option.label}
+                  aria-pressed={bookStatuses[book.externalId] === option.value}
                 >
-                  {option.emoji}
+                  {STATUS_ICONS[option.value]}
+                  <span>{option.label}</span>
                 </button>
               ))}
             </div>
@@ -76,7 +96,7 @@ const BookCalibrationInput: React.FC<BookCalibrationInputProps> = ({ onAnswer, q
 
       <div className="calibration-footer">
         <p className="rating-count">
-          {ratedCount} of 6 books rated {ratedCount >= 4 && '✓'}
+          {ratedCount} of {CALIBRATION_BOOKS.length} rated{ratedCount >= 4 ? ' ✓' : ''}
         </p>
         <button className="submit-button" onClick={handleSubmit} disabled={ratedCount < 4}>
           Continue
