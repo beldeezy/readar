@@ -20,6 +20,7 @@ const API_BASE_URL = envApiBaseUrl.endsWith("/api") ? envApiBaseUrl : `${envApiB
 export async function submitFeedback(
   bookId: string,
   action: string,
+  recommendationSessionId?: string,
 ): Promise<boolean> {
   try {
     const token = getAccessToken();
@@ -35,6 +36,7 @@ export async function submitFeedback(
       {
         book_id: bookId,
         action: action,
+        ...(recommendationSessionId ? { recommendation_session_id: recommendationSessionId } : {}),
       },
       {
         headers,

@@ -91,7 +91,7 @@ export default function RecommendationCard({
     
     try {
       // Submit feedback (best-effort, non-blocking)
-      await submitFeedback(book.book_id, feedbackAction);
+      await submitFeedback(book.book_id, feedbackAction, requestId);
       
       // Also call the existing setBookStatus API for backward compatibility
       try {
