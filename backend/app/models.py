@@ -71,6 +71,7 @@ class User(Base):
     onboarding_profile = relationship("OnboardingProfile", back_populates="user", uselist=False)
     book_interactions = relationship("UserBookInteraction", back_populates="user")
     recommendation_sessions = relationship("RecommendationSession", back_populates="user")
+    reading_profile = relationship("UserReadingProfile", back_populates="user", uselist=False)
 
 
 class OnboardingProfile(Base):
@@ -243,20 +244,59 @@ class RecommendationSession(Base):
 
 class ReadingHistoryEntry(Base):
     __tablename__ = "reading_history_entries"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     title = Column(String, nullable=False)
     author = Column(String, nullable=True)
+    isbn = Column(String, nullable=True)
+    isbn13 = Column(String, nullable=True)
     my_rating = Column(Float, nullable=True)
     date_read = Column(String, nullable=True)  # keep raw string from Goodreads for now
     shelf = Column(String, nullable=True)
     source = Column(String, nullable=False, default="goodreads")
+    # FK to Books catalog — set when matched/upserted during CSV import
+    catalog_book_id = Column(UUID(as_uuid=True), ForeignKey("books.id"), nullable=True)
     created_at = Column(
         DateTime(timezone=True),
         server_default=sa.func.now(),
         nullable=False,
     )
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=sa.func.now(),
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
+
+    catalog_book = relationship("Book", foreign_keys=[catalog_book_id])
+
+
+class UserReadingProfile(Base):
+    """
+    Aggregated "Reading DNA" profile derived from a user's Goodreads history.
+
+    Generated asynchronously after each CSV import. Stores:
+    - structured_tags: weighted insight tags {tag_key: weight} matching the
+      recommendation engine's vocabulary (business_stage, functional, theme)
+    - profile_summary: 2-3 sentence LLM-generated description of reading patterns
+    - reading_confidence: 0.0-1.0 multiplier scaling how seriously we weight
+      preferences (small libraries get low confidence to avoid premature signals)
+    """
+    __tablename__ = "user_reading_profiles"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), unique=True, nullable=False, index=True)
+    total_books_read = Column(Integer, nullable=False, default=0)
+    avg_rating = Column(Float, nullable=True)
+    structured_tags = Column(JSONB, nullable=True)   # {tag_key: weight}
+    profile_summary = Column(Text, nullable=True)
+    reading_confidence = Column(Float, nullable=False, default=0.0)  # 0.0-1.0
+    generated_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    user = relationship("User", back_populates="reading_profile")
 
 
 class EventLog(Base):

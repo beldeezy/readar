@@ -649,6 +649,49 @@ class ApiClient {
     return response.data;
   }
 
+  // ---------------------------------------------------------------------------
+  // Reading history
+  // ---------------------------------------------------------------------------
+
+  async uploadReadingHistoryCsv(file: File): Promise<{
+    imported_count: number;
+    skipped_count: number;
+    new_books_added: number;
+    message: string;
+  }> {
+    const form = new FormData();
+    form.append('file', file);
+    const response = await this.client.post('/reading-history/upload-csv', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  }
+
+  async getReadingHistory(): Promise<Array<{
+    id: string;
+    title: string;
+    author: string | null;
+    my_rating: number | null;
+    date_read: string | null;
+    shelf: string | null;
+    catalog_book_id: string | null;
+  }>> {
+    const response = await this.client.get('/reading-history/entries');
+    return response.data;
+  }
+
+  async getReadingProfile(): Promise<{
+    total_books_read: number;
+    avg_rating: number | null;
+    reading_confidence: number;
+    structured_tags: Record<string, number> | null;
+    profile_summary: string | null;
+    generated_at: string | null;
+  }> {
+    const response = await this.client.get('/reading-history/profile');
+    return response.data;
+  }
+
   /**
    * Generate personalized 3-part book pitches (Challenge / Solution / Outcome)
    * for each recommended book, tailored to the user's onboarding answers.

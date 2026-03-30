@@ -1,5 +1,6 @@
 import React, { useState, useRef } from "react";
 import Button from "../Button";
+import { apiClient } from "../../api/client";
 import "./ReadingHistoryUploadStep.css";
 
 type Props = {
@@ -32,17 +33,6 @@ export const ReadingHistoryUploadStep: React.FC<Props> = ({
     setMessage(`Selected: ${f.name}`);
   }
 
-  async function validateAndParseCSV(csvFile: File): Promise<number> {
-    // Quick local validation - just count non-empty lines (approximation of book count)
-    const text = await csvFile.text();
-    const lines = text.split('\n').filter(line => line.trim().length > 0);
-
-    // CSV has header row, so book count is lines - 1
-    const bookCount = Math.max(0, lines.length - 1);
-
-    return bookCount;
-  }
-
   const handleUploadContinue = async () => {
     if (!file) {
       setError("Please select a CSV file first.");
@@ -54,35 +44,25 @@ export const ReadingHistoryUploadStep: React.FC<Props> = ({
     setMessage(null);
 
     try {
-      // Validate CSV locally (no backend call)
-      const bookCount = await validateAndParseCSV(file);
-
-      // Store flag in localStorage to indicate user has reading history
-      // Backend can use this later when implementing full import
-      if (bookCount > 0) {
-        localStorage.setItem('readar_has_reading_history', 'true');
-        localStorage.setItem('readar_reading_history_book_count', String(bookCount));
-      }
-
-      setMessage(`✓ File accepted (${bookCount} books detected). Full import coming soon!`);
-
-      // Small delay to show success message
-      await new Promise(resolve => setTimeout(resolve, 800));
-    } catch (e) {
-      console.error(e);
-      setError(e instanceof Error ? e.message : "Failed to parse CSV.");
+      const result = await apiClient.uploadReadingHistoryCsv(file);
+      setMessage(
+        `✓ Imported ${result.imported_count} books` +
+        (result.new_books_added > 0 ? ` (${result.new_books_added} added to catalog)` : "") +
+        ". Your reading profile is being generated."
+      );
+      // Brief pause to let the user read the success message
+      await new Promise(resolve => setTimeout(resolve, 900));
+      onNext?.();
+    } catch (e: any) {
+      const detail = e?.response?.data?.detail || (e instanceof Error ? e.message : "Upload failed.");
+      setError(detail);
     } finally {
       setIsProcessing(false);
     }
-
-    // Always proceed to next step
-    onNext?.();
   };
 
   const handleSkip = () => {
     setError(null);
-    // Skip immediately without any API calls
-    // onSkip just navigates to the next step
     onSkip?.();
   };
 
@@ -149,7 +129,7 @@ export const ReadingHistoryUploadStep: React.FC<Props> = ({
           <Button
             variant="ghost"
             onClick={onBack}
-            disabled={isSubmitting}
+            disabled={isSubmitting || isProcessing}
           >
             Back
           </Button>
@@ -158,7 +138,7 @@ export const ReadingHistoryUploadStep: React.FC<Props> = ({
           <Button
             variant="ghost"
             onClick={handleSkip}
-            disabled={isSubmitting}
+            disabled={isSubmitting || isProcessing}
           >
             {isSubmitting ? "Saving..." : "Skip for now"}
           </Button>
@@ -168,7 +148,7 @@ export const ReadingHistoryUploadStep: React.FC<Props> = ({
             disabled={isProcessing || !file || isSubmitting}
             delayMs={140}
           >
-            {isProcessing ? "Processing..." : isSubmitting ? "Saving..." : "Upload & continue"}
+            {isProcessing ? "Uploading..." : isSubmitting ? "Saving..." : "Upload & continue"}
           </Button>
         </div>
       </div>

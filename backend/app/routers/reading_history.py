@@ -1,55 +1,309 @@
 # app/routers/reading_history.py
-from fastapi import APIRouter, Depends, File, UploadFile, HTTPException
-from sqlalchemy.orm import Session
-from sqlalchemy import exc as sqlalchemy_exc
-from io import TextIOWrapper
+"""
+Reading history router.
+
+Handles Goodreads CSV ingestion, book catalog upsert, and reading profile generation.
+
+Upload flow:
+  1. Parse CSV rows → upsert ReadingHistoryEntry (merge on re-import)
+  2. Match each book against catalog by ISBN or title+author
+  3. If unmatched → create minimal Book record in catalog
+  4. Fire background task to tag new books (Claude Haiku) + regenerate reading profile
+"""
 import csv
+import json
 import logging
+import os
 import re
-from app.database import get_db
-from app.core.auth import get_current_user
-from app.models import User, Book, PendingBook
-from app.utils.email import send_weekly_pending_books_email
-from sqlalchemy import or_
+import time
+import uuid as uuid_lib
+from io import TextIOWrapper
+from typing import List, Optional
+from uuid import UUID
+
+import anthropic
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
+from pydantic import BaseModel
+from sqlalchemy import exc as sqlalchemy_exc
+from sqlalchemy import func, or_
 import sqlalchemy as sa
+from sqlalchemy.orm import Session
+
+from app.database import SessionLocal, get_db
+from app.core.auth import get_current_user
+from app.models import Book, BookDifficulty, PendingBook, ReadingHistoryEntry, User, UserReadingProfile
+from app.services.reading_profile_service import generate_reading_profile
+from app.utils.email import send_weekly_pending_books_email
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/reading-history", tags=["reading_history"])
 
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+
+# Controlled vocabulary — must match generate_tags.py and recommendation engine
+VALID_BUSINESS_STAGES = {"idea", "pre-revenue", "early-revenue", "scaling"}
+VALID_FUNCTIONAL_TAGS = {
+    "pricing", "marketing", "sales", "operations", "product", "leadership",
+    "client_acquisition", "service_delivery", "plg", "growth", "metrics",
+    "analytics", "hiring", "finance", "strategy", "fundraising", "culture",
+    "productivity", "negotiation", "communication",
+}
+DIFFICULTY_MAP = {"beginner": "light", "intermediate": "medium", "advanced": "deep",
+                  "light": "light", "medium": "medium", "deep": "deep"}
+
+TAG_SYSTEM_PROMPT = """You are a metadata tagger for a business book recommendation engine.
+Analyze each book and return structured JSON tags to help match books to entrepreneurs.
+
+RULES:
+1. Return ONLY valid JSON. No markdown, no explanation.
+2. Use ONLY the allowed values below.
+3. Tag conservatively — only what the book genuinely covers.
+
+ALLOWED VALUES:
+business_stage_tags (1-3): idea, pre-revenue, early-revenue, scaling
+functional_tags (1-5): pricing, marketing, sales, operations, product, leadership,
+  client_acquisition, service_delivery, plg, growth, metrics, analytics, hiring,
+  finance, strategy, fundraising, culture, productivity, negotiation, communication
+theme_tags (1-4, free-form lowercase_underscore)
+difficulty: light | medium | deep
+promise (max 120 chars): What the reader gains.
+best_for (max 120 chars): Who benefits most.
+
+Return JSON:
+{
+  "business_stage_tags": [...],
+  "functional_tags": [...],
+  "theme_tags": [...],
+  "difficulty": "...",
+  "promise": "...",
+  "best_for": "..."
+}"""
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 def normalize_isbn(value: str | None) -> str | None:
-    """
-    Normalize ISBN/ISBN13 values to remove Excel export artifacts.
-
-    Excel exports often wrap ISBNs in ="..." format to preserve leading zeros.
-    This function strips those wrappers and cleans the ISBN.
-
-    Examples:
-        ="142990531X" -> 142990531X
-        ="9781429905312" -> 9781429905312
-        9780143127741 -> 9780143127741
-    """
     if not value:
         return None
-
-    # Strip whitespace
     value = value.strip()
-
-    # Remove Excel-export artifacts: leading =" and trailing "
     if value.startswith('="') and value.endswith('"'):
         value = value[2:-1]
     elif value.startswith('"') and value.endswith('"'):
         value = value[1:-1]
-
-    # Remove any remaining whitespace or non-ISBN characters (keep digits and X)
-    # ISBN-10 can have X as check digit
     value = re.sub(r'[^0-9X]', '', value.upper())
-
     return value if value else None
 
 
+def _find_catalog_book(db: Session, title: str, author: str,
+                       isbn: str | None, isbn13: str | None) -> Optional[Book]:
+    """Find an existing Book in the catalog by ISBN or normalized title+author."""
+    filters = []
+    if isbn:
+        filters.append(Book.isbn_10 == isbn)
+    if isbn13:
+        filters.append(Book.isbn_13 == isbn13)
+    filters.append(
+        sa.and_(
+            func.lower(Book.title) == title.lower(),
+            func.lower(Book.author_name) == author.lower(),
+        )
+    )
+    return db.query(Book).filter(or_(*filters)).first()
+
+
+def _upsert_reading_history_entry(
+    db: Session,
+    user_id: UUID,
+    title: str,
+    author: str,
+    isbn: str | None,
+    isbn13: str | None,
+    my_rating: float | None,
+    date_read: str | None,
+    shelf: str | None,
+    catalog_book_id: UUID | None,
+) -> tuple[ReadingHistoryEntry, bool]:
+    """
+    Upsert a ReadingHistoryEntry for (user_id, title, author).
+    Returns (entry, created) where created=True if a new row was inserted.
+    """
+    existing = (
+        db.query(ReadingHistoryEntry)
+        .filter(
+            ReadingHistoryEntry.user_id == user_id,
+            func.lower(ReadingHistoryEntry.title) == title.lower(),
+            func.lower(sa.cast(ReadingHistoryEntry.author, sa.String)) == author.lower(),
+        )
+        .first()
+    )
+
+    if existing:
+        # Merge — update mutable fields
+        existing.my_rating = my_rating
+        existing.date_read = date_read
+        existing.shelf = shelf
+        if isbn:
+            existing.isbn = isbn
+        if isbn13:
+            existing.isbn13 = isbn13
+        if catalog_book_id:
+            existing.catalog_book_id = catalog_book_id
+        return existing, False
+
+    entry = ReadingHistoryEntry(
+        user_id=user_id,
+        title=title,
+        author=author,
+        isbn=isbn,
+        isbn13=isbn13,
+        my_rating=my_rating,
+        date_read=date_read,
+        shelf=shelf,
+        source="goodreads",
+        catalog_book_id=catalog_book_id,
+    )
+    db.add(entry)
+    return entry, True
+
+
+def _create_minimal_book(
+    db: Session,
+    title: str,
+    author: str,
+    isbn: str | None,
+    isbn13: str | None,
+    year_published: int | None,
+    num_pages: int | None,
+    goodreads_id: str | None,
+) -> Book:
+    """
+    Create a minimal Book catalog record from Goodreads CSV metadata.
+    Insight tags (business_stage_tags, functional_tags, etc.) are left empty
+    and filled in by the background enrichment task.
+    """
+    book = Book(
+        title=title,
+        author_name=author,
+        description=f"Imported from Goodreads reading history. Tags pending enrichment.",
+        isbn_10=isbn,
+        isbn_13=isbn13,
+        published_year=year_published,
+        page_count=num_pages,
+        business_stage_tags=[],
+        functional_tags=[],
+        theme_tags=[],
+    )
+    db.add(book)
+    return book
+
+
+def _tag_book_with_claude(title: str, author: str) -> Optional[dict]:
+    """
+    Call Claude Haiku to generate insight tags for a single book.
+    Returns a dict of tag fields or None on failure.
+    """
+    if not ANTHROPIC_API_KEY:
+        return None
+    try:
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        user_prompt = (
+            f"Analyze this book and return the JSON metadata tags.\n\n"
+            f"Title: {title}\nAuthor: {author}\n\n"
+            f"Return ONLY the JSON object."
+        )
+        message = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=400,
+            timeout=30.0,
+            system=TAG_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": user_prompt}],
+        )
+        text = message.content[0].text.strip()
+        text = re.sub(r'^```(?:json)?\s*', '', text)
+        text = re.sub(r'\s*```$', '', text)
+        return json.loads(text)
+    except Exception as e:
+        logger.warning("Claude tagging failed for '%s': %s", title, e)
+        return None
+
+
+def _apply_tags_to_book(book: Book, data: dict) -> None:
+    """Apply validated Claude-generated tags to a Book record."""
+    raw_stages = data.get("business_stage_tags", [])
+    if isinstance(raw_stages, list):
+        book.business_stage_tags = [s for s in raw_stages if s in VALID_BUSINESS_STAGES]
+
+    raw_func = data.get("functional_tags", [])
+    if isinstance(raw_func, list):
+        book.functional_tags = [t for t in raw_func if t in VALID_FUNCTIONAL_TAGS]
+
+    raw_themes = data.get("theme_tags", [])
+    if isinstance(raw_themes, list):
+        book.theme_tags = [
+            re.sub(r'[^a-z0-9_]', '_', t.lower().strip())
+            for t in raw_themes[:4] if isinstance(t, str) and t.strip()
+        ]
+
+    diff = DIFFICULTY_MAP.get(data.get("difficulty", ""))
+    if diff:
+        book.difficulty = diff
+
+    promise = data.get("promise", "")
+    if promise:
+        book.promise = promise[:120]
+
+    best_for = data.get("best_for", "")
+    if best_for:
+        book.best_for = best_for[:120]
+
+
+# ---------------------------------------------------------------------------
+# Background enrichment task
+# ---------------------------------------------------------------------------
+
+def _enrich_books_and_profile(user_id: UUID, new_book_ids: List[UUID]) -> None:
+    """
+    Background task: tag newly upserted books via Claude, then regenerate
+    the user's reading profile. Uses its own DB session.
+    """
+    db: Session = SessionLocal()
+    try:
+        # Tag each new book (rate-limited: 1 call/sec to stay within Haiku limits)
+        for book_id in new_book_ids:
+            book = db.query(Book).filter(Book.id == book_id).first()
+            if not book:
+                continue
+            # Skip if already tagged
+            if book.business_stage_tags or book.functional_tags:
+                continue
+            data = _tag_book_with_claude(book.title, book.author_name)
+            if data:
+                _apply_tags_to_book(book, data)
+                try:
+                    db.commit()
+                    logger.info("Tagged book '%s' (%s)", book.title, book_id)
+                except Exception:
+                    db.rollback()
+            time.sleep(0.5)  # modest rate limiting
+
+        # Regenerate reading profile
+        generate_reading_profile(db=db, user_id=user_id)
+
+    except Exception as e:
+        logger.exception("Background enrichment failed for user_id=%s: %s", user_id, e)
+    finally:
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
+
 @router.post("/upload-csv")
 async def upload_reading_history_csv(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -57,178 +311,180 @@ async def upload_reading_history_csv(
     """
     Upload a Goodreads CSV file to import reading history.
 
-    - Extracts book metadata from CSV
-    - Checks if books exist in catalog (deduplication)
-    - Adds new books to pending_books table
-    - Returns counts of imported/skipped/new books
+    Per-row logic:
+    - Upsert ReadingHistoryEntry (merge rating/shelf on re-upload)
+    - Match book against catalog by ISBN or title+author
+    - If not found → create minimal Book record in catalog
+    - Background: tag new books via Claude + regenerate reading profile
     """
-    # Simple filename check - more forgiving than content-type
     filename = (file.filename or "").lower()
     if not filename.endswith(".csv"):
-        raise HTTPException(
-            status_code=400,
-            detail="Please upload a .csv file exported from Goodreads."
-        )
+        raise HTTPException(status_code=400, detail="Please upload a .csv file exported from Goodreads.")
 
-    logger.info(f"Processing CSV upload for user_id={user.id}, filename={file.filename}")
-
-    # Try to read and parse the CSV file
     try:
         text_stream = TextIOWrapper(file.file, encoding="utf-8")
         reader = csv.DictReader(text_stream)
-        logger.info(f"CSV file opened successfully, reading rows...")
-    except Exception as e:
-        logger.exception("Failed to read uploaded CSV: %s", e)
-        raise HTTPException(
-            status_code=400,
-            detail="Could not read CSV file. Make sure you exported it from Goodreads."
-        )
+    except Exception:
+        raise HTTPException(status_code=400, detail="Could not read CSV file. Export it from Goodreads and try again.")
 
     imported = 0
     skipped = 0
-    new_books_added = 0
+    new_catalog_books: List[UUID] = []   # book IDs added to catalog this upload
 
-    # Parse rows and extract book metadata
     try:
         for row in reader:
             title = (row.get("Title") or "").strip()
             author = (row.get("Author") or "").strip()
-
             if not title or not author:
                 skipped += 1
                 continue
 
-            # Extract additional metadata from Goodreads CSV
-            # Normalize ISBNs to remove Excel export artifacts (="..." format)
             isbn = normalize_isbn(row.get("ISBN"))
             isbn13 = normalize_isbn(row.get("ISBN13"))
             goodreads_id = (row.get("Book Id") or "").strip() or None
-            year_str = (row.get("Year Published") or "").strip()
-            rating_str = (row.get("Average Rating") or "").strip()
-            pages_str = (row.get("Number of Pages") or "").strip()
+            shelf = (row.get("Exclusive Shelf") or row.get("Bookshelves") or "").strip().lower() or None
 
             # Parse numeric fields
             year_published = None
-            if year_str:
-                try:
-                    year_published = int(year_str)
-                except ValueError:
-                    pass
-
-            average_rating = None
-            if rating_str:
-                try:
-                    average_rating = float(rating_str)
-                except ValueError:
-                    pass
+            try:
+                year_published = int((row.get("Year Published") or "").strip())
+            except (ValueError, AttributeError):
+                pass
 
             num_pages = None
-            if pages_str:
-                try:
-                    num_pages = int(pages_str)
-                except ValueError:
-                    pass
-
-            # Check if book already exists in catalog
-            # Match by ISBN, ISBN13, or title+author
-            existing_book = db.query(Book).filter(
-                or_(
-                    Book.isbn_10 == isbn if isbn else False,
-                    Book.isbn_13 == isbn13 if isbn13 else False,
-                    sa.and_(
-                        sa.func.lower(Book.title) == title.lower(),
-                        sa.func.lower(Book.author_name) == author.lower()
-                    )
-                )
-            ).first()
-
-            if existing_book:
-                # Book already in catalog
-                imported += 1
-                continue
-
-            # Check if already in pending_books (dedupe within pending)
-            # Defensive: handle case where pending_books table doesn't exist
-            existing_pending = None
             try:
-                existing_pending = db.query(PendingBook).filter(
-                    or_(
-                        PendingBook.isbn == isbn if isbn else False,
-                        PendingBook.isbn13 == isbn13 if isbn13 else False,
-                        sa.and_(
-                            sa.func.lower(PendingBook.title) == title.lower(),
-                            sa.func.lower(PendingBook.author) == author.lower()
-                        )
-                    )
-                ).first()
-            except sqlalchemy_exc.ProgrammingError as e:
-                # Table doesn't exist - log warning once and continue
-                if "pending_books" in str(e).lower() and "does not exist" in str(e).lower():
-                    logger.warning(
-                        "pending_books table not found; skipping pending dedupe. "
-                        "Run 'alembic upgrade head' to create the table."
-                    )
-                else:
-                    raise
+                num_pages = int((row.get("Number of Pages") or "").strip())
+            except (ValueError, AttributeError):
+                pass
 
-            if existing_pending:
-                # Already in pending queue
-                imported += 1
-                continue
-
-            # Add to pending_books table
-            # Defensive: if table doesn't exist, skip adding (already logged warning)
+            my_rating = None
             try:
-                pending_book = PendingBook(
-                    title=title,
-                    author=author,
-                    isbn=isbn,
-                    isbn13=isbn13,
-                    goodreads_id=goodreads_id,
-                    goodreads_url=f"https://www.goodreads.com/book/show/{goodreads_id}" if goodreads_id else None,
-                    year_published=year_published,
-                    average_rating=average_rating,
-                    num_pages=num_pages,
-                )
-                db.add(pending_book)
-                new_books_added += 1
-            except sqlalchemy_exc.ProgrammingError as e:
-                if "pending_books" in str(e).lower() and "does not exist" in str(e).lower():
-                    # Table doesn't exist - skip but don't fail the whole import
-                    logger.warning(f"Skipping pending_books insert for '{title}' - table not found")
-                else:
-                    raise
+                raw_r = float((row.get("My Rating") or "").strip())
+                my_rating = raw_r if raw_r > 0 else None
+            except (ValueError, AttributeError):
+                pass
+
+            date_read = (row.get("Date Read") or "").strip() or None
+
+            # Find or create catalog book
+            catalog_book = _find_catalog_book(db, title, author, isbn, isbn13)
+            is_new_catalog_book = False
+            if catalog_book is None:
+                catalog_book = _create_minimal_book(db, title, author, isbn, isbn13,
+                                                     year_published, num_pages, goodreads_id)
+                db.flush()   # get the new ID without committing
+                is_new_catalog_book = True
+
+            # Upsert reading history entry
+            _upsert_reading_history_entry(
+                db=db,
+                user_id=user.id,
+                title=title,
+                author=author,
+                isbn=isbn,
+                isbn13=isbn13,
+                my_rating=my_rating,
+                date_read=date_read,
+                shelf=shelf,
+                catalog_book_id=catalog_book.id,
+            )
+
+            if is_new_catalog_book:
+                new_catalog_books.append(catalog_book.id)
 
             imported += 1
 
     except Exception as e:
-        logger.exception("Error while parsing Goodreads CSV row: %s", e)
+        logger.exception("Error parsing Goodreads CSV: %s", e)
         db.rollback()
-        raise HTTPException(
-            status_code=400,
-            detail=f"Error while processing Goodreads CSV: {e}"
-        )
+        raise HTTPException(status_code=400, detail=f"Error processing CSV: {e}")
 
-    # Commit all new pending books
     try:
         db.commit()
-        logger.info(
-            f"CSV import complete: {imported} total books, {new_books_added} new books added to queue, "
-            f"{skipped} skipped rows for user_id={user.id}"
-        )
     except Exception as e:
-        logger.exception("Failed to commit pending books: %s", e)
         db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to save new books"
-        )
+        raise HTTPException(status_code=500, detail="Failed to save reading history.")
 
+    # Background: tag new books + regenerate profile
+    background_tasks.add_task(_enrich_books_and_profile, user.id, new_catalog_books)
+
+    logger.info(
+        "CSV import: user_id=%s, imported=%d, skipped=%d, new_catalog=%d",
+        user.id, imported, skipped, len(new_catalog_books),
+    )
     return {
         "imported_count": imported,
         "skipped_count": skipped,
-        "new_books_added": new_books_added,
+        "new_books_added": len(new_catalog_books),
+        "message": "Import complete. Book tags and reading profile are being generated in the background.",
     }
+
+
+class ReadingHistoryEntryOut(BaseModel):
+    id: str
+    title: str
+    author: Optional[str]
+    my_rating: Optional[float]
+    date_read: Optional[str]
+    shelf: Optional[str]
+    catalog_book_id: Optional[str]
+
+    class Config:
+        from_attributes = True
+
+
+@router.get("/entries", response_model=List[ReadingHistoryEntryOut])
+def get_reading_history(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return all reading history entries for the current user."""
+    entries = (
+        db.query(ReadingHistoryEntry)
+        .filter(ReadingHistoryEntry.user_id == user.id)
+        .order_by(ReadingHistoryEntry.date_read.desc().nullslast())
+        .all()
+    )
+    return [
+        ReadingHistoryEntryOut(
+            id=str(e.id),
+            title=e.title,
+            author=e.author,
+            my_rating=e.my_rating,
+            date_read=e.date_read,
+            shelf=e.shelf,
+            catalog_book_id=str(e.catalog_book_id) if e.catalog_book_id else None,
+        )
+        for e in entries
+    ]
+
+
+class ReadingProfileOut(BaseModel):
+    total_books_read: int
+    avg_rating: Optional[float]
+    reading_confidence: float
+    structured_tags: Optional[dict]
+    profile_summary: Optional[str]
+    generated_at: Optional[str]
+
+
+@router.get("/profile", response_model=ReadingProfileOut)
+def get_reading_profile(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return the current user's Reading DNA profile."""
+    profile = db.query(UserReadingProfile).filter(UserReadingProfile.user_id == user.id).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="No reading profile yet. Upload a Goodreads CSV to generate one.")
+    return ReadingProfileOut(
+        total_books_read=profile.total_books_read,
+        avg_rating=profile.avg_rating,
+        reading_confidence=profile.reading_confidence,
+        structured_tags=profile.structured_tags,
+        profile_summary=profile.profile_summary,
+        generated_at=profile.generated_at.isoformat() if profile.generated_at else None,
+    )
 
 
 @router.post("/weekly-report")
@@ -236,19 +492,7 @@ async def send_weekly_report(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """
-    Send weekly email report of new books added to pending queue.
-
-    This endpoint can be called manually or by a cron job/scheduler.
-    Sends report to michael@readar.ai with all new books from the past 7 days.
-
-    Note: Email sending is currently logged only. Configure SMTP settings to enable actual emails.
-    """
-    # Optional: Add admin check if you want to restrict this endpoint
-    # For now, any authenticated user can trigger the report
-
-    logger.info(f"Weekly report triggered by user_id={user.id}")
-
+    """Send weekly email report of new books added to pending queue."""
+    logger.info("Weekly report triggered by user_id=%s", user.id)
     result = send_weekly_pending_books_email(db, recipient="michael@readar.ai")
-
     return result

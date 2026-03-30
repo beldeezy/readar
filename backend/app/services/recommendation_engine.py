@@ -17,6 +17,7 @@ from app.models import (
     ReadingHistoryEntry,
     BookDifficulty,
     UserBookStatusModel,
+    UserReadingProfile,
 )
 from app.schemas.recommendation import RecommendationItem
 
@@ -2356,6 +2357,17 @@ def get_personalized_recommendations(
     # Direct interaction scores + blocked books
     interaction_scores, blocked_book_ids = _score_from_interactions(interactions)
     history_scores = _score_from_history(history_entries, title_author_to_id)
+
+    # Scale history signals by reading confidence.
+    # Users with fewer books read get a lower multiplier — their ratings are less
+    # reliable as comparative signals (see reading_profile_service.get_reading_confidence).
+    reading_profile = db.query(UserReadingProfile).filter(
+        UserReadingProfile.user_id == user_id
+    ).first()
+    reading_confidence = reading_profile.reading_confidence if reading_profile else 0.3
+    if reading_confidence != 1.0:
+        history_scores = {bid: score * reading_confidence for bid, score in history_scores.items()}
+
     user_ctx = _build_user_context(onboarding)
 
     # Build set of books to exclude from Goodreads reading history (shelf == "read")

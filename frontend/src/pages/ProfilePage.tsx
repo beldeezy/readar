@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import type { OnboardingProfile } from '../api/types';
@@ -13,6 +13,15 @@ interface BookStatusItem {
   updated_at: string;
   title?: string;
   author_name?: string;
+}
+
+interface ReadingProfileData {
+  total_books_read: number;
+  avg_rating: number | null;
+  reading_confidence: number;
+  structured_tags: Record<string, number> | null;
+  profile_summary: string | null;
+  generated_at: string | null;
 }
 
 export default function ProfilePage() {
@@ -31,11 +40,20 @@ export default function ProfilePage() {
     not_for_me: [],
   });
   const [loadingBookStatuses, setLoadingBookStatuses] = useState(false);
+
+  // Reading history / DNA
+  const [readingProfile, setReadingProfile] = useState<ReadingProfileData | null>(null);
+  const [uploadingCsv, setUploadingCsv] = useState(false);
+  const [csvMessage, setCsvMessage] = useState<string | null>(null);
+  const [csvError, setCsvError] = useState<string | null>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
+
   const navigate = useNavigate();
 
   useEffect(() => {
     loadProfile();
     loadBookStatuses();
+    loadReadingProfile();
   }, []);
 
   const loadBookStatuses = async () => {
@@ -75,6 +93,40 @@ export default function ProfilePage() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadReadingProfile = async () => {
+    try {
+      const data = await apiClient.getReadingProfile();
+      setReadingProfile(data);
+    } catch {
+      // 404 = no profile yet — that's fine
+    }
+  };
+
+  const handleCsvUpload = async (file: File) => {
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      setCsvError('Please upload a .csv file exported from Goodreads.');
+      return;
+    }
+    setUploadingCsv(true);
+    setCsvError(null);
+    setCsvMessage(null);
+    try {
+      const result = await apiClient.uploadReadingHistoryCsv(file);
+      setCsvMessage(
+        `✓ Imported ${result.imported_count} books` +
+        (result.new_books_added > 0 ? ` (${result.new_books_added} added to catalog)` : '') +
+        '. Your reading profile is being updated.'
+      );
+      // Reload profile after short delay for background task to start
+      setTimeout(() => loadReadingProfile(), 3000);
+    } catch (e: any) {
+      setCsvError(e?.response?.data?.detail || 'Upload failed. Please try again.');
+    } finally {
+      setUploadingCsv(false);
+      if (csvInputRef.current) csvInputRef.current.value = '';
     }
   };
 
@@ -203,6 +255,96 @@ export default function ProfilePage() {
           <Button variant="primary" onClick={handleReRunOnboarding} delayMs={140}>
             Update Profile
           </Button>
+        </div>
+
+        {/* Reading History / DNA Section */}
+        <div style={{ marginTop: '2rem' }}>
+          <h2 className="readar-profile-section-title" style={{ marginBottom: '1rem' }}>
+            Reading History
+          </h2>
+          <Card variant="flat" className="readar-profile-section">
+            {readingProfile ? (
+              <div>
+                <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                  <div>
+                    <span style={{ color: 'var(--rd-muted)', fontSize: 'var(--rd-font-size-sm)' }}>Books read</span>
+                    <div style={{ fontWeight: 600, fontSize: 'var(--rd-font-size-lg)' }}>
+                      {readingProfile.total_books_read}
+                    </div>
+                  </div>
+                  {readingProfile.avg_rating != null && (
+                    <div>
+                      <span style={{ color: 'var(--rd-muted)', fontSize: 'var(--rd-font-size-sm)' }}>Avg rating</span>
+                      <div style={{ fontWeight: 600, fontSize: 'var(--rd-font-size-lg)' }}>
+                        {readingProfile.avg_rating.toFixed(1)} / 5
+                      </div>
+                    </div>
+                  )}
+                  <div>
+                    <span style={{ color: 'var(--rd-muted)', fontSize: 'var(--rd-font-size-sm)' }}>Reading confidence</span>
+                    <div style={{ fontWeight: 600, fontSize: 'var(--rd-font-size-lg)' }}>
+                      {Math.round(readingProfile.reading_confidence * 100)}%
+                    </div>
+                  </div>
+                </div>
+                {readingProfile.profile_summary && (
+                  <p style={{ marginBottom: '1rem', fontStyle: 'italic', color: 'var(--rd-muted)', fontSize: 'var(--rd-font-size-sm)' }}>
+                    {readingProfile.profile_summary}
+                  </p>
+                )}
+                {readingProfile.structured_tags && Object.keys(readingProfile.structured_tags).length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '1rem' }}>
+                    {Object.entries(readingProfile.structured_tags)
+                      .sort(([, a], [, b]) => b - a)
+                      .slice(0, 8)
+                      .map(([tag]) => (
+                        <Badge key={tag} variant="primary" size="sm">{tag}</Badge>
+                      ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p style={{ color: 'var(--rd-muted)', fontSize: 'var(--rd-font-size-sm)', marginBottom: '0.75rem' }}>
+                No reading history imported yet. Upload a Goodreads CSV to personalise your recommendations.
+              </p>
+            )}
+
+            {/* Upload control */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <input
+                ref={csvInputRef}
+                type="file"
+                accept=".csv"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleCsvUpload(f);
+                }}
+              />
+              <Button
+                variant="secondary"
+                onClick={() => csvInputRef.current?.click()}
+                disabled={uploadingCsv}
+                delayMs={0}
+              >
+                {uploadingCsv
+                  ? 'Uploading...'
+                  : readingProfile
+                  ? 'Update Goodreads history'
+                  : 'Import Goodreads history'}
+              </Button>
+              {csvMessage && (
+                <span style={{ color: 'var(--rd-success, green)', fontSize: 'var(--rd-font-size-sm)' }}>
+                  {csvMessage}
+                </span>
+              )}
+              {csvError && (
+                <span style={{ color: 'var(--rd-error, red)', fontSize: 'var(--rd-font-size-sm)' }}>
+                  {csvError}
+                </span>
+              )}
+            </div>
+          </Card>
         </div>
 
         {/* Book Activity Section */}
