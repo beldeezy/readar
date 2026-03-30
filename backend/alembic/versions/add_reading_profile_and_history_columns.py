@@ -1,6 +1,6 @@
 """Add user_reading_profiles table and new columns to reading_history_entries
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: 7a8b9c0d1e2f
 Revises: 54f53f2927c2
 Create Date: 2026-03-30
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 from typing import Union
 
-revision: str = "a1b2c3d4e5f6"
+revision: str = "7a8b9c0d1e2f"
 down_revision: Union[str, None] = "54f53f2927c2"
 branch_labels = None
 depends_on = None
