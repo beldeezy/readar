@@ -554,31 +554,6 @@ class ApiClient {
     return response.data;
   }
 
-  async uploadReadingHistoryCsv(params: {
-    file: File;
-  }): Promise<{ imported_count: number; skipped_count: number }> {
-    const formData = new FormData();
-    formData.append('file', params.file);
-
-    try {
-      const response = await this.client.post<{ imported_count: number; skipped_count: number }>(
-        `/reading-history/upload-csv`,
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        }
-      );
-      return response.data;
-    } catch (error: any) {
-      if (error.response?.data?.detail) {
-        throw new Error(error.response.data.detail);
-      }
-      throw new Error(error.message || 'Failed to upload reading history');
-    }
-  }
-
   async setBookStatus(payload: {
     book_id: string;
     status: string;

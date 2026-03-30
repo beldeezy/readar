@@ -35,7 +35,7 @@ const FileUploadInput: React.FC<FileUploadInputProps> = ({ onAnswer, onSkip, que
 
     try {
       // Use apiClient instead of raw fetch to ensure correct base URL and auth
-      const result = await apiClient.uploadReadingHistoryCsv({ file });
+      const result = await apiClient.uploadReadingHistoryCsv(file);
 
       const count = result.imported_count || 0;
       const skipped = result.skipped_count || 0;
