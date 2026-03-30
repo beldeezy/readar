@@ -311,11 +311,13 @@ async def upload_reading_history_csv(
     """
     Upload a Goodreads CSV file to import reading history.
 
-    Per-row logic:
-    - Upsert ReadingHistoryEntry (merge rating/shelf on re-upload)
-    - Match book against catalog by ISBN or title+author
-    - If not found → create minimal Book record in catalog
-    - Background: tag new books via Claude + regenerate reading profile
+    Batched for performance — avoids per-row DB round trips:
+      1. Load full catalog + user's existing entries into memory (2 queries)
+      2. Parse all CSV rows in memory
+      3. Flush new Book records once to obtain IDs
+      4. Upsert ReadingHistoryEntries
+      5. Single commit
+      6. Background task: tag new books + regenerate reading profile
     """
     filename = (file.filename or "").lower()
     if not filename.endswith(".csv"):
@@ -324,60 +326,125 @@ async def upload_reading_history_csv(
     try:
         text_stream = TextIOWrapper(file.file, encoding="utf-8")
         reader = csv.DictReader(text_stream)
+        rows = list(reader)
     except Exception:
         raise HTTPException(status_code=400, detail="Could not read CSV file. Export it from Goodreads and try again.")
 
+    # ── Phase 1: load catalog + existing history into memory (2 queries) ──────
+    all_books = db.query(Book).all()
+    catalog_by_isbn10: dict = {b.isbn_10: b for b in all_books if b.isbn_10}
+    catalog_by_isbn13: dict = {b.isbn_13: b for b in all_books if b.isbn_13}
+    catalog_by_title_author: dict = {
+        (b.title.lower().strip(), b.author_name.lower().strip()): b
+        for b in all_books if b.title and b.author_name
+    }
+
+    existing_entries = (
+        db.query(ReadingHistoryEntry)
+        .filter(ReadingHistoryEntry.user_id == user.id)
+        .all()
+    )
+    entry_map: dict = {
+        (e.title.lower().strip(), (e.author or "").lower().strip()): e
+        for e in existing_entries
+    }
+
+    # ── Phase 2: parse all rows in memory ────────────────────────────────────
     imported = 0
     skipped = 0
-    new_catalog_books: List[UUID] = []   # book IDs added to catalog this upload
+    new_books: List[Book] = []          # Book objects not yet in catalog
+    pending_rows = []                   # parsed row data to process after flush
 
-    try:
-        for row in reader:
-            title = (row.get("Title") or "").strip()
-            author = (row.get("Author") or "").strip()
-            if not title or not author:
-                skipped += 1
-                continue
+    for row in rows:
+        title = (row.get("Title") or "").strip()
+        author = (row.get("Author") or "").strip()
+        if not title or not author:
+            skipped += 1
+            continue
 
-            isbn = normalize_isbn(row.get("ISBN"))
-            isbn13 = normalize_isbn(row.get("ISBN13"))
-            goodreads_id = (row.get("Book Id") or "").strip() or None
-            shelf = (row.get("Exclusive Shelf") or row.get("Bookshelves") or "").strip().lower() or None
+        isbn = normalize_isbn(row.get("ISBN"))
+        isbn13 = normalize_isbn(row.get("ISBN13"))
 
-            # Parse numeric fields
-            year_published = None
-            try:
-                year_published = int((row.get("Year Published") or "").strip())
-            except (ValueError, AttributeError):
-                pass
+        year_published = None
+        try:
+            year_published = int((row.get("Year Published") or "").strip())
+        except (ValueError, AttributeError):
+            pass
 
-            num_pages = None
-            try:
-                num_pages = int((row.get("Number of Pages") or "").strip())
-            except (ValueError, AttributeError):
-                pass
+        num_pages = None
+        try:
+            num_pages = int((row.get("Number of Pages") or "").strip())
+        except (ValueError, AttributeError):
+            pass
 
-            my_rating = None
-            try:
-                raw_r = float((row.get("My Rating") or "").strip())
-                my_rating = raw_r if raw_r > 0 else None
-            except (ValueError, AttributeError):
-                pass
+        my_rating = None
+        try:
+            raw_r = float((row.get("My Rating") or "").strip())
+            my_rating = raw_r if raw_r > 0 else None
+        except (ValueError, AttributeError):
+            pass
 
-            date_read = (row.get("Date Read") or "").strip() or None
+        shelf = (row.get("Exclusive Shelf") or row.get("Bookshelves") or "").strip().lower() or None
+        date_read = (row.get("Date Read") or "").strip() or None
 
-            # Find or create catalog book
-            catalog_book = _find_catalog_book(db, title, author, isbn, isbn13)
-            is_new_catalog_book = False
-            if catalog_book is None:
-                catalog_book = _create_minimal_book(db, title, author, isbn, isbn13,
-                                                     year_published, num_pages, goodreads_id)
-                db.flush()   # get the new ID without committing
-                is_new_catalog_book = True
+        # Look up catalog book from in-memory dicts — no DB query
+        catalog_book = (
+            (isbn and catalog_by_isbn10.get(isbn))
+            or (isbn13 and catalog_by_isbn13.get(isbn13))
+            or catalog_by_title_author.get((title.lower(), author.lower()))
+        )
+        is_new = False
+        if catalog_book is None:
+            catalog_book = Book(
+                title=title,
+                author_name=author,
+                description="Imported from Goodreads reading history. Tags pending enrichment.",
+                isbn_10=isbn,
+                isbn_13=isbn13,
+                published_year=year_published,
+                page_count=num_pages,
+                business_stage_tags=[],
+                functional_tags=[],
+                theme_tags=[],
+            )
+            db.add(catalog_book)
+            new_books.append(catalog_book)
+            # Update in-memory dicts so duplicates in the same CSV deduplicate
+            if isbn:
+                catalog_by_isbn10[isbn] = catalog_book
+            if isbn13:
+                catalog_by_isbn13[isbn13] = catalog_book
+            catalog_by_title_author[(title.lower(), author.lower())] = catalog_book
+            is_new = True
 
-            # Upsert reading history entry
-            _upsert_reading_history_entry(
-                db=db,
+        pending_rows.append((title, author, isbn, isbn13, my_rating, date_read, shelf, catalog_book, is_new))
+        imported += 1
+
+    # ── Phase 3: single flush to get IDs for all new Book records ─────────────
+    if new_books:
+        try:
+            db.flush()
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Failed to create catalog entries: {e}")
+
+    # ── Phase 4: upsert ReadingHistoryEntries ─────────────────────────────────
+    new_catalog_book_ids: List[UUID] = []
+    for (title, author, isbn, isbn13, my_rating, date_read, shelf, catalog_book, is_new) in pending_rows:
+        key = (title.lower().strip(), author.lower().strip())
+        existing = entry_map.get(key)
+        if existing:
+            existing.my_rating = my_rating
+            existing.date_read = date_read
+            existing.shelf = shelf
+            if isbn:
+                existing.isbn = isbn
+            if isbn13:
+                existing.isbn13 = isbn13
+            if catalog_book.id:
+                existing.catalog_book_id = catalog_book.id
+        else:
+            entry = ReadingHistoryEntry(
                 user_id=user.id,
                 title=title,
                 author=author,
@@ -386,36 +453,33 @@ async def upload_reading_history_csv(
                 my_rating=my_rating,
                 date_read=date_read,
                 shelf=shelf,
+                source="goodreads",
                 catalog_book_id=catalog_book.id,
             )
+            db.add(entry)
+            entry_map[key] = entry
 
-            if is_new_catalog_book:
-                new_catalog_books.append(catalog_book.id)
+        if is_new and catalog_book.id:
+            new_catalog_book_ids.append(catalog_book.id)
 
-            imported += 1
-
-    except Exception as e:
-        logger.exception("Error parsing Goodreads CSV: %s", e)
-        db.rollback()
-        raise HTTPException(status_code=400, detail=f"Error processing CSV: {e}")
-
+    # ── Phase 5: single commit ────────────────────────────────────────────────
     try:
         db.commit()
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to save reading history.")
 
-    # Background: tag new books + regenerate profile
-    background_tasks.add_task(_enrich_books_and_profile, user.id, new_catalog_books)
+    # ── Phase 6: background enrichment ────────────────────────────────────────
+    background_tasks.add_task(_enrich_books_and_profile, user.id, new_catalog_book_ids)
 
     logger.info(
         "CSV import: user_id=%s, imported=%d, skipped=%d, new_catalog=%d",
-        user.id, imported, skipped, len(new_catalog_books),
+        user.id, imported, skipped, len(new_catalog_book_ids),
     )
     return {
         "imported_count": imported,
         "skipped_count": skipped,
-        "new_books_added": len(new_catalog_books),
+        "new_books_added": len(new_catalog_book_ids),
         "message": "Import complete. Book tags and reading profile are being generated in the background.",
     }
 

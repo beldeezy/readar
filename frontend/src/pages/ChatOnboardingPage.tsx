@@ -155,8 +155,13 @@ const ChatOnboardingPage: React.FC = () => {
         : ALL_INDUSTRIES;
     }
 
-    // Advance progress as soon as the question is displayed
-    setProgress(getProgressForQuestion(nextQuestion.id));
+    // Advance progress as soon as the question is displayed.
+    // Fallback questions (business_stage etc.) return 0 from getProgressForQuestion
+    // because they're not in MAIN_QUESTIONS — don't reset the bar for those.
+    const questionProgress = getProgressForQuestion(nextQuestion.id);
+    if (questionProgress > 0) {
+      setProgress(questionProgress);
+    }
     setCurrentQuestion(nextQuestion);
     addBotMessage(nextQuestion.question, nextQuestion.id);
 

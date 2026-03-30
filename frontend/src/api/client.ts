@@ -638,6 +638,7 @@ class ApiClient {
     form.append('file', file);
     const response = await this.client.post('/reading-history/upload-csv', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000, // CSV processing can take time for large libraries; override global 15s
     });
     return response.data;
   }
