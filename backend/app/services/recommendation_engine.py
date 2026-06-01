@@ -359,7 +359,7 @@ def build_recommendation_explanation(
         signals["model_match"] = False
 
     # Check for functional area overlap
-    areas_lower = [a.lower() for a in areas_of_business]
+    areas_lower = [a.lower() for a in (areas_of_business or [])]
     functional_overlap = []
 
     if "pricing" in functional_tags and ("pricing" in areas_lower or "price" in biggest_challenge.lower()):
