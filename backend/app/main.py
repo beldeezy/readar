@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, JSONResponse
 import logging
@@ -6,6 +6,8 @@ import os
 import traceback
 from datetime import datetime
 from pathlib import Path
+from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 from app.core.config import settings
 from app.routers import (
@@ -23,7 +25,7 @@ from app.routers import (
     book_status,
     feedback,
 )
-from app.database import init_db
+from app.database import get_db, init_db
 
 # ----------------------------
 # Logging
@@ -245,6 +247,13 @@ def health_check():
 @app.get("/api/health")
 def api_health_check():
     return {"status": "ok"}
+
+
+@app.get("/api/ping")
+def ping(db: Session = Depends(get_db)):
+    """Keepalive endpoint — runs a trivial DB query to prevent Supabase from pausing."""
+    db.execute(text("SELECT 1"))
+    return {"status": "ok", "ts": datetime.utcnow().isoformat()}
 
 
 @app.get("/api/_debug/echo-origin")
