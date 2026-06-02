@@ -28,18 +28,41 @@ const FileUploadInput: React.FC<FileUploadInputProps> = ({ onAnswer, onSkip, que
   };
 
   const handleUpload = async () => {
-    if (!file || !user) return;
+    if (!file) return;
+
+    if (!user) {
+      // Not authenticated yet — persist the file as base64 so AuthCallbackPage
+      // can upload it after OAuth completes.
+      await new Promise<void>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const base64 = (e.target?.result as string)?.split(',')[1];
+          if (base64) {
+            try {
+              localStorage.setItem('readar_pending_csv', JSON.stringify({ name: file.name, data: base64 }));
+            } catch { /* localStorage full — skip silently */ }
+          }
+          resolve();
+        };
+        reader.onerror = () => resolve();
+        reader.readAsDataURL(file);
+      });
+
+      onAnswer(
+        questionId,
+        { pending: true, name: file.name },
+        `Reading history saved — will be uploaded after sign-in`
+      );
+      return;
+    }
 
     setUploading(true);
     setError(null);
 
     try {
-      // Use apiClient instead of raw fetch to ensure correct base URL and auth
       const result = await apiClient.uploadReadingHistoryCsv(file);
-
       const count = result.imported_count || 0;
       const skipped = result.skipped_count || 0;
-
       onAnswer(
         questionId,
         { uploaded: true, count, skipped },
