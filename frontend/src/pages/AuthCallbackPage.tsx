@@ -66,7 +66,9 @@ export default function AuthCallbackPage() {
 
           // Check if there's pending onboarding in localStorage
           const pendingOnboardingStr = localStorage.getItem(PENDING_ONBOARDING_KEY);
+          let hadPendingOnboarding = false;
           if (pendingOnboardingStr) {
+            hadPendingOnboarding = true;
             try {
               const pendingOnboarding = JSON.parse(pendingOnboardingStr);
 
@@ -82,7 +84,7 @@ export default function AuthCallbackPage() {
               // Persist onboarding to backend
               await apiClient.saveOnboarding(payload);
               console.log("Persisted pending onboarding to backend");
-              
+
               // Clear pending onboarding from localStorage
               localStorage.removeItem(PENDING_ONBOARDING_KEY);
             } catch (err: any) {
@@ -90,16 +92,21 @@ export default function AuthCallbackPage() {
               // Continue anyway - user can complete onboarding later
             }
           }
-          
+
           // Get stored redirect path, fall back to next param
           let target = popPostAuthRedirect() || searchParams.get('next');
-          
-          // If no redirect specified, check if we have preview recs
+
+          // If no redirect specified, determine destination from state
           if (!target) {
-            const hasPreview = !!localStorage.getItem(PREVIEW_RECS_KEY);
-            target = hasPreview ? '/recommendations' : '/onboarding';
+            if (hadPendingOnboarding) {
+              // Onboarding was just completed pre-auth — go straight to recommendations
+              target = '/recommendations/loading';
+            } else {
+              const hasPreview = !!localStorage.getItem(PREVIEW_RECS_KEY);
+              target = hasPreview ? '/recommendations' : '/onboarding';
+            }
           }
-          
+
           navigate(target, { replace: true });
         } else {
           clearAccessToken();

@@ -8,9 +8,7 @@ export default function LandingPage() {
   const navigate = useNavigate();
 
   const handleFindNextBook = async () => {
-    // Start with login to show Google sign in
-    // After auth, user will be redirected to chat onboarding
-    navigate('/login?next=/onboarding');
+    navigate('/onboarding');
   };
 
   return (
