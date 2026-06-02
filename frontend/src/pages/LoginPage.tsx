@@ -40,7 +40,7 @@ export default function LoginPage() {
   return (
     <div className="readar-auth-page">
       <Card variant="elevated" className="readar-auth-card">
-        <h1 className="readar-auth-title">Sign in to Readar</h1>
+        <h1 className="readar-auth-title">Sign in to Readar to get your book recommendations</h1>
 
         {error && (
           <div className="readar-auth-error" style={{ marginBottom: '1.5rem' }}>
