@@ -37,9 +37,12 @@ export default function Header() {
               </Button>
             </>
           ) : (
-            <Link to="/onboarding">
-              <Button variant="primary" size="sm">Get Started</Button>
-            </Link>
+            <>
+              <Link to="/login" className="readar-nav-link">Log In</Link>
+              <Link to="/onboarding">
+                <Button variant="primary" size="sm">Get Started</Button>
+              </Link>
+            </>
           )}
         </nav>
       </div>
