@@ -95,6 +95,19 @@
   border: 1.5px dashed var(--readar-accent-purple, #6935f4);
 }
 
+.fkm-depth-key {
+  font-size: var(--rd-font-size-xs);
+  color: var(--rd-muted);
+  text-align: center;
+  line-height: 1.6;
+  max-width: 460px;
+}
+
+.fkm-depth-key strong {
+  color: var(--rd-text);
+  font-weight: 600;
+}
+
 .fkm-empty {
   font-size: var(--rd-font-size-sm);
   color: var(--rd-muted);

@@ -64,6 +64,7 @@ export interface DomainScore {
   key: string;
   label: string;
   score: number; // 0-3 (0 = no exposure)
+  depth?: number | null; // 1-5 altitude (foundational→tactical); null when no scored books
 }
 
 export interface KnowledgeMap {

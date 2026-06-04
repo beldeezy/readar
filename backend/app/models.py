@@ -155,6 +155,10 @@ class Book(Base):
     business_stage_tags = Column(ARRAY(String), nullable=True)
     functional_tags = Column(ARRAY(String), nullable=True)
     theme_tags = Column(ARRAY(String), nullable=True)
+    # Knowledge altitude (1-5): how foundational vs tactical the book is.
+    # 1=Awareness, 2=Mental models, 3=Principles, 4=Disciplines, 5=Processes.
+    # Powers the "depth" indicator on the Founder Knowledge Map.
+    knowledge_level = Column(Integer, nullable=True)
     difficulty = Column(
         SQLEnum(
             BookDifficulty,

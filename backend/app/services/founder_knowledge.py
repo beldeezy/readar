@@ -251,9 +251,20 @@ def compute_knowledge_map(db: Session, user) -> dict:
     books = _collect_read_books(db, user.id)
 
     raw: Dict[str, float] = {k: 0.0 for k in DOMAIN_KEYS}
+    # Depth = weighted average of knowledge_level (1-5) among the books that
+    # contribute to each domain. Tracked as numerator/denominator so books
+    # lacking a knowledge_level simply don't affect the average.
+    depth_num: Dict[str, float] = {k: 0.0 for k in DOMAIN_KEYS}
+    depth_den: Dict[str, float] = {k: 0.0 for k in DOMAIN_KEYS}
+
     for book, weight in books.values():
-        for domain, contribution in _domains_for_book(book).items():
+        contributions = _domains_for_book(book)
+        level = getattr(book, "knowledge_level", None)
+        for domain, contribution in contributions.items():
             raw[domain] += contribution * weight
+            if isinstance(level, int) and 1 <= level <= 5:
+                depth_num[domain] += level * contribution * weight
+                depth_den[domain] += contribution * weight
 
     profile = (
         db.query(OnboardingProfile)
@@ -265,8 +276,13 @@ def compute_knowledge_map(db: Session, user) -> dict:
     if profile is not None:
         stage = profile.business_stage.value if hasattr(profile.business_stage, "value") else profile.business_stage
 
+    def _depth(k: str) -> Optional[int]:
+        if depth_den[k] <= 0:
+            return None
+        return int(round(depth_num[k] / depth_den[k]))
+
     domains = [
-        {"key": k, "label": DOMAIN_LABELS[k], "score": _bucket(raw[k])}
+        {"key": k, "label": DOMAIN_LABELS[k], "score": _bucket(raw[k]), "depth": _depth(k)}
         for k in DOMAIN_KEYS
     ]
     ideal_out = [

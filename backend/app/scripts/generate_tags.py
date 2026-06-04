@@ -92,6 +92,24 @@ theme_tags (free-form, 1-4 short lowercase tags describing core themes):
   "customer_discovery", "lean_startup", "pricing_strategy", "copywriting",
   "habit_formation", "decision_making", "venture_capital"
 
+  IMPORTANT — inner-game coverage: if the book is primarily about the founder's
+  self-mastery (mindset, emotional regulation, discipline, habits, confidence,
+  resilience, focus, identity), include an explicit theme tag such as: mindset,
+  discipline, psychology, resilience, self_awareness. If it is primarily about
+  thinking and judgment (mental models, first principles, systems thinking,
+  strategic decisions), include: decision_making, systems_thinking,
+  first_principles. These inner-game and cognition themes are easy to miss —
+  tag them whenever the book genuinely centers on them.
+
+knowledge_level (single integer 1-5): the book's ALTITUDE — how foundational vs
+  tactical it is, INDEPENDENT of its topic. Pick the one that best fits:
+  1 = Awareness/identity — self-understanding, philosophy, "why", mindset
+  2 = Mental models — frameworks for thinking, judgment, decision-making
+  3 = Principles — high-level guidelines for what to do
+  4 = Disciplines — established practices within a craft (sales, ops, hiring…)
+  5 = Processes — step-by-step playbooks, templates, concrete "how-to"
+  A reflective mindset book is 1-2; a tactical sales-script playbook is 5.
+
 difficulty: light | medium | deep
 
 promise (1 sentence, max 120 chars): What the reader will gain.
@@ -110,6 +128,7 @@ Return JSON in this exact format:
   "business_stage_tags": ["pre-revenue", "early-revenue"],
   "functional_tags": ["sales", "client_acquisition"],
   "theme_tags": ["consultative_selling", "pipeline_management"],
+  "knowledge_level": 4,
   "difficulty": "medium",
   "promise": "Learn to build a predictable B2B sales pipeline from scratch.",
   "best_for": "Early-stage founders who need to close their first 10 customers.",
@@ -170,6 +189,14 @@ def _validate_and_clean(data: Dict[str, Any]) -> Dict[str, Any]:
         ]
     else:
         data["theme_tags"] = []
+
+    # knowledge_level — clamp to 1-5 integer, else None
+    raw_level = data.get("knowledge_level")
+    try:
+        lvl = int(raw_level)
+        data["knowledge_level"] = lvl if 1 <= lvl <= 5 else None
+    except (TypeError, ValueError):
+        data["knowledge_level"] = None
 
     # difficulty — map beginner/intermediate/advanced to light/medium/deep
     diff = data.get("difficulty", "")
@@ -319,6 +346,7 @@ def generate_tags(
                     book.business_stage_tags = tags["business_stage_tags"]
                     book.functional_tags = tags["functional_tags"]
                     book.theme_tags = tags["theme_tags"]
+                    book.knowledge_level = tags.get("knowledge_level")
 
                     # Convert difficulty string to BookDifficulty enum
                     diff_val = tags.get("difficulty")

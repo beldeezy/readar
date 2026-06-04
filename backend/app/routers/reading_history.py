@@ -73,6 +73,10 @@ theme_tags (1-4, free-form lowercase_underscore)
   principles, systems thinking, strategy), include: decision_making, systems_thinking,
   first_principles. These inner-game and cognition themes are easy to miss — tag them
   when present.
+knowledge_level (integer 1-5): the book's ALTITUDE, independent of topic.
+  1=Awareness/mindset, 2=Mental models, 3=Principles, 4=Disciplines/practices,
+  5=Processes/step-by-step how-to. A reflective mindset book is 1-2; a tactical
+  playbook is 5.
 difficulty: light | medium | deep
 promise (max 120 chars): What the reader gains.
 best_for (max 120 chars): Who benefits most.
@@ -82,6 +86,7 @@ Return JSON:
   "business_stage_tags": [...],
   "functional_tags": [...],
   "theme_tags": [...],
+  "knowledge_level": 3,
   "difficulty": "...",
   "promise": "...",
   "best_for": "..."
@@ -253,6 +258,14 @@ def _apply_tags_to_book(book: Book, data: dict) -> None:
             re.sub(r'[^a-z0-9_]', '_', t.lower().strip())
             for t in raw_themes[:4] if isinstance(t, str) and t.strip()
         ]
+
+    raw_level = data.get("knowledge_level")
+    try:
+        lvl = int(raw_level)
+        if 1 <= lvl <= 5:
+            book.knowledge_level = lvl
+    except (TypeError, ValueError):
+        pass
 
     diff = DIFFICULTY_MAP.get(data.get("difficulty", ""))
     if diff:
@@ -563,6 +576,7 @@ class DomainScore(BaseModel):
     key: str
     label: str
     score: int
+    depth: Optional[int] = None  # 1-5 altitude; None when no scored books in domain
 
 
 class KnowledgeMapOut(BaseModel):

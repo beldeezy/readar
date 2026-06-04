@@ -7,6 +7,15 @@ interface Props {
 }
 
 const MAX = 3; // 1-3 scale → 3 rings
+
+// Knowledge altitude ladder (1-5) for the depth indicator
+const LEVEL_NAMES: Record<number, string> = {
+  1: 'Awareness',
+  2: 'Mental models',
+  3: 'Principles',
+  4: 'Disciplines',
+  5: 'Processes',
+};
 const SIZE = 320; // svg viewbox
 const CENTER = SIZE / 2;
 const RADIUS = 110; // distance from center to score=3
@@ -103,6 +112,7 @@ export default function FounderKnowledgeMap({ data }: Props) {
               <tspan className="fkm-label-name">{d.label}</tspan>
               <tspan className="fkm-label-score" x={x} dy="1.2em">
                 {d.score}/{MAX}
+                {d.depth ? ` · L${d.depth}` : ''}
               </tspan>
             </text>
           );
@@ -117,6 +127,18 @@ export default function FounderKnowledgeMap({ data }: Props) {
           <span className="fkm-swatch fkm-swatch--ideal" /> Ideal for your stage
         </span>
       </div>
+
+      {!isEmpty && domains.some((d) => d.depth) && (
+        <p className="fkm-depth-key">
+          <strong>Spoke length</strong> = how much you've read · <strong>L1–L5</strong> ={' '}
+          depth of that reading:{' '}
+          {[1, 2, 3, 4, 5].map((n, i) => (
+            <span key={n}>
+              {i > 0 ? ' · ' : ''}L{n} {LEVEL_NAMES[n]}
+            </span>
+          ))}
+        </p>
+      )}
 
       {isEmpty && (
         <p className="fkm-empty">
