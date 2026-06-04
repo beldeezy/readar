@@ -17,7 +17,7 @@ export default function LandingPage() {
         <div className="readar-hero-content">
           <h1 className="readar-hero-title">Know what to read next.</h1>
           <p className="readar-hero-subtitle">
-            Built for entrepreneurs. Find the right book to eliminate blind spots and move your business forward.
+            Built for entrepreneurs who want to find the right book to eliminate blind spots and move their business forward.
           </p>
           <p className="readar-hero-microcopy">
             No noise — just the next book you actually need.
