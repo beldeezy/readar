@@ -288,6 +288,7 @@ def generate_tags(
     limit: Optional[int] = None,
     dry_run: bool = False,
     all_books: bool = False,
+    missing_level: bool = False,
 ) -> None:
     """
     Generate structured metadata tags for books.
@@ -295,12 +296,19 @@ def generate_tags(
     :param limit: Max number of books to process.
     :param dry_run: If True, print tags but don't save to DB.
     :param all_books: If True, regenerate even for books with existing tags.
+    :param missing_level: If True, only (re)tag books missing knowledge_level.
+        Because each processed book gets a knowledge_level set, repeated runs
+        with this flag are naturally resumable — ideal for re-tagging a large
+        catalog in time-bounded chunks (use with --limit).
     """
     db: Session = SessionLocal()
     try:
         query = db.query(models.Book).order_by(models.Book.created_at.asc())
 
-        if not all_books:
+        if missing_level:
+            # Resumable backfill: only books that don't yet have an altitude score
+            query = query.filter(models.Book.knowledge_level.is_(None))
+        elif not all_books:
             # Only books without tags
             query = query.filter(
                 models.Book.business_stage_tags.is_(None)
@@ -313,7 +321,7 @@ def generate_tags(
         books = query.all()
 
         # Double-check with Python-side filter for edge cases
-        if not all_books:
+        if not all_books and not missing_level:
             books = [b for b in books if _needs_tags(b)]
 
         logger.info("Found %d book(s) needing tags", len(books))
@@ -405,10 +413,16 @@ if __name__ == "__main__":
         "--all", action="store_true",
         help="Regenerate tags for all books, not just those without tags.",
     )
+    parser.add_argument(
+        "--missing-level", action="store_true",
+        help="Only (re)tag books missing knowledge_level. Resumable — run "
+             "repeatedly with --limit to backfill a large catalog in chunks.",
+    )
     args = parser.parse_args()
 
     generate_tags(
         limit=args.limit,
         dry_run=args.dry_run,
         all_books=args.all,
+        missing_level=args.missing_level,
     )
