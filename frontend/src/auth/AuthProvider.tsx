@@ -125,6 +125,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // Short-circuit if we already confirmed onboarding exists — avoids a race
+    // condition where GET /api/onboarding resolves before a concurrent save finishes.
+    const cached = localStorage.getItem(HAS_ONBOARDING_KEY);
+    if (cached === '1') {
+      setOnboardingComplete(true);
+      setOnboardingChecked(true);
+      return;
+    }
+
     try {
       setOnboardingChecked(false);
 

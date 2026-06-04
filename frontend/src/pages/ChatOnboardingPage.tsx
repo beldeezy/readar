@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { apiClient } from '../api/client';
+import { setPostAuthRedirect } from '../auth/postAuthRedirect';
 import type { OnboardingPayload } from '../api/types';
 import {
   CHAT_QUESTIONS,
@@ -453,18 +454,20 @@ const ChatOnboardingPage: React.FC = () => {
       }
 
       if (user) {
+        // Already authenticated — save to backend and proceed to recommendations
         await apiClient.saveOnboarding(filteredAnswers);
+        localStorage.removeItem('readar_pending_onboarding');
+        localStorage.setItem('readar_onboarding_answers', JSON.stringify(answers));
+        navigate('/recommendations/loading', {
+          state: { onboardingAnswers: answers },
+        });
+      } else {
+        // Not authenticated — answers are already persisted in localStorage.
+        // Set the post-auth redirect so AuthCallbackPage knows where to send the user,
+        // then trigger Google OAuth via the login page.
+        setPostAuthRedirect('/recommendations/loading');
+        navigate('/login');
       }
-
-      localStorage.removeItem('readar_pending_onboarding');
-
-      // Persist answers so RecommendationsPage can generate pitches even on direct navigation
-      localStorage.setItem('readar_onboarding_answers', JSON.stringify(answers));
-
-      // Pass answers to recommendations page so it can generate pitches
-      navigate('/recommendations/loading', {
-        state: { onboardingAnswers: answers },
-      });
     } catch (err: any) {
       setError(err.message);
       setIsProcessing(false);

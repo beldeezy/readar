@@ -37,7 +37,7 @@ export default function Header() {
               </Button>
             </>
           ) : (
-            <Link to="/login">
+            <Link to="/onboarding">
               <Button variant="primary" size="sm">Get Started</Button>
             </Link>
           )}
