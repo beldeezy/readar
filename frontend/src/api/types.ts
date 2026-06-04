@@ -59,6 +59,20 @@ export interface OnboardingProfile extends OnboardingPayload {
   updated_at: string;
 }
 
+// ── Founder Knowledge Map ────────────────────────────────────────────────────
+export interface DomainScore {
+  key: string;
+  label: string;
+  score: number; // 0-3 (0 = no exposure)
+}
+
+export interface KnowledgeMap {
+  domains: DomainScore[];
+  ideal: DomainScore[];
+  total_books_scored: number;
+  stage: string | null;
+}
+
 export interface Book {
   id: string;
   title: string;

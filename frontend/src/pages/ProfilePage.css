@@ -21,6 +21,244 @@
 
 .readar-profile-section {
   padding: 2rem;
+  margin-bottom: 2rem;
+}
+
+.readar-profile-section:last-child {
+  margin-bottom: 0;
+}
+
+/* Stack all sections in a single column (Option B layout) */
+.readar-profile-page .container > .readar-profile-section {
+  max-width: 760px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Hero knowledge-map card */
+.fkm-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.fkm-hero-head {
+  text-align: center;
+}
+
+.fkm-hero-sub {
+  font-size: var(--rd-font-size-sm);
+  color: var(--rd-muted);
+  line-height: 1.6;
+  margin-top: 0.5rem;
+  max-width: 560px;
+}
+
+/* Section head with inline action */
+.readar-profile-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.readar-profile-help {
+  font-size: var(--rd-font-size-sm);
+  color: var(--rd-muted);
+  margin-bottom: 1.5rem;
+}
+
+.readar-profile-muted {
+  color: var(--rd-muted);
+  font-size: var(--rd-font-size-sm);
+}
+
+.readar-link-button {
+  background: none;
+  border: none;
+  color: var(--rd-accent);
+  font-weight: 600;
+  font-size: var(--rd-font-size-sm);
+  font-family: var(--rd-font);
+  cursor: pointer;
+  padding: 0.25rem 0;
+}
+
+.readar-link-button:hover {
+  text-decoration: underline;
+}
+
+/* Inline focus edit form */
+.readar-focus-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.readar-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.readar-field-label {
+  font-weight: 600;
+  font-size: var(--rd-font-size-sm);
+  color: var(--rd-text);
+}
+
+.readar-select,
+.readar-textarea {
+  font-family: var(--rd-font);
+  font-size: var(--rd-font-size-base);
+  padding: 0.75rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--rd-radius-lg);
+  background-color: var(--rd-surface);
+  color: var(--rd-text);
+  width: 100%;
+  transition: border-color 0.2s ease;
+}
+
+.readar-textarea {
+  resize: vertical;
+  min-height: 80px;
+  line-height: 1.6;
+}
+
+.readar-select:focus,
+.readar-textarea:focus {
+  outline: none;
+  border-color: var(--rd-accent);
+}
+
+.readar-field-error {
+  color: var(--readar-warm);
+  font-size: var(--rd-font-size-sm);
+}
+
+.readar-focus-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+/* Reading stats */
+.readar-reading-stats {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.readar-stat-label {
+  color: var(--rd-muted);
+  font-size: var(--rd-font-size-sm);
+}
+
+.readar-stat-value {
+  font-weight: 600;
+  font-size: var(--rd-font-size-lg);
+  color: var(--rd-text);
+}
+
+.readar-reading-summary {
+  font-style: italic;
+  color: var(--rd-muted);
+  font-size: var(--rd-font-size-sm);
+  line-height: 1.6;
+  margin-bottom: 1rem;
+}
+
+.readar-csv-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.readar-csv-success {
+  color: var(--rd-accent);
+  font-size: var(--rd-font-size-sm);
+}
+
+.readar-csv-error {
+  color: var(--readar-warm);
+  font-size: var(--rd-font-size-sm);
+}
+
+/* Book activity tabs */
+.readar-activity-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.readar-activity-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: var(--rd-radius-pill);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: transparent;
+  color: var(--rd-muted);
+  font-family: var(--rd-font);
+  font-size: var(--rd-font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.readar-activity-tab:hover {
+  border-color: var(--rd-accent);
+  color: var(--rd-text);
+}
+
+.readar-activity-tab--active {
+  background: var(--rd-accent-soft);
+  border-color: var(--rd-accent);
+  color: var(--rd-accent);
+}
+
+.readar-activity-count {
+  font-size: var(--rd-font-size-xs);
+  opacity: 0.8;
+}
+
+.readar-activity-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.readar-activity-item {
+  padding: 0.6rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: var(--rd-font-size-sm);
+  color: var(--rd-text);
+}
+
+.readar-activity-item:last-child {
+  border-bottom: none;
+}
+
+/* Account details */
+.readar-account-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem 2rem;
+}
+
+.readar-account-grid .readar-profile-field {
+  margin-bottom: 0;
+}
+
+.readar-account-foot {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .readar-profile-section-title {

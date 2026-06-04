@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client';
-import type { OnboardingProfile } from '../api/types';
+import type { OnboardingProfile, KnowledgeMap } from '../api/types';
 import Button from '../components/Button';
 import Card from '../components/Card';
 import Badge from '../components/Badge';
+import FounderKnowledgeMap from '../components/FounderKnowledgeMap';
 import './ProfilePage.css';
 
 interface BookStatusItem {
@@ -24,22 +25,34 @@ interface ReadingProfileData {
   generated_at: string | null;
 }
 
+type ActivityTab = 'interested' | 'read_liked' | 'read_disliked' | 'not_for_me';
+
+const STAGE_OPTIONS: { value: OnboardingProfile['business_stage']; label: string }[] = [
+  { value: 'idea', label: 'Idea' },
+  { value: 'pre-revenue', label: 'Pre-revenue' },
+  { value: 'early-revenue', label: 'Early revenue' },
+  { value: 'scaling', label: 'Scaling' },
+];
+
+const ACTIVITY_TABS: { key: ActivityTab; label: string }[] = [
+  { key: 'interested', label: 'Interested' },
+  { key: 'read_liked', label: 'Read · Liked' },
+  { key: 'read_disliked', label: 'Read · Disliked' },
+  { key: 'not_for_me', label: 'Not for me' },
+];
+
 export default function ProfilePage() {
   const [profile, setProfile] = useState<OnboardingProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [bookStatuses, setBookStatuses] = useState<{
-    interested: BookStatusItem[];
-    read_liked: BookStatusItem[];
-    read_disliked: BookStatusItem[];
-    not_for_me: BookStatusItem[];
-  }>({
+  const [bookStatuses, setBookStatuses] = useState<Record<ActivityTab, BookStatusItem[]>>({
     interested: [],
     read_liked: [],
     read_disliked: [],
     not_for_me: [],
   });
   const [loadingBookStatuses, setLoadingBookStatuses] = useState(false);
+  const [activityTab, setActivityTab] = useState<ActivityTab>('interested');
 
   // Reading history / DNA
   const [readingProfile, setReadingProfile] = useState<ReadingProfileData | null>(null);
@@ -48,37 +61,28 @@ export default function ProfilePage() {
   const [csvError, setCsvError] = useState<string | null>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
 
+  // Founder Knowledge Map
+  const [knowledgeMap, setKnowledgeMap] = useState<KnowledgeMap | null>(null);
+  const [knowledgeMapLoading, setKnowledgeMapLoading] = useState(true);
+
+  // Inline editing of high-signal "focus" fields
+  const [editingFocus, setEditingFocus] = useState(false);
+  const [focusDraft, setFocusDraft] = useState<{
+    biggest_challenge: string;
+    business_stage: OnboardingProfile['business_stage'];
+    vision_6_12_months: string;
+  }>({ biggest_challenge: '', business_stage: 'idea', vision_6_12_months: '' });
+  const [savingFocus, setSavingFocus] = useState(false);
+  const [focusError, setFocusError] = useState<string | null>(null);
+
   const navigate = useNavigate();
 
   useEffect(() => {
     loadProfile();
     loadBookStatuses();
     loadReadingProfile();
+    loadKnowledgeMap();
   }, []);
-
-  const loadBookStatuses = async () => {
-    try {
-      setLoadingBookStatuses(true);
-      const [interested, readLiked, readDisliked, notForMe] = await Promise.all([
-        apiClient.getBookStatusList('interested'),
-        apiClient.getBookStatusList('read_liked'),
-        apiClient.getBookStatusList('read_disliked'),
-        apiClient.getBookStatusList('not_for_me'),
-      ]);
-      
-      setBookStatuses({
-        interested,
-        read_liked: readLiked,
-        read_disliked: readDisliked,
-        not_for_me: notForMe,
-      });
-    } catch (err: any) {
-      console.warn('Failed to load book statuses:', err);
-      // Don't show error to user - this is optional data
-    } finally {
-      setLoadingBookStatuses(false);
-    }
-  };
 
   const loadProfile = async () => {
     try {
@@ -96,12 +100,46 @@ export default function ProfilePage() {
     }
   };
 
+  const loadBookStatuses = async () => {
+    try {
+      setLoadingBookStatuses(true);
+      const [interested, readLiked, readDisliked, notForMe] = await Promise.all([
+        apiClient.getBookStatusList('interested'),
+        apiClient.getBookStatusList('read_liked'),
+        apiClient.getBookStatusList('read_disliked'),
+        apiClient.getBookStatusList('not_for_me'),
+      ]);
+      setBookStatuses({
+        interested,
+        read_liked: readLiked,
+        read_disliked: readDisliked,
+        not_for_me: notForMe,
+      });
+    } catch (err: any) {
+      console.warn('Failed to load book statuses:', err);
+    } finally {
+      setLoadingBookStatuses(false);
+    }
+  };
+
   const loadReadingProfile = async () => {
     try {
       const data = await apiClient.getReadingProfile();
       setReadingProfile(data);
     } catch {
       // 404 = no profile yet — that's fine
+    }
+  };
+
+  const loadKnowledgeMap = async () => {
+    try {
+      setKnowledgeMapLoading(true);
+      const data = await apiClient.getKnowledgeMap();
+      setKnowledgeMap(data);
+    } catch {
+      // Non-fatal — show empty state
+    } finally {
+      setKnowledgeMapLoading(false);
     }
   };
 
@@ -117,11 +155,14 @@ export default function ProfilePage() {
       const result = await apiClient.uploadReadingHistoryCsv(file);
       setCsvMessage(
         `✓ Imported ${result.imported_count} books` +
-        (result.new_books_added > 0 ? ` (${result.new_books_added} added to catalog)` : '') +
-        '. Your reading profile is being updated.'
+          (result.new_books_added > 0 ? ` (${result.new_books_added} added to catalog)` : '') +
+          '. Your reading profile is being updated.',
       );
-      // Reload profile after short delay for background task to start
-      setTimeout(() => loadReadingProfile(), 3000);
+      // Reload derived data after background task starts
+      setTimeout(() => {
+        loadReadingProfile();
+        loadKnowledgeMap();
+      }, 3000);
     } catch (e: any) {
       setCsvError(e?.response?.data?.detail || 'Upload failed. Please try again.');
     } finally {
@@ -130,8 +171,40 @@ export default function ProfilePage() {
     }
   };
 
-  const handleReRunOnboarding = () => {
-    navigate('/onboarding');
+  const startEditFocus = () => {
+    if (!profile) return;
+    setFocusDraft({
+      biggest_challenge: profile.biggest_challenge || '',
+      business_stage: profile.business_stage,
+      vision_6_12_months: profile.vision_6_12_months || '',
+    });
+    setFocusError(null);
+    setEditingFocus(true);
+  };
+
+  const saveFocus = async () => {
+    if (!profile) return;
+    if (!focusDraft.biggest_challenge.trim()) {
+      setFocusError('Biggest challenge cannot be empty.');
+      return;
+    }
+    setSavingFocus(true);
+    setFocusError(null);
+    try {
+      await apiClient.patchOnboarding({
+        biggest_challenge: focusDraft.biggest_challenge.trim(),
+        business_stage: focusDraft.business_stage,
+        vision_6_12_months: focusDraft.vision_6_12_months.trim() || undefined,
+      });
+      setProfile({ ...profile, ...focusDraft });
+      setEditingFocus(false);
+      // Stage / challenge changed → ideal target shifts, so refresh the map
+      loadKnowledgeMap();
+    } catch (e: any) {
+      setFocusError(e?.message || 'Failed to save. Please try again.');
+    } finally {
+      setSavingFocus(false);
+    }
   };
 
   if (loading) {
@@ -162,7 +235,7 @@ export default function ProfilePage() {
         <div className="container">
           <Card variant="elevated">
             <p>No profile found. Let's get you set up.</p>
-            <Button variant="primary" onClick={handleReRunOnboarding} delayMs={140} className="readar-profile-action">
+            <Button variant="primary" onClick={() => navigate('/onboarding')} delayMs={140} className="readar-profile-action">
               Get Started
             </Button>
           </Card>
@@ -171,300 +244,251 @@ export default function ProfilePage() {
     );
   }
 
+  const activeList = bookStatuses[activityTab];
+
   return (
     <div className="readar-profile-page">
       <div className="container">
         <h1 className="readar-profile-title">Your Profile</h1>
-        <div className="readar-profile-grid">
-          <Card variant="flat" className="readar-profile-section">
-            <h2 className="readar-profile-section-title">Personal Information</h2>
-            <div className="readar-profile-field">
-              <strong>Name:</strong> {profile.full_name}
-            </div>
-            {profile.occupation && (
-              <div className="readar-profile-field">
-                <strong>Occupation:</strong> {profile.occupation}
-              </div>
-            )}
-            {profile.location && (
-              <div className="readar-profile-field">
-                <strong>Location:</strong> {profile.location}
-              </div>
-            )}
-            {profile.industry && (
-              <div className="readar-profile-field">
-                <strong>Industry:</strong> {profile.industry}
-              </div>
-            )}
-          </Card>
 
-          <Card variant="flat" className="readar-profile-section">
-            <h2 className="readar-profile-section-title">Business Information</h2>
-            <div className="readar-profile-field">
-              <strong>Business Model:</strong> {profile.business_model}
-            </div>
-            <div className="readar-profile-field">
-              <strong>Business Stage:</strong>{' '}
-              <Badge variant="purple" size="sm">{profile.business_stage}</Badge>
-            </div>
-            {profile.org_size && (
-              <div className="readar-profile-field">
-                <strong>Organization Size:</strong> {profile.org_size}
-              </div>
-            )}
-            {profile.business_experience && (
-              <div className="readar-profile-field">
-                <strong>Experience:</strong> {profile.business_experience}
-              </div>
-            )}
-          </Card>
+        {/* ── Hero: Founder Knowledge Map ─────────────────────────────── */}
+        <Card variant="flat" className="readar-profile-section fkm-hero">
+          <div className="fkm-hero-head">
+            <h2 className="readar-profile-section-title" style={{ border: 'none', marginBottom: 0, paddingBottom: 0 }}>
+              Founder Knowledge Map
+            </h2>
+            <p className="fkm-hero-sub">
+              Where your reading has built knowledge across the six domains of an
+              entrepreneur — measured against the ideal for
+              {' '}
+              {STAGE_OPTIONS.find((s) => s.value === profile.business_stage)?.label.toLowerCase() ?? 'your'} stage.
+            </p>
+          </div>
+          {knowledgeMapLoading ? (
+            <p className="readar-profile-muted">Building your map…</p>
+          ) : knowledgeMap ? (
+            <FounderKnowledgeMap data={knowledgeMap} />
+          ) : (
+            <p className="readar-profile-muted">
+              We couldn't build your map yet. Mark books as read or import your
+              Goodreads history below.
+            </p>
+          )}
+        </Card>
 
-          {profile.areas_of_business && profile.areas_of_business.length > 0 && (
-            <Card variant="flat" className="readar-profile-section">
-              <h2 className="readar-profile-section-title">Areas of Focus</h2>
-              <div className="readar-profile-tags">
-                {profile.areas_of_business.map((area) => (
-                  <Badge key={area} variant="primary" size="md">{area}</Badge>
-                ))}
+        {/* ── Your focus (editable, high-signal) ──────────────────────── */}
+        <Card variant="flat" className="readar-profile-section">
+          <div className="readar-profile-section-head">
+            <h2 className="readar-profile-section-title" style={{ border: 'none', marginBottom: 0, paddingBottom: 0 }}>
+              Your focus
+            </h2>
+            {!editingFocus && (
+              <button className="readar-link-button" onClick={startEditFocus}>Edit</button>
+            )}
+          </div>
+          <p className="readar-profile-help">These directly shape the books Readar recommends.</p>
+
+          {editingFocus ? (
+            <div className="readar-focus-form">
+              <label className="readar-field">
+                <span className="readar-field-label">Biggest challenge</span>
+                <textarea
+                  className="readar-textarea"
+                  value={focusDraft.biggest_challenge}
+                  onChange={(e) => setFocusDraft({ ...focusDraft, biggest_challenge: e.target.value })}
+                  rows={3}
+                />
+              </label>
+              <label className="readar-field">
+                <span className="readar-field-label">Business stage</span>
+                <select
+                  className="readar-select"
+                  value={focusDraft.business_stage}
+                  onChange={(e) => setFocusDraft({ ...focusDraft, business_stage: e.target.value as OnboardingProfile['business_stage'] })}
+                >
+                  {STAGE_OPTIONS.map((s) => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="readar-field">
+                <span className="readar-field-label">Vision (6–12 months)</span>
+                <textarea
+                  className="readar-textarea"
+                  value={focusDraft.vision_6_12_months}
+                  onChange={(e) => setFocusDraft({ ...focusDraft, vision_6_12_months: e.target.value })}
+                  rows={3}
+                />
+              </label>
+              {focusError && <p className="readar-field-error">{focusError}</p>}
+              <div className="readar-focus-actions">
+                <Button variant="primary" size="sm" onClick={saveFocus} disabled={savingFocus} delayMs={0}>
+                  {savingFocus ? 'Saving…' : 'Save'}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setEditingFocus(false)} disabled={savingFocus}>
+                  Cancel
+                </Button>
               </div>
-            </Card>
+            </div>
+          ) : (
+            <>
+              <div className="readar-profile-field">
+                <strong>Biggest Challenge:</strong>
+                <p>{profile.biggest_challenge}</p>
+              </div>
+              <div className="readar-profile-field">
+                <strong>Business Stage:</strong>{' '}
+                <Badge variant="purple" size="sm">
+                  {STAGE_OPTIONS.find((s) => s.value === profile.business_stage)?.label ?? profile.business_stage}
+                </Badge>
+              </div>
+              {profile.vision_6_12_months && (
+                <div className="readar-profile-field">
+                  <strong>Vision (6–12 months):</strong>
+                  <p>{profile.vision_6_12_months}</p>
+                </div>
+              )}
+              {profile.blockers && (
+                <div className="readar-profile-field">
+                  <strong>Blockers:</strong>
+                  <p>{profile.blockers}</p>
+                </div>
+              )}
+            </>
+          )}
+        </Card>
+
+        {/* ── Reading History (stats + DNA tags + import) ──────────────── */}
+        <Card variant="flat" className="readar-profile-section">
+          <h2 className="readar-profile-section-title">Reading History</h2>
+          {readingProfile ? (
+            <div>
+              <div className="readar-reading-stats">
+                <div className="readar-stat">
+                  <span className="readar-stat-label">Books read</span>
+                  <div className="readar-stat-value">{readingProfile.total_books_read}</div>
+                </div>
+                {readingProfile.avg_rating != null && (
+                  <div className="readar-stat">
+                    <span className="readar-stat-label">Avg rating</span>
+                    <div className="readar-stat-value">{readingProfile.avg_rating.toFixed(1)} / 5</div>
+                  </div>
+                )}
+                <div className="readar-stat">
+                  <span className="readar-stat-label">Reading confidence</span>
+                  <div className="readar-stat-value">{Math.round(readingProfile.reading_confidence * 100)}%</div>
+                </div>
+              </div>
+              {readingProfile.profile_summary && (
+                <p className="readar-reading-summary">{readingProfile.profile_summary}</p>
+              )}
+              {readingProfile.structured_tags && Object.keys(readingProfile.structured_tags).length > 0 && (
+                <div className="readar-profile-tags" style={{ marginBottom: '1rem' }}>
+                  {Object.entries(readingProfile.structured_tags)
+                    .sort(([, a], [, b]) => b - a)
+                    .slice(0, 8)
+                    .map(([tag]) => (
+                      <Badge key={tag} variant="primary" size="sm">{tag}</Badge>
+                    ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="readar-profile-muted" style={{ marginBottom: '0.75rem' }}>
+              No reading history imported yet. Upload a Goodreads CSV to personalise
+              your recommendations and build your knowledge map.
+            </p>
           )}
 
-          <Card variant="flat" className="readar-profile-section">
-            <h2 className="readar-profile-section-title">Challenges & Vision</h2>
-            <div className="readar-profile-field">
-              <strong>Biggest Challenge:</strong>
-              <p>{profile.biggest_challenge}</p>
-            </div>
-            {profile.vision_6_12_months && (
-              <div className="readar-profile-field">
-                <strong>Vision (6-12 months):</strong>
-                <p>{profile.vision_6_12_months}</p>
-              </div>
-            )}
-            {profile.blockers && (
-              <div className="readar-profile-field">
-                <strong>Blockers:</strong>
-                <p>{profile.blockers}</p>
-              </div>
-            )}
-          </Card>
-        </div>
-
-        <div className="readar-profile-actions">
-          <Button variant="primary" onClick={handleReRunOnboarding} delayMs={140}>
-            Update Profile
-          </Button>
-        </div>
-
-        {/* Reading History / DNA Section */}
-        <div style={{ marginTop: '2rem' }}>
-          <h2 className="readar-profile-section-title" style={{ marginBottom: '1rem' }}>
-            Reading History
-          </h2>
-          <Card variant="flat" className="readar-profile-section">
-            {readingProfile ? (
-              <div>
-                <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-                  <div>
-                    <span style={{ color: 'var(--rd-muted)', fontSize: 'var(--rd-font-size-sm)' }}>Books read</span>
-                    <div style={{ fontWeight: 600, fontSize: 'var(--rd-font-size-lg)' }}>
-                      {readingProfile.total_books_read}
-                    </div>
-                  </div>
-                  {readingProfile.avg_rating != null && (
-                    <div>
-                      <span style={{ color: 'var(--rd-muted)', fontSize: 'var(--rd-font-size-sm)' }}>Avg rating</span>
-                      <div style={{ fontWeight: 600, fontSize: 'var(--rd-font-size-lg)' }}>
-                        {readingProfile.avg_rating.toFixed(1)} / 5
-                      </div>
-                    </div>
-                  )}
-                  <div>
-                    <span style={{ color: 'var(--rd-muted)', fontSize: 'var(--rd-font-size-sm)' }}>Reading confidence</span>
-                    <div style={{ fontWeight: 600, fontSize: 'var(--rd-font-size-lg)' }}>
-                      {Math.round(readingProfile.reading_confidence * 100)}%
-                    </div>
-                  </div>
-                </div>
-                {readingProfile.profile_summary && (
-                  <p style={{ marginBottom: '1rem', fontStyle: 'italic', color: 'var(--rd-muted)', fontSize: 'var(--rd-font-size-sm)' }}>
-                    {readingProfile.profile_summary}
-                  </p>
-                )}
-                {readingProfile.structured_tags && Object.keys(readingProfile.structured_tags).length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '1rem' }}>
-                    {Object.entries(readingProfile.structured_tags)
-                      .sort(([, a], [, b]) => b - a)
-                      .slice(0, 8)
-                      .map(([tag]) => (
-                        <Badge key={tag} variant="primary" size="sm">{tag}</Badge>
-                      ))}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <p style={{ color: 'var(--rd-muted)', fontSize: 'var(--rd-font-size-sm)', marginBottom: '0.75rem' }}>
-                No reading history imported yet. Upload a Goodreads CSV to personalise your recommendations.
-              </p>
-            )}
-
-            {/* Upload control */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <input
-                ref={csvInputRef}
-                type="file"
-                accept=".csv"
-                style={{ display: 'none' }}
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) handleCsvUpload(f);
-                }}
-              />
-              <Button
-                variant="secondary"
-                onClick={() => csvInputRef.current?.click()}
-                disabled={uploadingCsv}
-                delayMs={0}
-              >
-                {uploadingCsv
-                  ? 'Uploading...'
-                  : readingProfile
-                  ? 'Update Goodreads history'
-                  : 'Import Goodreads history'}
-              </Button>
-              {csvMessage && (
-                <span style={{ color: 'var(--rd-success, green)', fontSize: 'var(--rd-font-size-sm)' }}>
-                  {csvMessage}
-                </span>
-              )}
-              {csvError && (
-                <span style={{ color: 'var(--rd-error, red)', fontSize: 'var(--rd-font-size-sm)' }}>
-                  {csvError}
-                </span>
-              )}
-            </div>
-          </Card>
-        </div>
-
-        {/* Book Activity Section */}
-        <div style={{ marginTop: '2rem' }}>
-          <h2 className="readar-profile-section-title" style={{ marginBottom: '1rem' }}>
-            Book Activity
-          </h2>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
-            {/* Interested */}
-            <Card variant="flat" className="readar-profile-section">
-              <h3 style={{ fontSize: 'var(--rd-font-size-lg)', fontWeight: 600, marginBottom: '0.75rem' }}>
-                Interested
-              </h3>
-              {loadingBookStatuses ? (
-                <p style={{ color: 'var(--rd-muted)', fontSize: 'var(--rd-font-size-sm)' }}>Loading...</p>
-              ) : bookStatuses.interested.length === 0 ? (
-                <p style={{ color: 'var(--rd-muted)', fontSize: 'var(--rd-font-size-sm)' }}>No books yet</p>
-              ) : (
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                  {bookStatuses.interested.map((item) => (
-                    <li key={item.book_id} style={{ marginBottom: '0.5rem', fontSize: 'var(--rd-font-size-sm)' }}>
-                      {item.title ? (
-                        <>
-                          <strong>{item.title}</strong>
-                          {item.author_name && <span style={{ color: 'var(--rd-muted)' }}> by {item.author_name}</span>}
-                        </>
-                      ) : (
-                        <span style={{ color: 'var(--rd-muted)' }}>{item.book_id}</span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Card>
-
-            {/* Read (Liked) */}
-            <Card variant="flat" className="readar-profile-section">
-              <h3 style={{ fontSize: 'var(--rd-font-size-lg)', fontWeight: 600, marginBottom: '0.75rem' }}>
-                Read (Liked)
-              </h3>
-              {loadingBookStatuses ? (
-                <p style={{ color: 'var(--rd-muted)', fontSize: 'var(--rd-font-size-sm)' }}>Loading...</p>
-              ) : bookStatuses.read_liked.length === 0 ? (
-                <p style={{ color: 'var(--rd-muted)', fontSize: 'var(--rd-font-size-sm)' }}>No books yet</p>
-              ) : (
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                  {bookStatuses.read_liked.map((item) => (
-                    <li key={item.book_id} style={{ marginBottom: '0.5rem', fontSize: 'var(--rd-font-size-sm)' }}>
-                      {item.title ? (
-                        <>
-                          <strong>{item.title}</strong>
-                          {item.author_name && <span style={{ color: 'var(--rd-muted)' }}> by {item.author_name}</span>}
-                        </>
-                      ) : (
-                        <span style={{ color: 'var(--rd-muted)' }}>{item.book_id}</span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Card>
-
-            {/* Read (Disliked) */}
-            <Card variant="flat" className="readar-profile-section">
-              <h3 style={{ fontSize: 'var(--rd-font-size-lg)', fontWeight: 600, marginBottom: '0.75rem' }}>
-                Read (Disliked)
-              </h3>
-              {loadingBookStatuses ? (
-                <p style={{ color: 'var(--rd-muted)', fontSize: 'var(--rd-font-size-sm)' }}>Loading...</p>
-              ) : bookStatuses.read_disliked.length === 0 ? (
-                <p style={{ color: 'var(--rd-muted)', fontSize: 'var(--rd-font-size-sm)' }}>No books yet</p>
-              ) : (
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                  {bookStatuses.read_disliked.map((item) => (
-                    <li key={item.book_id} style={{ marginBottom: '0.5rem', fontSize: 'var(--rd-font-size-sm)' }}>
-                      {item.title ? (
-                        <>
-                          <strong>{item.title}</strong>
-                          {item.author_name && <span style={{ color: 'var(--rd-muted)' }}> by {item.author_name}</span>}
-                        </>
-                      ) : (
-                        <span style={{ color: 'var(--rd-muted)' }}>{item.book_id}</span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Card>
-
-            {/* Not for me */}
-            <Card variant="flat" className="readar-profile-section">
-              <h3 style={{ fontSize: 'var(--rd-font-size-lg)', fontWeight: 600, marginBottom: '0.75rem' }}>
-                Not for me
-              </h3>
-              {loadingBookStatuses ? (
-                <p style={{ color: 'var(--rd-muted)', fontSize: 'var(--rd-font-size-sm)' }}>Loading...</p>
-              ) : bookStatuses.not_for_me.length === 0 ? (
-                <p style={{ color: 'var(--rd-muted)', fontSize: 'var(--rd-font-size-sm)' }}>No books yet</p>
-              ) : (
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                  {bookStatuses.not_for_me.map((item) => (
-                    <li key={item.book_id} style={{ marginBottom: '0.5rem', fontSize: 'var(--rd-font-size-sm)' }}>
-                      {item.title ? (
-                        <>
-                          <strong>{item.title}</strong>
-                          {item.author_name && <span style={{ color: 'var(--rd-muted)' }}> by {item.author_name}</span>}
-                        </>
-                      ) : (
-                        <span style={{ color: 'var(--rd-muted)' }}>{item.book_id}</span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Card>
+          <div className="readar-csv-row">
+            <input
+              ref={csvInputRef}
+              type="file"
+              accept=".csv"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleCsvUpload(f);
+              }}
+            />
+            <Button
+              variant="secondary"
+              onClick={() => csvInputRef.current?.click()}
+              disabled={uploadingCsv}
+              delayMs={0}
+            >
+              {uploadingCsv ? 'Uploading...' : readingProfile ? 'Update Goodreads history' : 'Import Goodreads history'}
+            </Button>
+            {csvMessage && <span className="readar-csv-success">{csvMessage}</span>}
+            {csvError && <span className="readar-csv-error">{csvError}</span>}
           </div>
-        </div>
+        </Card>
+
+        {/* ── Book Activity (tabbed, condensed) ───────────────────────── */}
+        <Card variant="flat" className="readar-profile-section">
+          <h2 className="readar-profile-section-title">Book Activity</h2>
+          <div className="readar-activity-tabs">
+            {ACTIVITY_TABS.map((t) => (
+              <button
+                key={t.key}
+                className={`readar-activity-tab${activityTab === t.key ? ' readar-activity-tab--active' : ''}`}
+                onClick={() => setActivityTab(t.key)}
+              >
+                {t.label}
+                <span className="readar-activity-count">{bookStatuses[t.key].length}</span>
+              </button>
+            ))}
+          </div>
+          <div className="readar-activity-body">
+            {loadingBookStatuses ? (
+              <p className="readar-profile-muted">Loading...</p>
+            ) : activeList.length === 0 ? (
+              <p className="readar-profile-muted">No books here yet.</p>
+            ) : (
+              <ul className="readar-activity-list">
+                {activeList.map((item) => (
+                  <li key={item.book_id} className="readar-activity-item">
+                    {item.title ? (
+                      <>
+                        <strong>{item.title}</strong>
+                        {item.author_name && <span className="readar-profile-muted"> by {item.author_name}</span>}
+                      </>
+                    ) : (
+                      <span className="readar-profile-muted">{item.book_id}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </Card>
+
+        {/* ── Account details (compact, low-signal) ───────────────────── */}
+        <Card variant="flat" className="readar-profile-section">
+          <h2 className="readar-profile-section-title">Account details</h2>
+          <div className="readar-account-grid">
+            <div className="readar-profile-field"><strong>Name:</strong> {profile.full_name}</div>
+            {profile.occupation && <div className="readar-profile-field"><strong>Occupation:</strong> {profile.occupation}</div>}
+            {profile.location && <div className="readar-profile-field"><strong>Location:</strong> {profile.location}</div>}
+            {profile.industry && <div className="readar-profile-field"><strong>Industry:</strong> {profile.industry}</div>}
+            {profile.business_model && <div className="readar-profile-field"><strong>Business Model:</strong> {profile.business_model}</div>}
+            {profile.org_size && <div className="readar-profile-field"><strong>Organization Size:</strong> {profile.org_size}</div>}
+            {profile.business_experience && <div className="readar-profile-field"><strong>Experience:</strong> {profile.business_experience}</div>}
+          </div>
+          {profile.areas_of_business && profile.areas_of_business.length > 0 && (
+            <div className="readar-profile-tags" style={{ marginTop: '1rem' }}>
+              {profile.areas_of_business.map((area) => (
+                <Badge key={area} variant="primary" size="md">{area}</Badge>
+              ))}
+            </div>
+          )}
+          <div className="readar-account-foot">
+            <button className="readar-link-button" onClick={() => navigate('/onboarding')}>
+              Re-run full onboarding
+            </button>
+          </div>
+        </Card>
       </div>
     </div>
   );
 }
-

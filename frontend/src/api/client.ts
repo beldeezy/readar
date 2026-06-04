@@ -11,6 +11,7 @@ import type {
   BookPreferenceStatus,
   CheckoutSessionRequest,
   CheckoutSessionResponse,
+  KnowledgeMap,
 } from './types';
 import { getAccessToken, clearAccessToken } from '../auth/auth';
 
@@ -665,6 +666,15 @@ class ApiClient {
     generated_at: string | null;
   }> {
     const response = await this.client.get('/reading-history/profile');
+    return response.data;
+  }
+
+  /**
+   * Founder Knowledge Map — the user's reading mapped onto six entrepreneurial
+   * domains (scored 1-3) alongside a stage-aware ideal target vector.
+   */
+  async getKnowledgeMap(): Promise<KnowledgeMap> {
+    const response = await this.client.get('/reading-history/knowledge-map');
     return response.data;
   }
 

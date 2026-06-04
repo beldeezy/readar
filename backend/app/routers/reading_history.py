@@ -33,6 +33,7 @@ from app.database import SessionLocal, get_db
 from app.core.auth import get_current_user
 from app.models import Book, BookDifficulty, PendingBook, ReadingHistoryEntry, User, UserReadingProfile
 from app.services.reading_profile_service import generate_reading_profile
+from app.services.founder_knowledge import compute_knowledge_map
 from app.utils.email import send_weekly_pending_books_email
 
 logger = logging.getLogger(__name__)
@@ -65,6 +66,13 @@ functional_tags (1-5): pricing, marketing, sales, operations, product, leadershi
   client_acquisition, service_delivery, plg, growth, metrics, analytics, hiring,
   finance, strategy, fundraising, culture, productivity, negotiation, communication
 theme_tags (1-4, free-form lowercase_underscore)
+  IMPORTANT: if the book is primarily about the founder's inner game — self-mastery,
+  mindset, emotional regulation, discipline, habits, confidence, resilience, focus —
+  include an explicit theme tag such as: mindset, discipline, psychology, resilience,
+  self_awareness. If it is about thinking/decision-making (mental models, first
+  principles, systems thinking, strategy), include: decision_making, systems_thinking,
+  first_principles. These inner-game and cognition themes are easy to miss — tag them
+  when present.
 difficulty: light | medium | deep
 promise (max 120 chars): What the reader gains.
 best_for (max 120 chars): Who benefits most.
@@ -549,6 +557,31 @@ def get_reading_profile(
         profile_summary=profile.profile_summary,
         generated_at=profile.generated_at.isoformat() if profile.generated_at else None,
     )
+
+
+class DomainScore(BaseModel):
+    key: str
+    label: str
+    score: int
+
+
+class KnowledgeMapOut(BaseModel):
+    domains: List[DomainScore]
+    ideal: List[DomainScore]
+    total_books_scored: int
+    stage: Optional[str]
+
+
+@router.get("/knowledge-map", response_model=KnowledgeMapOut)
+def get_knowledge_map(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Founder Knowledge Map: the user's reading mapped onto six entrepreneurial
+    domains (scored 1-3) alongside a stage-aware ideal target vector.
+    """
+    return compute_knowledge_map(db, user)
 
 
 @router.post("/weekly-report")
