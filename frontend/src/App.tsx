@@ -18,6 +18,7 @@ import InsightReview from './pages/admin/InsightReview';
 import RecommendationsDebug from './pages/admin/RecommendationsDebug';
 import EnvCheckPage from './pages/EnvCheckPage';
 import Header from './components/Header';
+import BottomNav from './components/BottomNav';
 import ScrollToTop from './components/ScrollToTop';
 import BackendHealthGate from './components/BackendHealthGate';
 
@@ -176,6 +177,7 @@ function App() {
           <main className="readar-main">
             <AppRoutes />
           </main>
+          <BottomNav />
         </div>
       </BrowserRouter>
     </AuthProvider>

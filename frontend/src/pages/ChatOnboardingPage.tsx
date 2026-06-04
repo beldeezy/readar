@@ -52,6 +52,9 @@ const ChatOnboardingPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const latestBotBatchRef = useRef<HTMLDivElement>(null);
+  // Tracks the index of the first message in the latest bot batch so the render can attach the ref
+  const latestBotBatchIdxRef = useRef<number>(0);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [answers, setAnswers] = useState<Record<string, any>>({});
@@ -69,13 +72,31 @@ const ChatOnboardingPage: React.FC = () => {
   // Guard to prevent double execution in React StrictMode
   const initializedRef = useRef(false);
 
-  // Scroll to bottom when new messages appear
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
+  // Scroll so the first message of the latest bot batch is at the top of the viewport.
+  // For user messages, scroll to the bottom so they see their own reply.
   useEffect(() => {
-    scrollToBottom();
+    const latest = messages[messages.length - 1];
+    if (!latest) return;
+
+    if (latest.type === 'bot') {
+      // Find the first message in this bot batch (first message after the last user message)
+      let batchStartIdx = 0;
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].type === 'user') {
+          batchStartIdx = i + 1;
+          break;
+        }
+      }
+      // If the batch start element is mounted, scroll it to the top
+      if (latestBotBatchRef.current) {
+        latestBotBatchRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      // Store batch start index so the render can assign the ref
+      latestBotBatchIdxRef.current = batchStartIdx;
+    } else {
+      // User message — scroll to bottom
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages, pageMode]);
 
   // Load saved progress from localStorage and initialize chat
@@ -495,8 +516,13 @@ const ChatOnboardingPage: React.FC = () => {
       </header>
 
       <main className="chat-messages">
-        {messages.map((message) => (
-          <ChatMessage key={message.id} message={message} />
+        {messages.map((message, idx) => (
+          <div
+            key={message.id}
+            ref={idx === latestBotBatchIdxRef.current ? latestBotBatchRef : undefined}
+          >
+            <ChatMessage message={message} />
+          </div>
         ))}
 
         {error && (

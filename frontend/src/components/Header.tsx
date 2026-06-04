@@ -21,7 +21,7 @@ export default function Header() {
           <img src={readarLogo} alt="Readar" className="readar-logo-icon" />
           <span className="readar-logo-text">readar</span>
         </Link>
-        <nav className="readar-nav">
+        <nav className={`readar-nav${user ? ' readar-nav--authenticated' : ''}`}>
           {user ? (
             <>
               <Link to="/recommendations" className="readar-nav-link">Recommendations</Link>

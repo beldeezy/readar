@@ -1,0 +1,162 @@
+/* ============================================
+   BOTTOM NAV — mobile only (≤ 768px)
+   ============================================ */
+
+.bottom-nav {
+  display: none; /* hidden on desktop */
+}
+
+@media (max-width: 768px) {
+  .bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 200;
+    background: rgba(2, 6, 23, 0.96);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    /* Safe area for iPhone home indicator */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Tabs */
+  .bottom-nav-tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 10px 0 12px;
+    text-decoration: none;
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 0.7rem;
+    font-weight: 500;
+    font-family: var(--rd-font);
+    letter-spacing: 0.01em;
+    transition: color 0.15s ease;
+    /* Large touch target */
+    min-height: 56px;
+    cursor: pointer;
+    border: none;
+    background: none;
+  }
+
+  .bottom-nav-tab:active {
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  .bottom-nav-tab--active {
+    color: var(--rd-accent);
+  }
+
+  /* More button (inside the tab div) */
+  .bottom-nav-tab--more {
+    position: relative;
+    padding: 0;
+  }
+
+  .bottom-nav-more-btn {
+    flex: 1;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 10px 0 12px;
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 0.7rem;
+    font-weight: 500;
+    font-family: var(--rd-font);
+    letter-spacing: 0.01em;
+    background: none;
+    border: none;
+    cursor: pointer;
+    min-height: 56px;
+    transition: color 0.15s ease;
+  }
+
+  .bottom-nav-more-btn:active,
+  .bottom-nav-more-btn--open {
+    color: var(--rd-accent);
+  }
+
+  /* More sheet — slides up from above the nav */
+  .bottom-nav-more-sheet {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    right: 0;
+    min-width: 200px;
+    background: #1a2035;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.4);
+    animation: sheet-slide-up 0.18s cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  @keyframes sheet-slide-up {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .bottom-nav-more-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 14px 18px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 500;
+    font-family: var(--rd-font);
+    color: var(--rd-text);
+    transition: background 0.12s ease;
+    text-align: left;
+  }
+
+  .bottom-nav-more-item:not(:last-child) {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+  .bottom-nav-more-item:active {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .bottom-nav-more-item--upgrade {
+    color: var(--rd-accent);
+  }
+
+  .bottom-nav-more-item--logout {
+    color: rgba(255, 255, 255, 0.65);
+  }
+
+  /* Backdrop to dismiss More sheet */
+  .bottom-nav-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 199;
+  }
+}
+
+/* ============================================
+   PAGE PADDING — push content above the nav
+   on mobile so bottom nav doesn't overlap it
+   ============================================ */
+@media (max-width: 768px) {
+  .readar-main {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  }
+}

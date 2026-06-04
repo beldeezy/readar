@@ -71,19 +71,25 @@
   .readar-header {
     padding: 1rem 0;
   }
-  
+
   .readar-logo-icon {
     height: 32px;
   }
-  
+
   .readar-logo-text {
     font-size: 1.5rem;
   }
-  
+
+  /* Hide nav links for authenticated users — bottom nav handles navigation */
+  .readar-nav--authenticated {
+    display: none;
+  }
+
+  /* Keep the Get Started button visible for logged-out users */
   .readar-nav {
     gap: 1rem;
   }
-  
+
   .readar-nav-link {
     font-size: var(--rd-font-size-sm);
   }
