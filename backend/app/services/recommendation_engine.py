@@ -2,6 +2,7 @@ from typing import List, Tuple, Set, Optional, Dict, Any, TypedDict
 from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import ProgrammingError, OperationalError
+from sqlalchemy import or_, func as sa_func
 import logging
 from collections import Counter, defaultdict
 from urllib.parse import quote_plus
@@ -22,6 +23,25 @@ from app.models import (
 from app.schemas.recommendation import RecommendationItem
 
 logger = logging.getLogger(__name__)
+
+
+def candidate_books_query(db: Session):
+    """
+    Base query for recommendable books.
+
+    Excludes un-enriched stub records — off-topic titles auto-created from a
+    Goodreads import that never received tags ("Tags pending enrichment"). They
+    carry no functional_tags or business_stage_tags, can't be meaningfully
+    matched, and should never surface as recommendations. Filtering here also
+    future-proofs against any newly-imported, not-yet-tagged stubs.
+    """
+    return db.query(Book).filter(
+        or_(
+            sa_func.array_length(Book.functional_tags, 1) > 0,
+            sa_func.array_length(Book.business_stage_tags, 1) > 0,
+            sa_func.array_length(Book.theme_tags, 1) > 0,
+        )
+    )
 
 
 # Insight type definition (internal, not persisted)
@@ -441,8 +461,8 @@ def get_generic_recommendations(
     For service-like business models, prioritizes services canon books.
     For SaaS-like business models, prioritizes SaaS canon books.
     """
-    q = db.query(Book)
-    
+    q = candidate_books_query(db)
+
     # Check if business model is service-like or SaaS-like
     is_service_like = False
     is_saas_like = False
@@ -2338,7 +2358,7 @@ def get_personalized_recommendations(
     # C) Load candidate books – for now, all books.
     if settings.DEBUG:
         t_books_start = now_ms()
-    books: List[Book] = db.query(Book).all()
+    books: List[Book] = candidate_books_query(db).all()
     if settings.DEBUG:
         books_count = len(books)
         t_books_elapsed = now_ms() - t_books_start
@@ -2802,7 +2822,7 @@ def get_recommendations_from_payload(
     onboarding = MockOnboardingProfile(payload)
     
     # Load candidate books
-    books: List[Book] = db.query(Book).all()
+    books: List[Book] = candidate_books_query(db).all()
     if not books:
         raise NotEnoughSignalError("No books in catalog.")
     
@@ -3136,7 +3156,7 @@ def get_recommendations_for_user(
     history_titles: Set[str] = {h.title.lower().strip() for h in history_entries}
     
     # Load all candidate books
-    books = db.query(Book).all()
+    books = candidate_books_query(db).all()
     
     if not books:
         return []
