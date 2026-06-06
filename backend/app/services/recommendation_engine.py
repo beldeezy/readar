@@ -21,6 +21,7 @@ from app.models import (
     UserReadingProfile,
 )
 from app.schemas.recommendation import RecommendationItem
+from app.services import founder_knowledge as fk
 
 logger = logging.getLogger(__name__)
 
@@ -1737,6 +1738,61 @@ def _build_why_this_book(
     return " ".join(sentences[:4])
 
 
+# ── Problem-fit: the PRIMARY recommendation driver ────────────────────────────
+# Books whose knowledge domains overlap the domains of the user's *stated*
+# problem/goal score highest — so recommendations reflect what the user actually
+# said, not just their stage bucket. Reuses the six-domain mapping from the
+# Founder Knowledge Map. Weight is set so one domain match (+3.0) rivals an exact
+# stage match and multi-domain matches dominate.
+PROBLEM_DOMAIN_WEIGHT = 3.0
+
+
+def _user_problem_domains(user_ctx: Dict[str, Any]) -> Set[str]:
+    """Map the user's own problem/goal language to knowledge domains."""
+    text = " ".join(
+        filter(
+            None,
+            [
+                user_ctx.get("biggest_challenge") or "",
+                " ".join(user_ctx.get("areas_of_business") or []),
+                user_ctx.get("vision") or "",
+                user_ctx.get("ideal_book") or "",
+            ],
+        )
+    ).lower()
+    if not text.strip():
+        return set()
+    return {
+        domain
+        for domain, needles in fk.CHALLENGE_KEYWORDS.items()
+        if any(n in text for n in needles)
+    }
+
+
+def _book_domains(book: Book) -> Set[str]:
+    """Map a book's functional/theme tags to knowledge domains."""
+    doms: Set[str] = set()
+    for t in (book.functional_tags or []):
+        d = fk.FUNCTIONAL_TO_DOMAIN.get(str(t).strip().lower())
+        if d:
+            doms.add(d)
+    for t in (book.theme_tags or []):
+        key = str(t).strip().lower()
+        for needle, d in fk.THEME_KEYWORD_TO_DOMAIN.items():
+            if needle in key:
+                doms.add(d)
+                break
+    return doms
+
+
+def _score_from_problem(problem_domains: Set[str], book: Book) -> float:
+    """Primary driver: reward books whose domains overlap the user's problem."""
+    if not problem_domains:
+        return 0.0
+    overlap = problem_domains & _book_domains(book)
+    return PROBLEM_DOMAIN_WEIGHT * len(overlap)
+
+
 def _build_user_context(onboarding: Optional[OnboardingProfile]) -> Dict[str, Optional[str]]:
     """
     Extract relevant onboarding fields from the OnboardingProfile model.
@@ -1760,13 +1816,20 @@ def _build_user_context(onboarding: Optional[OnboardingProfile]) -> Dict[str, Op
     if getattr(onboarding, "current_gross_revenue", None):
         revenue_stage = REVENUE_STAGE.get(onboarding.current_gross_revenue)
 
-    return {
+    ctx: Dict[str, Any] = {
         "business_stage": business_stage,
         "business_model": onboarding.business_model,
         "biggest_challenge": onboarding.biggest_challenge,
         "areas_of_business": onboarding.areas_of_business,
         "revenue_stage": revenue_stage,
+        # Goal / ideal language — used by problem-fit (getattr keeps this safe for
+        # both the real OnboardingProfile and the payload MockOnboardingProfile).
+        "vision": getattr(onboarding, "vision_6_12_months", None),
+        "ideal_book": getattr(onboarding, "ideal_book_description", None),
     }
+    # Precompute the domains of the user's stated problem/goal (problem-fit driver).
+    ctx["problem_domains"] = _user_problem_domains(ctx)
+    return ctx
 
 
 def _score_from_stage_fit(
@@ -2452,6 +2515,9 @@ def get_personalized_recommendations(
         total_scores[book.id] += stage_fit_score
         book_score_factors[book.id] = score_factors
 
+        # Problem-fit — primary driver: reward books matching the user's stated problem.
+        total_scores[book.id] += _score_from_problem(user_ctx.get("problem_domains") or set(), book)
+
         # Store base score before insight and status adjustments
         base_scores[book.id] = total_scores[book.id]
         
@@ -2864,7 +2930,10 @@ def get_recommendations_from_payload(
         stage_fit_score, score_factors = _score_from_stage_fit(user_ctx, book, onboarding)
         total_scores[book.id] += stage_fit_score
         book_score_factors[book.id] = score_factors
-        
+
+        # Problem-fit — primary driver: reward books matching the user's stated problem.
+        total_scores[book.id] += _score_from_problem(user_ctx.get("problem_domains") or set(), book)
+
         # Store base score before insight adjustments
         base_scores[book.id] = total_scores[book.id]
         
