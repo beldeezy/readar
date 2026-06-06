@@ -6,7 +6,7 @@ interface Props {
   data: KnowledgeMap;
 }
 
-const MAX = 3; // 1-3 scale → 3 rings
+const MAX = 100; // 0-100 FIFA-style scale
 
 // Knowledge altitude ladder (1-5) for the depth indicator
 const LEVEL_NAMES: Record<number, string> = {
@@ -18,8 +18,9 @@ const LEVEL_NAMES: Record<number, string> = {
 };
 const SIZE = 320; // svg viewbox
 const CENTER = SIZE / 2;
-const RADIUS = 110; // distance from center to score=3
+const RADIUS = 110; // distance from center to score=100
 const LABEL_PAD = 34; // extra radius for labels
+const RING_LEVELS = [25, 50, 75, 100]; // gridline rings on the 0-100 scale
 
 // Spoke angles: start at top (-90°), clockwise, 60° apart.
 function angleFor(i: number, n: number): number {
@@ -52,10 +53,8 @@ export default function FounderKnowledgeMap({ data }: Props) {
   const userScores = domains.map((d) => d.score);
   const idealScores = domains.map((d) => idealByKey[d.key] ?? 0);
 
-  // Concentric reference rings (hexagons) at each level
-  const rings = Array.from({ length: MAX }, (_, r) =>
-    polygon(domains.map(() => r + 1)),
-  );
+  // Concentric reference rings (hexagons) at each gridline level
+  const rings = RING_LEVELS.map((level) => polygon(domains.map(() => level)));
 
   const isEmpty = total_books_scored === 0;
 
@@ -111,7 +110,7 @@ export default function FounderKnowledgeMap({ data }: Props) {
             >
               <tspan className="fkm-label-name">{d.label}</tspan>
               <tspan className="fkm-label-score" x={x} dy="1.2em">
-                {d.score}/{MAX}
+                {d.score}
                 {d.depth ? ` · L${d.depth}` : ''}
               </tspan>
             </text>

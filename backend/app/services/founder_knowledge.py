@@ -2,8 +2,9 @@
 Founder Knowledge Map service.
 
 Maps a user's *read* books onto six entrepreneurial knowledge domains, scores
-each domain on a 1-3 scale, and computes a stage-aware "ideal founder" target
-vector that bends to the user's business stage and biggest challenge.
+each domain on a 0-100 scale (FIFA-card style), and computes a stage-aware
+"ideal founder" target vector that bends to the user's business stage and
+biggest challenge.
 
 The score is intentionally a *reading-diet / blind-spot* signal, not a claim of
 competence: it reflects where a founder has invested their reading, surfacing
@@ -14,6 +15,7 @@ No schema changes required — scores are derived from existing
 """
 from __future__ import annotations
 
+import math
 from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
@@ -93,17 +95,21 @@ THEME_KEYWORD_TO_DOMAIN: Dict[str, str] = {
     "pricing_strategy": "finance",
 }
 
-# ── Stage-aware ideal target vectors (1-3 per domain) ─────────────────────────
+# ── Stage-aware ideal target vectors (0-100 per domain) ───────────────────────
+# Levels translate as: foundational/minimal = 40, solid = 65, priority/deep = 85.
 STAGE_IDEAL: Dict[str, Dict[str, int]] = {
-    "idea": {"mindset": 3, "strategy": 3, "sales": 3, "operations": 1, "finance": 1, "leadership": 1},
-    "pre-revenue": {"mindset": 2, "strategy": 3, "sales": 3, "operations": 2, "finance": 1, "leadership": 1},
-    "early-revenue": {"mindset": 2, "strategy": 2, "sales": 3, "operations": 3, "finance": 2, "leadership": 2},
-    "scaling": {"mindset": 2, "strategy": 3, "sales": 2, "operations": 3, "finance": 3, "leadership": 3},
+    "idea": {"mindset": 85, "strategy": 85, "sales": 85, "operations": 40, "finance": 40, "leadership": 40},
+    "pre-revenue": {"mindset": 65, "strategy": 85, "sales": 85, "operations": 65, "finance": 40, "leadership": 40},
+    "early-revenue": {"mindset": 65, "strategy": 65, "sales": 85, "operations": 85, "finance": 65, "leadership": 65},
+    "scaling": {"mindset": 65, "strategy": 85, "sales": 65, "operations": 85, "finance": 85, "leadership": 85},
 }
 # Fallback when stage is unknown — a balanced mid-journey target.
 DEFAULT_IDEAL: Dict[str, int] = STAGE_IDEAL["early-revenue"]
 
-# ── biggest_challenge keyword → domain (for the +1 ideal nudge) ───────────────
+# A matched biggest_challenge raises that domain's target by this much (capped 100).
+CHALLENGE_NUDGE = 20
+
+# ── biggest_challenge keyword → domain (for the ideal nudge) ──────────────────
 CHALLENGE_KEYWORDS: Dict[str, List[str]] = {
     "mindset": ["focus", "burnout", "confidence", "procrastinat", "discipline",
                 "motivat", "overwhelm", "mindset", "fear", "doubt", "imposter"],
@@ -111,10 +117,11 @@ CHALLENGE_KEYWORDS: Dict[str, List[str]] = {
                  "priorit", "clarity", "niche", "differentiat"],
     "sales": ["sales", "lead", "customer", "client", "marketing", "growth",
               "revenue", "acqui", "demand", "pipeline", "conversion", "audience"],
-    "operations": ["operation", "system", "process", "deliver", "time", "scal",
-                   "efficien", "workflow", "fulfil", "bottleneck"],
+    "operations": ["operation", "system", "process", "deliver", "scal",
+                   "efficien", "workflow", "fulfil", "bottleneck",
+                   "time management", "too busy", "overwhelm"],
     "finance": ["cash", "runway", "financ", "pricing", "profit", "margin",
-                "fund", "capital", "money", "invest", "unit econ"],
+                "fundrais", "capital", "money", "investor", "investment", "unit econ"],
     "leadership": ["hire", "hiring", "team", "manage", "leadership", "culture",
                    "delegat", "people", "staff", "employee", "retention"],
 }
@@ -207,19 +214,22 @@ def _collect_read_books(db: Session, user_id: UUID) -> Dict[UUID, Tuple[Book, fl
     return collected
 
 
-def _bucket(raw: float) -> int:
-    """Convert an accumulated raw domain weight into a 0-3 level."""
+# Weighted-book volume in a single domain that maps to ~100 ("domain mastery").
+# A log curve gives strong mid-range separation while saturating gracefully, so
+# an engaged reader's real shape shows instead of everything pinning to the top.
+VOLUME_FULL = 36.0
+
+
+def _volume_score(raw: float) -> int:
+    """Convert an accumulated raw domain weight into a 0-100 score (log curve)."""
     if raw <= 0:
         return 0
-    if raw < 3:
-        return 1
-    if raw < 6:
-        return 2
-    return 3
+    score = 100.0 * math.log1p(raw) / math.log1p(VOLUME_FULL)
+    return int(round(min(100.0, score)))
 
 
 def _compute_ideal(profile: Optional[OnboardingProfile]) -> Dict[str, int]:
-    """Stage-aware target vector, nudged +1 by the user's biggest challenge."""
+    """Stage-aware 0-100 target vector, nudged by the user's biggest challenge."""
     stage = None
     challenge = ""
     if profile is not None:
@@ -231,7 +241,7 @@ def _compute_ideal(profile: Optional[OnboardingProfile]) -> Dict[str, int]:
     if challenge:
         for domain, needles in CHALLENGE_KEYWORDS.items():
             if any(n in challenge for n in needles):
-                ideal[domain] = min(3, ideal[domain] + 1)
+                ideal[domain] = min(100, ideal[domain] + CHALLENGE_NUDGE)
 
     return ideal
 
@@ -282,7 +292,7 @@ def compute_knowledge_map(db: Session, user) -> dict:
         return int(round(depth_num[k] / depth_den[k]))
 
     domains = [
-        {"key": k, "label": DOMAIN_LABELS[k], "score": _bucket(raw[k]), "depth": _depth(k)}
+        {"key": k, "label": DOMAIN_LABELS[k], "score": _volume_score(raw[k]), "depth": _depth(k)}
         for k in DOMAIN_KEYS
     ]
     ideal_out = [
