@@ -1,574 +1,128 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../auth/AuthProvider';
 import { apiClient } from '../api/client';
-import { setPostAuthRedirect } from '../auth/postAuthRedirect';
-import type { OnboardingPayload } from '../api/types';
-import {
-  CHAT_QUESTIONS,
-  INDUSTRIES_BY_SECTOR,
-  ALL_INDUSTRIES,
-  CONNECTION_MESSAGES,
-  getNextQuestion,
-  validateOnboardingComplete,
-  mapAnswersForBackend,
-  ChatQuestion,
-} from '../config/chatOnboarding';
-
-// Main (non-fallback) questions in display order — used for progress tracking
-const MAIN_QUESTIONS = CHAT_QUESTIONS.filter(q => q.stage !== 'fallback');
-
-function getProgressForQuestion(questionId: string): number {
-  const idx = MAIN_QUESTIONS.findIndex(q => q.id === questionId);
-  if (idx < 0) return 0;
-  return Math.round(((idx + 1) / MAIN_QUESTIONS.length) * 100);
-}
 import ChatMessage from '../components/Onboarding/ChatMessage';
-import ChatInput from '../components/Onboarding/ChatInput';
-import TransitionStage from '../components/Onboarding/TransitionStage';
 import './ChatOnboardingPage.css';
 
 interface Message {
   id: string;
   type: 'bot' | 'user';
   content: string;
-  questionId?: string;
   timestamp: Date;
 }
 
-// Collision-proof message ID generator (prevents duplicate IDs in React StrictMode)
-let messageSeq = 0;
-const newMessageId = (prefix: string) => `${prefix}-${Date.now()}-${messageSeq++}`;
+type ChatTurn = { role: 'assistant' | 'user'; content: string };
+type Ui = 'yes_no' | 'confirm' | null;
 
-// Deduplication helper (belt + suspenders approach)
-const dedupeById = (list: Message[]) => {
-  const map = new Map<string, Message>();
-  for (const m of list) if (!map.has(m.id)) map.set(m.id, m);
-  return Array.from(map.values());
-};
+const PENDING_ONBOARDING_KEY = 'readar_pending_onboarding';
+const ONBOARDING_ANSWERS_KEY = 'readar_onboarding_answers';
+const TOTAL_STAGES = 7; // for a non-labeled progress hint only
 
-type PageMode = 'questions' | 'transition' | 'complete';
+let seq = 0;
+const newId = (p: string) => `${p}-${Date.now()}-${seq++}`;
 
 const ChatOnboardingPage: React.FC = () => {
-  const { user } = useAuth();
   const navigate = useNavigate();
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const latestBotBatchRef = useRef<HTMLDivElement>(null);
-  // Tracks the index of the first message in the latest bot batch so the render can attach the ref
-  const latestBotBatchIdxRef = useRef<number>(0);
 
   const [messages, setMessages] = useState<Message[]>([]);
-  const [answers, setAnswers] = useState<Record<string, any>>({});
-  const [currentQuestion, setCurrentQuestion] = useState<ChatQuestion | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [history, setHistory] = useState<ChatTurn[]>([]);
+  const [stageIndex, setStageIndex] = useState(0);
+  const [turnsInStage, setTurnsInStage] = useState(0);
+  const [ui, setUi] = useState<Ui>(null);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [completing, setCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [profileCreated, setProfileCreated] = useState(false);
 
-  // Transition stage state
-  const [pageMode, setPageMode] = useState<PageMode>('questions');
-  const [transitionSummary, setTransitionSummary] = useState('');
-  const [transitionLoading, setTransitionLoading] = useState(false);
-
-  // Guard to prevent double execution in React StrictMode
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const initializedRef = useRef(false);
 
-  // Scroll so the first message of the latest bot batch is at the top of the viewport.
-  // For user messages, scroll to the bottom so they see their own reply.
   useEffect(() => {
-    const latest = messages[messages.length - 1];
-    if (!latest) return;
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, loading]);
 
-    if (latest.type === 'bot') {
-      // Find the first message in this bot batch (first message after the last user message)
-      let batchStartIdx = 0;
-      for (let i = messages.length - 1; i >= 0; i--) {
-        if (messages[i].type === 'user') {
-          batchStartIdx = i + 1;
-          break;
-        }
-      }
-      // If the batch start element is mounted, scroll it to the top
-      if (latestBotBatchRef.current) {
-        latestBotBatchRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-      // Store batch start index so the render can assign the ref
-      latestBotBatchIdxRef.current = batchStartIdx;
-    } else {
-      // User message — scroll to bottom
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages, pageMode]);
-
-  // Load saved progress from localStorage and initialize chat
+  // Kick off the conversation with the opener (once).
   useEffect(() => {
     if (initializedRef.current) return;
     initializedRef.current = true;
-
-    const savedData = localStorage.getItem('readar_pending_onboarding');
-    let loadedAnswers = {};
-
-    if (savedData) {
-      try {
-        const parsed = JSON.parse(savedData);
-        loadedAnswers = parsed;
-        setAnswers(parsed);
-      } catch (err) {
-        console.error('Failed to load saved progress:', err);
-      }
-    }
-
-    // Connection stage — show intro messages before first question
-    addBotMessage(CONNECTION_MESSAGES[0], 'system_welcome');
-
-    setTimeout(() => {
-      addBotMessage(CONNECTION_MESSAGES[1], 'system_welcome_2');
-      setTimeout(() => {
-        addBotMessage(CONNECTION_MESSAGES[2], 'system_welcome_3');
-        setTimeout(() => {
-          showNextQuestion(loadedAnswers);
-        }, 800);
-      }, 700);
-    }, 800);
+    void runTurn([], 0, 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Save answers to localStorage whenever they change
-  useEffect(() => {
-    if (Object.keys(answers).length > 0) {
-      localStorage.setItem('readar_pending_onboarding', JSON.stringify(answers));
-    }
-  }, [answers]);
+  const addBot = (content: string) =>
+    setMessages((prev) => [...prev, { id: newId('bot'), type: 'bot', content, timestamp: new Date() }]);
+  const addUser = (content: string) =>
+    setMessages((prev) => [...prev, { id: newId('user'), type: 'user', content, timestamp: new Date() }]);
 
-  const addBotMessage = (content: string, questionId?: string) => {
-    const message: Message = {
-      id: newMessageId('bot'),
-      type: 'bot',
-      content,
-      questionId,
-      timestamp: new Date(),
-    };
-    setMessages((prev) => dedupeById([...prev, message]));
-  };
-
-  const addUserMessage = (content: string) => {
-    const message: Message = {
-      id: newMessageId('user'),
-      type: 'user',
-      content,
-      timestamp: new Date(),
-    };
-    setMessages((prev) => dedupeById([...prev, message]));
-  };
-
-  const showNextQuestion = (currentAnswers: Record<string, any>) => {
-    const nextQuestion = getNextQuestion(currentAnswers);
-
-    if (!nextQuestion) {
-      // All questions answered — move to Transition Stage
-      enterTransitionStage(currentAnswers);
-      return;
-    }
-
-    // Update industry options: use sector-filtered list if known, else all industries
-    if (nextQuestion.id === 'industry') {
-      const sector = currentAnswers.economic_sector;
-      nextQuestion.options = sector && INDUSTRIES_BY_SECTOR[sector]
-        ? INDUSTRIES_BY_SECTOR[sector]
-        : ALL_INDUSTRIES;
-    }
-
-    // Advance progress as soon as the question is displayed.
-    // Fallback questions (business_stage etc.) return 0 from getProgressForQuestion
-    // because they're not in MAIN_QUESTIONS — don't reset the bar for those.
-    const questionProgress = getProgressForQuestion(nextQuestion.id);
-    if (questionProgress > 0) {
-      setProgress(questionProgress);
-    }
-    setCurrentQuestion(nextQuestion);
-    addBotMessage(nextQuestion.question, nextQuestion.id);
-
-    if (nextQuestion.helpText) {
-      setTimeout(() => {
-        addBotMessage(nextQuestion.helpText!, nextQuestion.id);
-      }, 500);
-    }
-  };
-
-  const handleAnswer = async (questionId: string, answer: any, displayText?: string) => {
-    setIsProcessing(true);
+  async function runTurn(hist: ChatTurn[], stage: number, turns: number) {
+    setLoading(true);
     setError(null);
-
-    if (displayText) {
-      addUserMessage(displayText);
-    }
-
-    const updatedAnswers = { ...answers, [questionId]: answer };
-    setAnswers(updatedAnswers);
-
-    // Save to backend incrementally using the UPDATED answers snapshot
+    setUi(null);
     try {
-      await saveToBackend(questionId, answer, updatedAnswers);
-    } catch (err: any) {
-      setError(`Failed to save: ${err.message}`);
-      const question = CHAT_QUESTIONS.find((q) => q.id === questionId);
-      if (question?.required) {
-        setIsProcessing(false);
-        return;
+      const res = await apiClient.nepqChat(hist, stage, turns);
+      addBot(res.message);
+      const nextHist = [...hist, { role: 'assistant' as const, content: res.message }];
+      setHistory(nextHist);
+      setStageIndex(res.stage_index);
+      setTurnsInStage(res.turns_in_stage);
+      setUi(res.ui);
+      if (res.done) {
+        await completeOnboarding(nextHist);
       }
-    }
-
-    setTimeout(() => {
-      addBotMessage(getAcknowledgment(questionId));
-      setTimeout(() => {
-        showNextQuestion(updatedAnswers);
-        setIsProcessing(false);
-      }, 800);
-    }, 300);
-  };
-
-  const getAcknowledgment = (questionId: string): string => {
-    const acknowledgments: Record<string, string[]> = {
-      business_name: ['Great, thanks!', 'Got it!', 'Noted!'],
-      business_age: ['Got it', 'Thanks', 'Noted'],
-      business_origin: ['That makes sense', 'Thanks for sharing that', 'Understood'],
-      primary_problems: ['Thanks for being so open about that', 'Noted', 'I hear you'],
-      root_cause: ['That\'s a really important insight', 'Understood', 'Thanks'],
-      personal_impact: ['I appreciate you sharing that', 'Noted', 'Thanks for your honesty'],
-      secondary_problems: ['Got it, thanks', 'Noted', 'Understood'],
-      why_book_not_random: ['That\'s a great reason', 'Totally makes sense', 'Got it'],
-      solutions_tried: ['Good to know what you\'ve tried', 'Thanks', 'Noted'],
-      book_preferences: ['Great taste!', 'Thanks', 'Noted'],
-      reading_history_csv: ['Thanks', 'Got it', 'Noted'],
-      ideal_book_description: ['Good to know', 'Noted', 'Got it'],
-      future_vision: ['That\'s a great goal', 'Noted', 'Thanks for sharing'],
-      consequence_if_unsolved: ['That\'s a real risk worth addressing', 'Noted', 'Understood'],
-      why_now: ['Got it — timing matters', 'Noted', 'Understood'],
-      business_stage: ['Got it', 'Noted', 'Thanks'],
-      business_model: ['Got it', 'Thanks', 'Understood'],
-      industry: ['Noted', 'Got it', 'Thanks'],
-    };
-
-    const options = acknowledgments[questionId] || ['Got it'];
-    return options[Math.floor(Math.random() * options.length)];
-  };
-
-  /**
-   * Ensures profile exists by creating it once all required fields are collected.
-   * Required fields: business_model, business_stage, biggest_challenge
-   */
-  const ensureProfileExists = async (currentAnswers?: Record<string, any>): Promise<boolean> => {
-    if (profileCreated || !user) return profileCreated;
-
-    const answersToCheck = currentAnswers || answers;
-    const mapped = mapAnswersForBackend(answersToCheck);
-
-    const hasBusinessModel = mapped.business_model &&
-      (Array.isArray(mapped.business_model) ? mapped.business_model.length > 0 : mapped.business_model);
-    const hasBusinessStage = mapped.business_stage;
-    const hasBiggestChallenge = mapped.biggest_challenge;
-
-    if (!hasBusinessModel || !hasBusinessStage || !hasBiggestChallenge) return false;
-
-    try {
-      let normalizedBusinessModel = mapped.business_model;
-      if (Array.isArray(normalizedBusinessModel)) {
-        normalizedBusinessModel = normalizedBusinessModel.map(String).map((s: string) => s.trim()).filter(Boolean).join(',');
-      }
-
-      const payload: any = {
-        business_model: normalizedBusinessModel,
-        business_stage: mapped.business_stage,
-        biggest_challenge: mapped.biggest_challenge,
-      };
-
-      const newOptionalFields = [
-        'full_name', 'age', 'occupation', 'entrepreneur_status', 'location',
-        'economic_sector', 'industry', 'business_experience', 'areas_of_business',
-        'org_size', 'is_student', 'vision_6_12_months', 'blockers',
-        'current_gross_revenue', 'has_prior_reading_history',
-        // New consultative fields
-        'business_name', 'business_age', 'business_origin', 'primary_problems',
-        'root_cause', 'personal_impact', 'secondary_problems', 'why_book_not_random',
-        'solutions_tried', 'ideal_book_description', 'future_vision',
-        'consequence_if_unsolved', 'why_now',
-      ];
-
-      for (const field of newOptionalFields) {
-        if (mapped[field] !== undefined && mapped[field] !== null && mapped[field] !== '') {
-          let value = mapped[field];
-          if (field === 'current_gross_revenue' && typeof value === 'string') {
-            const revenueMap: Record<string, string> = { 'pre-revenue': 'pre_revenue' };
-            value = revenueMap[value.trim()] ?? value;
-          }
-          payload[field] = value;
-        }
-      }
-
-      await apiClient.saveOnboarding(payload);
-      setProfileCreated(true);
-      return true;
-    } catch (err: any) {
-      console.error('[Onboarding] Failed to create profile:', err.message || err);
-      return false;
-    }
-  };
-
-  const saveToBackend = async (questionId: string, value: any, currentAnswers?: Record<string, any>) => {
-    if (!user) return;
-    if (value === null || value === undefined || value === '' || value === 'skipped') return;
-
-    if (questionId === 'book_preferences') {
-      const bookInteractions = Object.entries(value).map(([externalId, status]) => ({
-        external_id: externalId,
-        status: status as string,
-      }));
-      await apiClient.saveBookInteractions(bookInteractions);
-      return;
-    }
-
-    if (questionId === 'reading_history_csv') return;
-
-    const payload: any = {};
-    let normalizedValue = value;
-
-    if (questionId === 'business_model') {
-      if (Array.isArray(value)) {
-        normalizedValue = value.map(String).map((s: string) => s.trim()).filter(Boolean).join(',');
-      } else if (typeof value !== 'string') {
-        normalizedValue = String(value ?? '');
-      }
-    }
-
-    if (questionId === 'current_gross_revenue' && typeof normalizedValue === 'string') {
-      const revenueMap: Record<string, string> = { 'pre-revenue': 'pre_revenue' };
-      normalizedValue = revenueMap[normalizedValue.trim()] ?? normalizedValue;
-    }
-
-    // Map primary_problems → biggest_challenge for backend compat
-    if (questionId === 'primary_problems') {
-      payload['biggest_challenge'] = normalizedValue;
-    }
-
-    // Map future_vision → vision_6_12_months for backend compat
-    if (questionId === 'future_vision') {
-      payload['vision_6_12_months'] = normalizedValue;
-    }
-
-    payload[questionId] = normalizedValue;
-
-    const profileCreatedNow = await ensureProfileExists(currentAnswers);
-
-    if (profileCreated || profileCreatedNow) {
-      const result = await apiClient.patchOnboarding(payload);
-      if (result === null) {
-        console.log(`[Onboarding] PATCH returned null for question: ${questionId}`);
-      }
-    }
-  };
-
-  /**
-   * Enter the Transition Stage — call Claude to generate a personalized summary.
-   */
-  const enterTransitionStage = async (currentAnswers: Record<string, any>) => {
-    setCurrentQuestion(null);
-    setIsProcessing(false);
-    addBotMessage("Great — I have everything I need. Let me put together what I've heard from you...");
-
-    setTimeout(() => {
-      setPageMode('transition');
-      fetchTransitionSummary(currentAnswers);
-    }, 1200);
-  };
-
-  const fetchTransitionSummary = async (currentAnswers: Record<string, any>, correction?: string) => {
-    setTransitionLoading(true);
-    setTransitionSummary('');
-    try {
-      const result = await apiClient.getTransitionSummary(currentAnswers, correction);
-      setTransitionSummary(result.summary);
-
-      // Persist transition summary to backend
-      if (profileCreated && user) {
-        await apiClient.patchOnboarding({
-          transition_summary: result.summary,
-          transition_correction: correction ?? undefined,
-        } as any);
-      }
-    } catch (err) {
-      console.error('[Transition] Failed to generate summary:', err);
-      // Graceful fallback — proceed to recommendations without a summary
-      setTransitionSummary(
-        "Based on what you've shared, I've found a few books that should work well for you. Let's take a look."
-      );
+    } catch (e: any) {
+      setError(e?.message || 'Something went wrong. Please try again.');
     } finally {
-      setTransitionLoading(false);
+      setLoading(false);
     }
+  }
+
+  const send = (text: string) => {
+    const value = text.trim();
+    if (!value || loading || completing) return;
+    addUser(value);
+    setInput('');
+    const nextHist = [...history, { role: 'user' as const, content: value }];
+    setHistory(nextHist);
+    void runTurn(nextHist, stageIndex, turnsInStage);
   };
 
-  const handleTransitionConfirm = async () => {
-    setPageMode('complete');
-
-    // Save confirmed state
-    if (profileCreated && user) {
-      try {
-        await apiClient.patchOnboarding({ transition_confirmed: true } as any);
-      } catch { /* non-fatal */ }
-    }
-
-    await handleOnboardingComplete();
-  };
-
-  const handleTransitionCorrect = (correction: string) => {
-    fetchTransitionSummary(answers, correction);
-  };
-
-  const handleOnboardingComplete = async () => {
-    setIsProcessing(true);
-
+  async function completeOnboarding(finalHistory: ChatTurn[]) {
+    setCompleting(true);
     try {
-      const validation = validateOnboardingComplete(answers);
-      if (!validation.isComplete) {
-        throw new Error('Please answer all required questions');
-      }
-
-      const mapped = mapAnswersForBackend(answers);
-
-      const filteredAnswers = Object.entries(mapped).reduce((acc, [key, value]) => {
-        if (key === 'book_preferences' || key === 'reading_history_csv') return acc;
-        if (value !== null && value !== undefined && value !== '' && value !== 'skipped') {
-          acc[key] = value;
-        }
-        return acc;
-      }, {} as Record<string, any>) as OnboardingPayload;
-
-      // Normalize business_model to CSV string
-      if (Array.isArray(filteredAnswers.business_model)) {
-        filteredAnswers.business_model = (filteredAnswers.business_model as string[])
-          .map(String).map((s: string) => s.trim()).filter(Boolean).join(',');
-      }
-
-      // Normalize current_gross_revenue
-      if (typeof filteredAnswers.current_gross_revenue === 'string') {
-        const v = filteredAnswers.current_gross_revenue.trim();
-        if (v === 'pre-revenue') filteredAnswers.current_gross_revenue = 'pre_revenue' as any;
-      }
-
-      if (user) {
-        // Already authenticated — save to backend and proceed to recommendations
-        await apiClient.saveOnboarding(filteredAnswers);
-        localStorage.removeItem('readar_pending_onboarding');
-        localStorage.setItem('readar_onboarding_answers', JSON.stringify(answers));
-        navigate('/recommendations/loading', {
-          state: { onboardingAnswers: answers },
-        });
-      } else {
-        // Not authenticated — answers are already persisted in localStorage.
-        // Set the post-auth redirect so AuthCallbackPage knows where to send the user,
-        // then trigger Google OAuth via the login page.
-        setPostAuthRedirect('/recommendations/loading');
-        navigate('/login');
-      }
-    } catch (err: any) {
-      setError(err.message);
-      setIsProcessing(false);
+      const profile = await apiClient.nepqExtract(finalHistory);
+      // The scribe returns the structured fields the engine needs. Store it where
+      // the existing /recommendations/loading handoff (auth → save → recs) reads.
+      const payload = { full_name: '', ...profile };
+      localStorage.setItem(PENDING_ONBOARDING_KEY, JSON.stringify(payload));
+      localStorage.setItem(ONBOARDING_ANSWERS_KEY, JSON.stringify(profile));
+      navigate('/recommendations/loading');
+    } catch (e: any) {
+      setCompleting(false);
+      setError(e?.message || 'Could not finalize. Please try again.');
     }
-  };
+  }
 
-  const handleSkipQuestion = () => {
-    if (currentQuestion && !currentQuestion.required) {
-      addUserMessage('Skip');
-      addBotMessage('No problem');
-
-      setTimeout(() => {
-        const updatedAnswers = { ...answers, [currentQuestion.id]: 'skipped' };
-        setAnswers(updatedAnswers);
-
-        const nextQuestion = getNextQuestion(updatedAnswers);
-        if (!nextQuestion) {
-          enterTransitionStage(updatedAnswers);
-        } else {
-          showNextQuestion(updatedAnswers);
-        }
-      }, 800);
-    }
-  };
+  const progress = completing ? 100 : Math.min(100, Math.round((stageIndex / TOTAL_STAGES) * 100));
+  const disabled = loading || completing;
 
   return (
     <div className="chat-onboarding-page">
       <header className="chat-header">
         <div className="chat-header-content">
           <h1>Readar</h1>
-          <div className="progress-container">
-            <div className="progress-bar">
-              <div
-                className="progress-fill"
-                style={{ width: `${pageMode === 'transition' || pageMode === 'complete' ? 100 : progress}%` }}
-                role="progressbar"
-                aria-valuenow={pageMode === 'transition' || pageMode === 'complete' ? 100 : progress}
-                aria-valuemin={0}
-                aria-valuemax={100}
-              />
-            </div>
-            <span className="progress-text">
-              {pageMode === 'transition' || pageMode === 'complete'
-                ? 'Almost there!'
-                : `${progress}% complete`}
-            </span>
+          {/* Non-labeled progress hint — never reveals the conversation framework */}
+          <div className="progress-bar" aria-hidden="true">
+            <div className="progress-fill" style={{ width: `${progress}%` }} />
           </div>
         </div>
       </header>
 
       <main className="chat-messages">
-        {messages.map((message, idx) => (
-          <div
-            key={message.id}
-            ref={idx === latestBotBatchIdxRef.current ? latestBotBatchRef : undefined}
-          >
-            <ChatMessage message={message} />
-          </div>
+        {messages.map((m) => (
+          <ChatMessage key={m.id} message={m as any} />
         ))}
 
-        {error && (
-          <div className="chat-error">
-            <p>⚠️ {error}</p>
-          </div>
-        )}
-
-        {/* Questions mode */}
-        {pageMode === 'questions' && (
-          <>
-            {currentQuestion && !isProcessing && (
-              <ChatInput
-                question={currentQuestion}
-                onAnswer={handleAnswer}
-                onSkip={currentQuestion.required ? undefined : handleSkipQuestion}
-              />
-            )}
-
-            {isProcessing && (
-              <div className="chat-processing">
-                <div className="typing-indicator">
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Transition stage */}
-        {pageMode === 'transition' && (
-          <TransitionStage
-            summary={transitionSummary}
-            isLoading={transitionLoading}
-            onConfirm={handleTransitionConfirm}
-            onCorrect={handleTransitionCorrect}
-          />
-        )}
-
-        {/* Complete mode — loading state while navigating */}
-        {pageMode === 'complete' && (
+        {(loading || completing) && (
           <div className="chat-processing">
             <div className="typing-indicator">
               <span></span>
@@ -578,8 +132,54 @@ const ChatOnboardingPage: React.FC = () => {
           </div>
         )}
 
+        {error && (
+          <div className="chat-error">
+            <p>⚠️ {error}</p>
+            <button className="nepq-retry" onClick={() => runTurn(history, stageIndex, turnsInStage)}>
+              Try again
+            </button>
+          </div>
+        )}
+
         <div ref={messagesEndRef} />
       </main>
+
+      {!completing && (
+        <div className="nepq-input-bar">
+          {ui === 'yes_no' && (
+            <div className="nepq-quick-replies">
+              <button className="nepq-chip" disabled={disabled} onClick={() => send('Yes')}>Yes</button>
+              <button className="nepq-chip" disabled={disabled} onClick={() => send('No')}>No</button>
+            </div>
+          )}
+          {ui === 'confirm' && (
+            <div className="nepq-quick-replies">
+              <button className="nepq-chip nepq-chip--primary" disabled={disabled} onClick={() => send("Yes, that's right")}>
+                Yes, that's right
+              </button>
+            </div>
+          )}
+          <div className="nepq-input-row">
+            <textarea
+              className="nepq-textarea"
+              value={input}
+              disabled={disabled}
+              placeholder={ui ? 'Or type your own reply…' : 'Type your reply…'}
+              rows={1}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  send(input);
+                }
+              }}
+            />
+            <button className="nepq-send" disabled={disabled || !input.trim()} onClick={() => send(input)}>
+              Send
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

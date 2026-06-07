@@ -678,6 +678,34 @@ class ApiClient {
     return response.data;
   }
 
+  // ── NEPQ conversational onboarding (public, pre-auth) ──────────────────────
+  async nepqChat(
+    history: Array<{ role: 'assistant' | 'user'; content: string }>,
+    stageIndex: number,
+    turnsInStage: number,
+  ): Promise<{
+    message: string;
+    stage_index: number;
+    stage_key: string;
+    turns_in_stage: number;
+    done: boolean;
+    ui: 'yes_no' | 'confirm' | null;
+  }> {
+    const response = await this.client.post('/onboarding/chat', {
+      history,
+      stage_index: stageIndex,
+      turns_in_stage: turnsInStage,
+    });
+    return response.data;
+  }
+
+  async nepqExtract(
+    history: Array<{ role: 'assistant' | 'user'; content: string }>,
+  ): Promise<Record<string, any>> {
+    const response = await this.client.post('/onboarding/chat/extract', { history });
+    return response.data;
+  }
+
   /**
    * Generate personalized 3-part book pitches (Challenge / Solution / Outcome)
    * for each recommended book, tailored to the user's onboarding answers.

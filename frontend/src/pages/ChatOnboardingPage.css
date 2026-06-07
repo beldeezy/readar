@@ -300,3 +300,114 @@
   border: 1px solid rgba(255, 255, 255, 0.15);
   color: #888;
 }
+
+/* ── NEPQ conversational input bar ──────────────────────────────────────────── */
+.nepq-input-bar {
+  position: sticky;
+  bottom: 0;
+  background: #1a1a1a;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.85rem 1rem calc(0.85rem + env(safe-area-inset-bottom, 0px));
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.nepq-quick-replies {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.nepq-chip {
+  padding: 0.5rem 1.1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(83, 255, 201, 0.5);
+  background: rgba(83, 255, 201, 0.08);
+  color: #53ffc9;
+  font-family: var(--rd-font, inherit);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.nepq-chip:hover:not(:disabled) {
+  background: rgba(83, 255, 201, 0.18);
+}
+
+.nepq-chip--primary {
+  background: #53ffc9;
+  color: #06231c;
+}
+
+.nepq-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.nepq-input-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-end;
+}
+
+.nepq-textarea {
+  flex: 1;
+  resize: none;
+  min-height: 46px;
+  max-height: 160px;
+  padding: 0.7rem 0.9rem;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: #2a2a2a;
+  color: #f4f4f4;
+  font-family: var(--rd-font, inherit);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.nepq-textarea:focus {
+  outline: none;
+  border-color: #53ffc9;
+}
+
+.nepq-textarea:disabled {
+  opacity: 0.6;
+}
+
+.nepq-send {
+  padding: 0.7rem 1.3rem;
+  border-radius: 14px;
+  border: none;
+  background: #53ffc9;
+  color: #06231c;
+  font-family: var(--rd-font, inherit);
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  height: 46px;
+  transition: filter 0.15s ease;
+}
+
+.nepq-send:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.nepq-send:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.nepq-retry {
+  margin-top: 0.5rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: transparent;
+  color: #f4f4f4;
+  font-family: var(--rd-font, inherit);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
