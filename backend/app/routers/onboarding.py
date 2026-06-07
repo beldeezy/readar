@@ -502,3 +502,45 @@ Summary to edit:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to generate summary. Please try again."
         )
+
+
+# ── NEPQ conversational onboarding (public, pre-auth) ─────────────────────────
+class ChatMessage(BaseModel):
+    role: str  # 'assistant' | 'user'
+    content: str
+
+
+class ChatTurnRequest(BaseModel):
+    history: list[ChatMessage] = []
+    stage_index: int = 0
+    turns_in_stage: int = 0
+
+
+class ChatTurnResponse(BaseModel):
+    message: str
+    stage_index: int
+    stage_key: str
+    turns_in_stage: int
+    done: bool
+    ui: Optional[str] = None
+
+
+@router.post("/chat", response_model=ChatTurnResponse)
+def nepq_chat(req: ChatTurnRequest):
+    """One turn of the background NEPQ conversation. No auth (runs pre-login)."""
+    from app.services.nepq_conversation import next_turn
+    history = [m.model_dump() for m in req.history]
+    turn = next_turn(history, req.stage_index, req.turns_in_stage)
+    return ChatTurnResponse(**turn)
+
+
+class ExtractRequest(BaseModel):
+    history: list[ChatMessage] = []
+
+
+@router.post("/chat/extract")
+def nepq_extract(req: ExtractRequest) -> Dict[str, Any]:
+    """Scribe: infer the structured profile from the full transcript."""
+    from app.services.nepq_conversation import extract_profile
+    history = [m.model_dump() for m in req.history]
+    return extract_profile(history)
