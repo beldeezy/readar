@@ -222,7 +222,7 @@ export default function RecommendationsLoadingPage() {
             console.log(`[RecommendationsLoading] Run #${currentRunId} calling navigate() now...`);
 
             // Navigate immediately - no state updates, no delays, no animation
-            navigate('/recommendations', { state: { prefetchedRecommendations: recs }, replace: true });
+            navigate('/onboarding/import', { state: { prefetchedRecommendations: recs }, replace: true });
             console.log(`[RecommendationsLoading] Run #${currentRunId} navigate() succeeded`);
             return;
           } catch (e: any) {

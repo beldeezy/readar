@@ -1,0 +1,112 @@
+.import-page {
+  min-height: calc(100vh - 80px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  background-color: var(--rd-bg, #0a0e1a);
+}
+
+.import-card {
+  width: 100%;
+  max-width: 480px;
+  text-align: center;
+  background: var(--rd-surface, #141a2e);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--rd-radius-lg, 18px);
+  padding: 2.5rem 2rem;
+}
+
+.import-title {
+  font-size: var(--rd-font-size-2xl, 1.75rem);
+  font-weight: 700;
+  color: var(--rd-text, #f9fafb);
+  margin-bottom: 0.75rem;
+}
+
+.import-sub {
+  font-size: var(--rd-font-size-base, 1rem);
+  color: var(--rd-muted, #9aa4b8);
+  line-height: 1.6;
+  margin-bottom: 2rem;
+}
+
+.import-sub em {
+  color: var(--rd-text, #f9fafb);
+  font-style: italic;
+}
+
+.import-btn-primary {
+  width: 100%;
+  padding: 0.9rem 1.25rem;
+  border-radius: 14px;
+  border: none;
+  background: #53ffc9;
+  color: #06231c;
+  font-family: var(--rd-font, inherit);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.import-btn-primary:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.import-btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.import-skip {
+  display: inline-block;
+  margin-top: 1rem;
+  background: none;
+  border: none;
+  color: var(--rd-muted, #9aa4b8);
+  font-family: var(--rd-font, inherit);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.5rem;
+  transition: color 0.15s ease;
+}
+
+.import-skip:hover:not(:disabled) {
+  color: var(--rd-text, #f9fafb);
+}
+
+.import-skip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.import-error {
+  margin-top: 1rem;
+  color: var(--readar-warm, #ecb767);
+  font-size: var(--rd-font-size-sm, 0.875rem);
+}
+
+.import-how {
+  margin-top: 1.75rem;
+  text-align: left;
+  color: var(--rd-muted, #9aa4b8);
+  font-size: var(--rd-font-size-sm, 0.875rem);
+}
+
+.import-how summary {
+  cursor: pointer;
+  text-align: center;
+  color: var(--rd-muted, #9aa4b8);
+}
+
+.import-how ol {
+  margin: 0.85rem 0 0;
+  padding-left: 1.25rem;
+  line-height: 1.8;
+}
+
+.import-how strong {
+  color: var(--rd-text, #f9fafb);
+}

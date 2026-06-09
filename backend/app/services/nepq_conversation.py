@@ -101,7 +101,7 @@ STAGE_SOFT_CAPS = {
     "solution_awareness_1": 4,
     "solution_awareness_2": 2,
     "consequence_qualifying": 3,
-    "transition": 2,
+    "transition": 3,
 }
 
 
@@ -188,6 +188,10 @@ def next_turn(
 
     # Advance if the model says so OR we've hit the stage's soft cap (anti-stuck).
     cap = STAGE_SOFT_CAPS.get(STAGE_KEYS[stage_index], 4)
+    # Never complete on the turn where we're still asking the user to confirm —
+    # they need a real turn to actually confirm or correct the summary first.
+    if ui == "confirm" and (turns_in_stage + 1) < cap:
+        stage_complete = False
     advance = stage_complete or (turns_in_stage + 1 >= cap)
 
     done = False

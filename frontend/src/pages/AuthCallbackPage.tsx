@@ -116,15 +116,15 @@ export default function AuthCallbackPage() {
           // Get stored redirect path, fall back to next param
           let target = popPostAuthRedirect() || searchParams.get('next');
 
-          // If no redirect specified, determine destination from state
-          if (!target) {
-            if (hadPendingOnboarding) {
-              // Onboarding was just completed pre-auth — go straight to recommendations
-              target = '/recommendations/loading';
-            } else {
-              const hasPreview = !!localStorage.getItem(PREVIEW_RECS_KEY);
-              target = hasPreview ? '/recommendations' : '/onboarding';
-            }
+          if (hadPendingOnboarding) {
+            // Onboarding was just completed pre-auth and saved above. Offer the
+            // optional Goodreads import as the final step before recommendations
+            // (peak buy-in), overriding any stored redirect.
+            target = '/onboarding/import';
+          } else if (!target) {
+            // No redirect specified — determine destination from state
+            const hasPreview = !!localStorage.getItem(PREVIEW_RECS_KEY);
+            target = hasPreview ? '/recommendations' : '/onboarding';
           }
 
           navigate(target, { replace: true });

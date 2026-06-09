@@ -7,6 +7,7 @@ import AuthCallbackPage from './pages/AuthCallbackPage';
 import ChatOnboardingPage from './pages/ChatOnboardingPage';
 import RecommendationsPage from './pages/RecommendationsPage';
 import RecommendationsLoadingPage from './pages/RecommendationsLoadingPage';
+import ImportReadingHistoryPage from './pages/ImportReadingHistoryPage';
 import BookDetailPage from './pages/BookDetailPage';
 import UpgradePage from './pages/UpgradePage';
 import ProfilePage from './pages/ProfilePage';
@@ -120,6 +121,10 @@ function AppRoutes() {
       <Route
         path="/recommendations/loading"
         element={<RecommendationsLoadingPage />}
+      />
+      <Route
+        path="/onboarding/import"
+        element={<ImportReadingHistoryPage />}
       />
       <Route
         path="/recommendations"
