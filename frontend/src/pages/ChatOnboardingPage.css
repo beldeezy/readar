@@ -411,3 +411,58 @@
   font-size: 0.85rem;
   cursor: pointer;
 }
+
+/* ── Completion CTA + finalizing loader ─────────────────────────────────────── */
+.nepq-finish-bar {
+  position: sticky;
+  bottom: 0;
+  background: #1a1a1a;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.nepq-finish-btn {
+  width: 100%;
+  padding: 1rem 1.25rem;
+  border-radius: 14px;
+  border: none;
+  background: #53ffc9;
+  color: #06231c;
+  font-family: var(--rd-font, inherit);
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 0.15s ease, transform 0.12s ease;
+}
+
+.nepq-finish-btn:hover {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+
+.nepq-finalizing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 1.5rem 1rem calc(1.5rem + env(safe-area-inset-bottom, 0px));
+  background: #1a1a1a;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.nepq-finalizing p {
+  color: var(--rd-muted, #9aa4b8);
+  font-size: var(--rd-font-size-sm, 0.9rem);
+  margin: 0;
+}
+
+/* center the per-turn radar "thinking" loader */
+.chat-processing {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0.5rem 0;
+}

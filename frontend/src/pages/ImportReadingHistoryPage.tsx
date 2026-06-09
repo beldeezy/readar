@@ -1,7 +1,10 @@
 import { useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { apiClient } from '../api/client';
+import RadarIcon from '../components/RadarIcon';
 import './ImportReadingHistoryPage.css';
+
+const GOODREADS_EXPORT_URL = 'https://www.goodreads.com/review/import';
 
 /**
  * Dedicated post-auth, pre-recommendations step.
@@ -61,21 +64,35 @@ export default function ImportReadingHistoryPage() {
           }}
         />
 
-        <button className="import-btn-primary" disabled={uploading} onClick={() => fileRef.current?.click()}>
-          {uploading ? 'Importing…' : 'Import Goodreads history'}
-        </button>
-        <button className="import-skip" disabled={uploading} onClick={skipToPicks}>
-          Skip to your picks →
-        </button>
+        {uploading ? (
+          <div className="import-uploading">
+            <RadarIcon size={88} animationDuration={6} />
+            <p>Importing your reading history…</p>
+          </div>
+        ) : (
+          <>
+            <button className="import-btn-primary" onClick={() => fileRef.current?.click()}>
+              Import Goodreads history
+            </button>
+            <button className="import-skip" onClick={skipToPicks}>
+              Skip to your picks →
+            </button>
+          </>
+        )}
 
         {error && <p className="import-error">{error}</p>}
 
         <details className="import-how">
           <summary>How do I export from Goodreads?</summary>
           <ol>
-            <li>Goodreads → <strong>My Books</strong> → <strong>Import and Export</strong></li>
+            <li>
+              Open your{' '}
+              <a className="import-link" href={GOODREADS_EXPORT_URL} target="_blank" rel="noopener noreferrer">
+                Goodreads Import/Export page ↗
+              </a>
+            </li>
             <li>Click <strong>Export Library</strong> and download the CSV</li>
-            <li>Upload that file here</li>
+            <li>Come back here and upload that file</li>
           </ol>
         </details>
       </div>

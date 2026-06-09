@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import ChatMessage from '../components/Onboarding/ChatMessage';
+import RadarIcon from '../components/RadarIcon';
 import './ChatOnboardingPage.css';
 
 interface Message {
@@ -31,6 +32,7 @@ const ChatOnboardingPage: React.FC = () => {
   const [ui, setUi] = useState<Ui>(null);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,8 +68,9 @@ const ChatOnboardingPage: React.FC = () => {
       setStageIndex(res.stage_index);
       setTurnsInStage(res.turns_in_stage);
       setUi(res.ui);
+      // Don't auto-redirect — let the user finish reading, then click through.
       if (res.done) {
-        await completeOnboarding(nextHist);
+        setDone(true);
       }
     } catch (e: any) {
       setError(e?.message || 'Something went wrong. Please try again.');
@@ -122,13 +125,9 @@ const ChatOnboardingPage: React.FC = () => {
           <ChatMessage key={m.id} message={m as any} />
         ))}
 
-        {(loading || completing) && (
+        {loading && (
           <div className="chat-processing">
-            <div className="typing-indicator">
-              <span></span>
-              <span></span>
-              <span></span>
-            </div>
+            <RadarIcon size={52} animationDuration={4} showBlips={false} showShadow={false} />
           </div>
         )}
 
@@ -144,7 +143,18 @@ const ChatOnboardingPage: React.FC = () => {
         <div ref={messagesEndRef} />
       </main>
 
-      {!completing && (
+      {completing ? (
+        <div className="nepq-finalizing">
+          <RadarIcon size={88} animationDuration={6} />
+          <p>Pulling your recommendations…</p>
+        </div>
+      ) : done ? (
+        <div className="nepq-finish-bar">
+          <button className="nepq-finish-btn" onClick={() => completeOnboarding(history)}>
+            Take me to my recommendations →
+          </button>
+        </div>
+      ) : (
         <div className="nepq-input-bar">
           {ui === 'yes_no' && (
             <div className="nepq-quick-replies">

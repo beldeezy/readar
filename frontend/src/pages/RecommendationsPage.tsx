@@ -4,6 +4,7 @@ import { apiClient, fetchRecommendations } from '../api/client';
 import type { RecommendationItem, BookPreferenceStatus } from '../api/types';
 import RecommendationCard from '../components/RecommendationCard';
 import Card from '../components/Card';
+import RadarIcon from '../components/RadarIcon';
 import { useAuth } from '../auth/AuthProvider';
 import './RecommendationsPage.css';
 
@@ -265,11 +266,15 @@ export default function RecommendationsPage() {
     return (
       <div className="readar-recommendations-page">
         <div className="container">
-          <h1 className="readar-recommendations-title" style={{ 
-            fontSize: 'var(--rd-font-size-2xl)', 
-            fontWeight: 600, 
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.25rem' }}>
+            <RadarIcon size={96} opacity={0.85} animationDuration={7} />
+          </div>
+          <h1 className="readar-recommendations-title" style={{
+            fontSize: 'var(--rd-font-size-2xl)',
+            fontWeight: 600,
             color: 'var(--rd-text)',
-            marginBottom: '0.5rem'
+            marginBottom: '0.5rem',
+            textAlign: 'center'
           }}>
             Your first reading plan
           </h1>
