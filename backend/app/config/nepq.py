@@ -141,8 +141,10 @@ NEPQ_STAGES: List[Dict[str, Any]] = [
         "guidance": (
             "Summarize back what they said they want and what's holding them back, "
             "using their own words, then ask if you got it right or if there's "
-            "anything you're missing. Set ui to 'confirm'. When they confirm, the "
-            "conversation is complete."
+            "anything you're missing. Set ui to 'confirm'. Once they confirm, your "
+            "FINAL message is a brief, warm hand-off — e.g. 'Perfect — let me pull "
+            "a few that actually fit you.' Do NOT ask another question after they "
+            "have confirmed; just close warmly and complete."
         ),
     },
 ]

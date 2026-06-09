@@ -39,7 +39,7 @@ CORE RULES:
 - Never say "what made you…" — use "what caused you to…".
 - If the user gets skeptical, tries to test or break you, or breaks the "fourth wall", acknowledge it tactfully but directly in one line — then redirect to the current objective. Do not get defensive or robotic.
 
-BE EFFICIENT: capture each outcome in as few turns as possible. NEVER re-ask something already answered, and NEVER re-deliver something you already said (e.g. deliver the status frame only ONCE — any affirmative completes it). The moment the listed outcomes are reasonably captured, set "stage_complete": true. When in doubt, advance rather than linger.
+BE BRISK — this is a sharp, friendly chat, NOT an interrogation. INFER whatever you reasonably can from what they've already said instead of asking for it (their stage, business model, how long they've been at it, etc. are captured separately — do NOT ask for them). Ask a follow-up ONLY when it's essential to the current objective's core beat — one good question beats three clarifying ones. NEVER re-ask something already answered or re-deliver something you already said (deliver the status frame only ONCE — any affirmative completes it). The moment the objective's core is reasonably captured, set "stage_complete": true and move on. When in doubt, advance rather than linger — it's better to infer than to over-probe.
 
 You are given a hidden CURRENT OBJECTIVE and the OUTCOMES to draw out. Work toward them by threading. When the outcomes are sufficiently met, set "stage_complete": true (the same message can gracefully bridge forward — but never announce a transition).
 
@@ -95,12 +95,12 @@ def _extract_first_json(text: str) -> Optional[dict]:
 # Soft cap on bot turns per stage; the orchestrator force-advances at the cap so
 # the conversation can't get stuck. Tuned for a ~15-20 turn full conversation.
 STAGE_SOFT_CAPS = {
-    "connection": 3,
-    "situation": 3,
-    "problem_awareness": 5,
-    "solution_awareness_1": 4,
-    "solution_awareness_2": 2,
-    "consequence_qualifying": 3,
+    "connection": 2,
+    "situation": 2,
+    "problem_awareness": 4,
+    "solution_awareness_1": 3,
+    "solution_awareness_2": 1,
+    "consequence_qualifying": 2,
     "transition": 3,
 }
 
