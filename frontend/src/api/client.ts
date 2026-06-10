@@ -605,26 +605,6 @@ class ApiClient {
     return response.data;
   }
 
-  async saveBookInteractions(books: Array<{ external_id: string; status: string }>): Promise<void> {
-    await this.client.post('/onboarding/book-interactions', { books });
-  }
-
-  /**
-   * Generate a personalized Transition Stage summary using Claude.
-   * Accepts the user's collected onboarding answers and an optional
-   * correction string if regenerating after the user said it was wrong.
-   */
-  async getTransitionSummary(
-    answers: Record<string, any>,
-    correction?: string
-  ): Promise<{ summary: string }> {
-    const response = await this.client.post('/onboarding/transition-summary', {
-      answers,
-      correction: correction ?? null,
-    });
-    return response.data;
-  }
-
   // ---------------------------------------------------------------------------
   // Reading history
   // ---------------------------------------------------------------------------
