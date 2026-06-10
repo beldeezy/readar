@@ -1,9 +1,10 @@
 .import-page {
-  min-height: calc(100vh - 80px);
+  min-height: 100vh; /* fallback */
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 2rem 1rem;
+  padding: 2rem 1rem calc(2rem + env(safe-area-inset-bottom, 0px));
   background-color: var(--rd-bg, #0a0e1a);
 }
 

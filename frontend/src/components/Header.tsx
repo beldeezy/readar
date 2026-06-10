@@ -1,18 +1,26 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import Badge from './Badge';
 import Button from './Button';
 import readarLogo from '../assets/readar-logo.png';
 import './Header.css';
 
+// Immersive full-screen flows that own the whole viewport — hide the marketing header.
+const IMMERSIVE_PATHS = ['/onboarding', '/onboarding/import', '/recommendations/loading'];
+
 export default function Header() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogout = () => {
     logout();
     navigate('/');
   };
+
+  if (IMMERSIVE_PATHS.includes(location.pathname)) {
+    return null;
+  }
 
   return (
     <header className="readar-header">

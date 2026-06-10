@@ -96,13 +96,22 @@ code {
 
 /* App Layout */
 .readar-app {
-  min-height: 100vh;
+  min-height: 100vh; /* fallback */
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
 }
 
 .readar-main {
   flex: 1;
+  min-height: 0; /* allow inner full-height (chat) flows to size correctly */
+}
+
+/* Immersive full-screen flows (chat / import) own the viewport — strip the
+   bottom-nav spacing that .readar-main otherwise reserves on mobile. */
+.readar-main:has(.chat-onboarding-page),
+.readar-main:has(.import-page) {
+  padding-bottom: 0 !important;
 }
 
 /* Utility Classes */

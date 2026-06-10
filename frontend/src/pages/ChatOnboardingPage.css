@@ -1,7 +1,8 @@
 .chat-onboarding-page {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100vh; /* fallback */
+  height: 100dvh; /* dynamic viewport: accounts for mobile browser UI + keyboard */
   background-color: #333333;
 }
 
@@ -13,6 +14,8 @@
   background: #000000;
   color: white;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  /* Sit below the status bar / notch (header is now the top-most element) */
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 .chat-header-content {
@@ -321,13 +324,14 @@
 }
 
 .nepq-chip {
-  padding: 0.5rem 1.1rem;
+  min-height: 44px; /* touch target */
+  padding: 0.5rem 1.25rem;
   border-radius: 999px;
   border: 1px solid rgba(83, 255, 201, 0.5);
   background: rgba(83, 255, 201, 0.08);
   color: #53ffc9;
   font-family: var(--rd-font, inherit);
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s ease;
