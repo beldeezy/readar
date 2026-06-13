@@ -52,7 +52,7 @@
 
 .fkm-label-name {
   fill: var(--rd-text, #f9fafb);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -118,12 +118,8 @@
 
 @media (max-width: 768px) {
   .fkm-svg {
-    max-width: 360px;
+    max-width: 400px;
   }
-  .fkm-label-name {
-    font-size: 10px;
-  }
-  .fkm-label-score {
-    font-size: 9px;
-  }
+  /* Labels keep their size — the wider viewBox already scales the SVG down,
+     and two-line names fit comfortably. */
 }

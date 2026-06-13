@@ -38,6 +38,18 @@ const ChatOnboardingPage: React.FC = () => {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const initializedRef = useRef(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Grow the textarea with its content (up to a max) so there's always room.
+  const autoGrow = () => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+  };
+  const resetTextareaHeight = () => {
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -84,6 +96,7 @@ const ChatOnboardingPage: React.FC = () => {
     if (!value || loading || completing) return;
     addUser(value);
     setInput('');
+    resetTextareaHeight();
     const nextHist = [...history, { role: 'user' as const, content: value }];
     setHistory(nextHist);
     void runTurn(nextHist, stageIndex, turnsInStage);
@@ -171,12 +184,16 @@ const ChatOnboardingPage: React.FC = () => {
           )}
           <div className="nepq-input-row">
             <textarea
+              ref={textareaRef}
               className="nepq-textarea"
               value={input}
               disabled={disabled}
               placeholder={ui ? 'Or type your own reply…' : 'Type your reply…'}
               rows={1}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                setInput(e.target.value);
+                autoGrow();
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();

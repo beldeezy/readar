@@ -16,11 +16,15 @@ const LEVEL_NAMES: Record<number, string> = {
   4: 'Disciplines',
   5: 'Processes',
 };
-const SIZE = 320; // svg viewbox
+const SIZE = 320; // radar area
 const CENTER = SIZE / 2;
 const RADIUS = 110; // distance from center to score=100
-const LABEL_PAD = 34; // extra radius for labels
+const LABEL_PAD = 30; // extra radius for labels
 const RING_LEVELS = [25, 50, 75, 100]; // gridline rings on the 0-100 scale
+
+// Extra room around the radar so multi-line spoke labels never clip (esp. mobile).
+const MARGIN_X = 60;
+const MARGIN_Y = 26;
 
 // Spoke angles: start at top (-90°), clockwise, 60° apart.
 function angleFor(i: number, n: number): number {
@@ -39,6 +43,13 @@ function polygon(scores: number[], radius = RADIUS): string {
     .join(' ');
 }
 
+// Split "Leadership & People" → ["Leadership", "& People"] for two-line labels.
+function splitLabel(label: string): [string, string] {
+  const idx = label.indexOf(' & ');
+  if (idx === -1) return [label, ''];
+  return [label.slice(0, idx), '& ' + label.slice(idx + 3)];
+}
+
 export default function FounderKnowledgeMap({ data }: Props) {
   const { domains, ideal, total_books_scored } = data;
   const n = domains.length;
@@ -50,22 +61,18 @@ export default function FounderKnowledgeMap({ data }: Props) {
     return m;
   }, [ideal]);
 
-  const userScores = domains.map((d) => d.score);
   const idealScores = domains.map((d) => idealByKey[d.key] ?? 0);
+  // Cap the plotted user shape at the ideal so it always fills TOWARD the goal
+  // and never pokes past it — visible gaps are exactly the under-read domains.
+  const plottedUser = domains.map((d) => Math.min(d.score, idealByKey[d.key] ?? d.score));
 
-  // Concentric reference rings (hexagons) at each gridline level
   const rings = RING_LEVELS.map((level) => polygon(domains.map(() => level)));
-
   const isEmpty = total_books_scored === 0;
+  const viewBox = `${-MARGIN_X} ${-MARGIN_Y} ${SIZE + 2 * MARGIN_X} ${SIZE + 2 * MARGIN_Y}`;
 
   return (
     <div className="fkm">
-      <svg
-        viewBox={`0 0 ${SIZE} ${SIZE}`}
-        className="fkm-svg"
-        role="img"
-        aria-label="Founder Knowledge Map radar chart"
-      >
+      <svg viewBox={viewBox} className="fkm-svg" role="img" aria-label="Founder Knowledge Map radar chart">
         {/* Reference rings */}
         {rings.map((pts, i) => (
           <polygon key={i} className="fkm-ring" points={pts} />
@@ -78,40 +85,35 @@ export default function FounderKnowledgeMap({ data }: Props) {
         })}
 
         {/* Ideal target (dashed outline) */}
-        {!isEmpty && (
-          <polygon className="fkm-ideal" points={polygon(idealScores)} />
-        )}
+        {!isEmpty && <polygon className="fkm-ideal" points={polygon(idealScores)} />}
 
-        {/* User shape */}
-        {!isEmpty && (
-          <polygon className="fkm-user" points={polygon(userScores)} />
-        )}
+        {/* User shape (capped at the ideal) */}
+        {!isEmpty && <polygon className="fkm-user" points={polygon(plottedUser)} />}
 
         {/* User vertices */}
         {!isEmpty &&
           domains.map((d, i) => {
-            const [x, y] = pointFor(i, n, d.score);
             if (d.score === 0) return null;
+            const [x, y] = pointFor(i, n, plottedUser[i]);
             return <circle key={d.key} className="fkm-dot" cx={x} cy={y} r={3.5} />;
           })}
 
-        {/* Labels */}
+        {/* Labels (two-line domain name + score) */}
         {domains.map((d, i) => {
           const [x, y] = pointFor(i, n, MAX, RADIUS + LABEL_PAD);
           const anchor = Math.abs(x - CENTER) < 8 ? 'middle' : x > CENTER ? 'start' : 'end';
+          const [l1, l2] = splitLabel(d.label);
+          const met = d.score >= (idealByKey[d.key] ?? Infinity);
           return (
-            <text
-              key={d.key}
-              className="fkm-label"
-              x={x}
-              y={y}
-              textAnchor={anchor}
-              dominantBaseline="middle"
-            >
-              <tspan className="fkm-label-name">{d.label}</tspan>
-              <tspan className="fkm-label-score" x={x} dy="1.2em">
+            <text key={d.key} className="fkm-label" x={x} y={y} textAnchor={anchor} dominantBaseline="middle">
+              <tspan className="fkm-label-name" x={x} dy="-1.05em">{l1}</tspan>
+              {l2 && (
+                <tspan className="fkm-label-name" x={x} dy="1.05em">{l2}</tspan>
+              )}
+              <tspan className="fkm-label-score" x={x} dy="1.15em">
                 {d.score}
                 {d.depth ? ` · L${d.depth}` : ''}
+                {met ? ' ✓' : ''}
               </tspan>
             </text>
           );
@@ -127,13 +129,13 @@ export default function FounderKnowledgeMap({ data }: Props) {
         </span>
       </div>
 
-      {!isEmpty && domains.some((d) => d.depth) && (
+      {!isEmpty && (
         <p className="fkm-depth-key">
-          <strong>Spoke length</strong> = how much you've read · <strong>L1–L5</strong> ={' '}
-          depth of that reading:{' '}
-          {[1, 2, 3, 4, 5].map((n, i) => (
-            <span key={n}>
-              {i > 0 ? ' · ' : ''}L{n} {LEVEL_NAMES[n]}
+          <strong>Filled area</strong> = your reading toward the stage ideal · <strong>✓</strong> ={' '}
+          ideal met · <strong>L1–L5</strong> = depth:{' '}
+          {[1, 2, 3, 4, 5].map((lvl, i) => (
+            <span key={lvl}>
+              {i > 0 ? ' · ' : ''}L{lvl} {LEVEL_NAMES[lvl]}
             </span>
           ))}
         </p>
