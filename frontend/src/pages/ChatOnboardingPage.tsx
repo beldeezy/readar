@@ -242,7 +242,15 @@ const ChatOnboardingPage: React.FC = () => {
               value={input}
               readOnly={stt.recording}
               disabled={disabled && !stt.recording}
-              placeholder={stt.recording ? 'Listening… speak your answer' : ui ? 'Or type your own reply…' : 'Type your reply…'}
+              placeholder={
+                stt.recording
+                  ? 'Listening… speak your answer'
+                  : ui
+                  ? 'Or type your own reply…'
+                  : stt.supported
+                  ? 'Type or talk-to-text your reply…'
+                  : 'Type your reply…'
+              }
               rows={1}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
