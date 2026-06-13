@@ -1,9 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Mic, X, Check } from 'lucide-react';
 import { apiClient } from '../api/client';
 import ChatMessage from '../components/Onboarding/ChatMessage';
 import RadarIcon from '../components/RadarIcon';
+import { useSpeechToText } from '../hooks/useSpeechToText';
 import './ChatOnboardingPage.css';
+
+const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
 interface Message {
   id: string;
@@ -49,6 +53,49 @@ const ChatOnboardingPage: React.FC = () => {
   };
   const resetTextareaHeight = () => {
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
+  };
+
+  // ── Voice-to-text ──────────────────────────────────────────────────────────
+  const stt = useSpeechToText();
+  const baseTextRef = useRef('');
+  const [elapsed, setElapsed] = useState(0);
+  const timerRef = useRef<number | null>(null);
+
+  // While recording, stream the transcript into the input (kept behind the
+  // recording UI until the user stops — then the textarea reveals it).
+  useEffect(() => {
+    if (!stt.recording) return;
+    const base = baseTextRef.current;
+    setInput(stt.transcript ? (base ? `${base} ${stt.transcript}` : stt.transcript) : base);
+  }, [stt.transcript, stt.recording]);
+
+  // Elapsed timer while recording.
+  useEffect(() => {
+    if (stt.recording) {
+      setElapsed(0);
+      timerRef.current = window.setInterval(() => setElapsed((s) => s + 1), 1000);
+    }
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [stt.recording]);
+
+  const startRecording = () => {
+    if (loading || completing) return;
+    baseTextRef.current = input;
+    stt.start();
+  };
+  const stopRecording = () => {
+    stt.stop();
+    setTimeout(autoGrow, 0);
+  };
+  const cancelRecording = () => {
+    stt.cancel();
+    setInput(baseTextRef.current);
+    setTimeout(autoGrow, 0);
   };
 
   useEffect(() => {
@@ -169,42 +216,70 @@ const ChatOnboardingPage: React.FC = () => {
         </div>
       ) : (
         <div className="nepq-input-bar">
-          {ui === 'yes_no' && (
+          {!stt.recording && ui === 'yes_no' && (
             <div className="nepq-quick-replies">
               <button className="nepq-chip" disabled={disabled} onClick={() => send('Yes')}>Yes</button>
               <button className="nepq-chip" disabled={disabled} onClick={() => send('No')}>No</button>
             </div>
           )}
-          {ui === 'confirm' && (
+          {!stt.recording && ui === 'confirm' && (
             <div className="nepq-quick-replies">
               <button className="nepq-chip nepq-chip--primary" disabled={disabled} onClick={() => send("Yes, that's right")}>
                 Yes, that's right
               </button>
             </div>
           )}
-          <div className="nepq-input-row">
-            <textarea
-              ref={textareaRef}
-              className="nepq-textarea"
-              value={input}
-              disabled={disabled}
-              placeholder={ui ? 'Or type your own reply…' : 'Type your reply…'}
-              rows={1}
-              onChange={(e) => {
-                setInput(e.target.value);
-                autoGrow();
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  send(input);
-                }
-              }}
-            />
-            <button className="nepq-send" disabled={disabled || !input.trim()} onClick={() => send(input)}>
-              Send
-            </button>
-          </div>
+
+          {stt.recording ? (
+            <div className="nepq-recording">
+              <div className="nepq-rec-bars" aria-hidden="true">
+                <span></span><span></span><span></span><span></span><span></span>
+              </div>
+              <span className="nepq-rec-label">Listening…</span>
+              <span className="nepq-rec-timer">{fmtTime(elapsed)}</span>
+              <button className="nepq-rec-btn nepq-rec-cancel" onClick={cancelRecording} aria-label="Cancel recording">
+                <X size={18} />
+              </button>
+              <button className="nepq-rec-btn nepq-rec-stop" onClick={stopRecording} aria-label="Stop and insert">
+                <Check size={18} />
+              </button>
+            </div>
+          ) : (
+            <div className="nepq-input-row">
+              <textarea
+                ref={textareaRef}
+                className="nepq-textarea"
+                value={input}
+                disabled={disabled}
+                placeholder={ui ? 'Or type your own reply…' : 'Type your reply…'}
+                rows={1}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  autoGrow();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    send(input);
+                  }
+                }}
+              />
+              {stt.supported && (
+                <button
+                  className="nepq-mic"
+                  disabled={disabled}
+                  onClick={startRecording}
+                  aria-label="Voice input"
+                  title="Speak your answer"
+                >
+                  <Mic size={20} />
+                </button>
+              )}
+              <button className="nepq-send" disabled={disabled || !input.trim()} onClick={() => send(input)}>
+                Send
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

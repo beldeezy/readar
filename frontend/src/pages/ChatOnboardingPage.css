@@ -472,3 +472,110 @@
   align-items: center;
   padding: 0.5rem 0;
 }
+
+/* ── Voice-to-text ──────────────────────────────────────────────────────────── */
+.nepq-mic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 22px;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: #2a2a2a;
+  color: #d6d6d6;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.nepq-mic:hover:not(:disabled) {
+  color: #53ffc9;
+  border-color: rgba(83, 255, 201, 0.5);
+}
+
+.nepq-mic:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.nepq-recording {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 48px;
+  padding: 0.35rem 0.5rem 0.35rem 1.1rem;
+  border-radius: 22px;
+  border: 1px solid rgba(83, 255, 201, 0.35);
+  background: #2a2a2a;
+}
+
+.nepq-rec-bars {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 22px;
+}
+
+.nepq-rec-bars span {
+  width: 3px;
+  height: 100%;
+  border-radius: 2px;
+  background: #53ffc9;
+  transform-origin: center;
+  animation: nepq-eq 0.9s ease-in-out infinite;
+}
+
+.nepq-rec-bars span:nth-child(2) { animation-delay: 0.12s; }
+.nepq-rec-bars span:nth-child(3) { animation-delay: 0.24s; }
+.nepq-rec-bars span:nth-child(4) { animation-delay: 0.36s; }
+.nepq-rec-bars span:nth-child(5) { animation-delay: 0.48s; }
+
+@keyframes nepq-eq {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+
+.nepq-rec-label {
+  color: #f4f4f4;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.nepq-rec-timer {
+  color: var(--rd-muted, #9aa4b8);
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
+}
+
+.nepq-rec-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: filter 0.15s ease, background 0.15s ease;
+}
+
+.nepq-rec-cancel {
+  background: #3a3a3a;
+  color: #f4f4f4;
+}
+
+.nepq-rec-cancel:hover { background: #474747; }
+
+.nepq-rec-stop {
+  background: #53ffc9;
+  color: #06231c;
+}
+
+.nepq-rec-stop:hover { filter: brightness(1.05); }
+
+@media (prefers-reduced-motion: reduce) {
+  .nepq-rec-bars span { animation: none; transform: scaleY(0.6); }
+}
