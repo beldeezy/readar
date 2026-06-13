@@ -55,6 +55,11 @@ const ChatOnboardingPage: React.FC = () => {
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };
 
+  // Keep the textarea sized to its content (covers typing AND the live voice stream).
+  useEffect(() => {
+    autoGrow();
+  }, [input]);
+
   // ── Voice-to-text ──────────────────────────────────────────────────────────
   const stt = useSpeechToText();
   const baseTextRef = useRef('');
@@ -230,53 +235,52 @@ const ChatOnboardingPage: React.FC = () => {
             </div>
           )}
 
-          {stt.recording ? (
-            <div className="nepq-recording">
+          <div className="nepq-input-row">
+            <textarea
+              ref={textareaRef}
+              className={`nepq-textarea${stt.recording ? ' nepq-textarea--recording' : ''}`}
+              value={input}
+              readOnly={stt.recording}
+              disabled={disabled && !stt.recording}
+              placeholder={stt.recording ? 'Listening… speak your answer' : ui ? 'Or type your own reply…' : 'Type your reply…'}
+              rows={1}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  send(input);
+                }
+              }}
+            />
+            {!stt.recording && stt.supported && (
+              <button
+                className="nepq-mic"
+                disabled={disabled}
+                onClick={startRecording}
+                aria-label="Voice input"
+                title="Speak your answer"
+              >
+                <Mic size={20} />
+              </button>
+            )}
+            {!stt.recording && (
+              <button className="nepq-send" disabled={disabled || !input.trim()} onClick={() => send(input)}>
+                Send
+              </button>
+            )}
+          </div>
+
+          {stt.recording && (
+            <div className="nepq-rec-controls">
               <div className="nepq-rec-bars" aria-hidden="true">
                 <span></span><span></span><span></span><span></span><span></span>
               </div>
-              <span className="nepq-rec-label">Listening…</span>
               <span className="nepq-rec-timer">{fmtTime(elapsed)}</span>
               <button className="nepq-rec-btn nepq-rec-cancel" onClick={cancelRecording} aria-label="Cancel recording">
                 <X size={18} />
               </button>
               <button className="nepq-rec-btn nepq-rec-stop" onClick={stopRecording} aria-label="Stop and insert">
                 <Check size={18} />
-              </button>
-            </div>
-          ) : (
-            <div className="nepq-input-row">
-              <textarea
-                ref={textareaRef}
-                className="nepq-textarea"
-                value={input}
-                disabled={disabled}
-                placeholder={ui ? 'Or type your own reply…' : 'Type your reply…'}
-                rows={1}
-                onChange={(e) => {
-                  setInput(e.target.value);
-                  autoGrow();
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    send(input);
-                  }
-                }}
-              />
-              {stt.supported && (
-                <button
-                  className="nepq-mic"
-                  disabled={disabled}
-                  onClick={startRecording}
-                  aria-label="Voice input"
-                  title="Speak your answer"
-                >
-                  <Mic size={20} />
-                </button>
-              )}
-              <button className="nepq-send" disabled={disabled || !input.trim()} onClick={() => send(input)}>
-                Send
               </button>
             </div>
           )}
