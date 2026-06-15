@@ -66,7 +66,12 @@ class User(Base):
     )
     stripe_customer_id = Column(String, nullable=True)
     stripe_subscription_id = Column(String, nullable=True)
-    
+
+    # Email notification preferences (delivered to the account email from Google auth)
+    notify_email_recommendations = Column(Boolean, nullable=False, server_default=sa.true(), default=True)
+    notify_email_learning_tips = Column(Boolean, nullable=False, server_default=sa.false(), default=False)
+    notify_email_product = Column(Boolean, nullable=False, server_default=sa.false(), default=False)
+
     # Relationships
     onboarding_profile = relationship("OnboardingProfile", back_populates="user", uselist=False)
     book_interactions = relationship("UserBookInteraction", back_populates="user")

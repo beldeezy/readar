@@ -12,7 +12,7 @@ import logging
 
 from app.database import get_db
 from app.core.auth import get_current_user
-from app.models import User, Book, UserBookStatusModel
+from app.models import User, Book, UserBookStatusModel, UserBookInteraction
 from app.utils.instrumentation import log_event
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ router = APIRouter(tags=["book-status"])
 class SetBookStatusRequest(BaseModel):
     """Request body for setting book status."""
     book_id: str
-    status: str  # one of: interested | read_liked | read_disliked | not_for_me
+    status: str  # one of: interested | currently_reading | read_liked | read_disliked | not_for_me
     request_id: Optional[str] = None
     position: Optional[int] = None
     source: Optional[str] = "recommendations"
@@ -54,7 +54,7 @@ async def set_book_status(
     2. Logs an event (best-effort, must never fail the request)
     """
     # Validate status
-    valid_statuses = ["interested", "read_liked", "read_disliked", "not_for_me"]
+    valid_statuses = ["interested", "currently_reading", "read_liked", "read_disliked", "not_for_me"]
     if payload.status not in valid_statuses:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -92,7 +92,14 @@ async def set_book_status(
             db.add(new_status)
             db.commit()
             db.refresh(new_status)
-        
+
+        # "currently_reading" is a transient shelf state and must not feed the
+        # recommendation engine. If the book had a prior graded/interest
+        # interaction, clear it so the Knowledge Map / scoring stays accurate.
+        if status_value == "currently_reading":
+            _delete_interaction(db, user.id, payload.book_id)
+            db.commit()
+
         # Log event (best-effort, must never fail the request)
         try:
             # Use a separate session for event logging to ensure it doesn't interfere
@@ -151,7 +158,60 @@ async def set_book_status(
         )
 
 
-StatusLiteral = Literal["interested", "read_liked", "read_disliked", "not_for_me", "not_interested"]
+def _delete_interaction(db: Session, user_id, book_id: str) -> None:
+    """
+    Delete the UserBookInteraction row for this user/book if present.
+
+    UserBookInteraction.book_id is a UUID FK, while book status uses a free-form
+    string id, so only attempt deletion when the id parses as a UUID.
+    """
+    try:
+        book_uuid = UUID(book_id)
+    except (ValueError, TypeError):
+        return
+    db.query(UserBookInteraction).filter(
+        and_(
+            UserBookInteraction.user_id == user_id,
+            UserBookInteraction.book_id == book_uuid,
+        )
+    ).delete(synchronize_session=False)
+
+
+@router.delete("/book-status/{book_id}", status_code=status.HTTP_200_OK)
+async def delete_book_status(
+    book_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Remove a book from the user's shelves entirely.
+
+    Deletes the dashboard status row AND any recommendation-engine interaction
+    for the book, so the two stores can never drift out of sync.
+    """
+    try:
+        db.query(UserBookStatusModel).filter(
+            and_(
+                UserBookStatusModel.user_id == user.id,
+                UserBookStatusModel.book_id == book_id,
+            )
+        ).delete(synchronize_session=False)
+        _delete_interaction(db, user.id, book_id)
+        db.commit()
+        return {"ok": True}
+    except Exception as e:
+        db.rollback()
+        logger.error(
+            "Failed to delete book status: book_id=%s, user_id=%s, error=%s",
+            book_id, user.id, str(e), exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to remove book from shelves",
+        )
+
+
+StatusLiteral = Literal["interested", "currently_reading", "read_liked", "read_disliked", "not_for_me", "not_interested"]
 
 @router.get("/profile/book-status", response_model=List[BookStatusResponse])
 async def get_book_status_list(
@@ -164,7 +224,7 @@ async def get_book_status_list(
     Get list of books with their statuses for the Profile dashboard.
     
     Query params:
-    - status: optional filter (interested|read_liked|read_disliked|not_for_me|not_interested)
+    - status: optional filter (interested|currently_reading|read_liked|read_disliked|not_for_me|not_interested)
     - status_filter: legacy alias for status (backwards compatibility)
     
     Returns array of book statuses, optionally joined with book titles/authors if available.

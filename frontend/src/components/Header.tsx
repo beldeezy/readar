@@ -33,6 +33,7 @@ export default function Header() {
           {user ? (
             <>
               <Link to="/recommendations" className="readar-nav-link">Recommendations</Link>
+              <Link to="/library" className="readar-nav-link">Library</Link>
               <Link to="/profile" className="readar-nav-link">Profile</Link>
               {user.subscription_status === 'free' && (
                 <Link to="/upgrade" className="readar-nav-link readar-nav-link--cta">Upgrade</Link>

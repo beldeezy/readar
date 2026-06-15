@@ -35,6 +35,235 @@
   margin-right: auto;
 }
 
+/* ── Identity hero (identity → momentum → primary action) ────────────── */
+.readar-identity {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.readar-identity-main {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+.readar-avatar {
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: var(--rd-font-size-xl);
+  color: var(--rd-text);
+  background: var(--rd-accent-soft);
+  border: 1px solid var(--rd-accent);
+}
+
+.readar-identity-info {
+  min-width: 0;
+}
+
+.readar-identity-name {
+  font-size: var(--readar-font-size-2xl);
+  font-weight: 700;
+  color: var(--readar-text);
+  margin: 0 0 0.4rem;
+  line-height: 1.2;
+}
+
+.readar-identity-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.readar-identity-occ {
+  color: var(--rd-muted);
+  font-size: var(--rd-font-size-sm);
+}
+
+.readar-identity-momentum {
+  color: var(--rd-text);
+  font-size: var(--rd-font-size-sm);
+  line-height: 1.5;
+  margin: 0;
+  max-width: 48ch;
+}
+
+.readar-identity-actions {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+/* ── Completeness pathway ────────────────────────────────────────────── */
+.readar-completeness {
+  padding-top: 1.5rem;
+  padding-bottom: 1.5rem;
+}
+
+.readar-completeness-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.readar-completeness-label {
+  font-weight: 600;
+  font-size: var(--rd-font-size-sm);
+  color: var(--rd-text);
+}
+
+.readar-completeness-bar {
+  height: 6px;
+  border-radius: var(--rd-radius-pill);
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  margin-bottom: 0.75rem;
+}
+
+.readar-completeness-fill {
+  height: 100%;
+  border-radius: var(--rd-radius-pill);
+  background: var(--rd-accent);
+  transition: width 0.4s ease;
+}
+
+.readar-completeness-hint {
+  font-size: var(--rd-font-size-sm);
+  color: var(--rd-muted);
+  margin: 0;
+}
+
+/* Stat interpretive caption */
+.readar-stat-caption {
+  font-size: var(--rd-font-size-sm);
+  color: var(--rd-muted);
+  line-height: 1.5;
+  margin: 0 0 1rem;
+}
+
+/* ── Notification preferences ────────────────────────────────────────── */
+.readar-notif-block {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.readar-notif-title {
+  font-size: var(--rd-font-size-base);
+  font-weight: 600;
+  color: var(--rd-text);
+  margin: 0 0 0.25rem;
+}
+
+.readar-notif-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+}
+
+.readar-notif-row:last-child {
+  border-bottom: none;
+}
+
+.readar-notif-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.readar-notif-label {
+  font-weight: 600;
+  font-size: var(--rd-font-size-sm);
+  color: var(--rd-text);
+}
+
+.readar-notif-desc {
+  font-size: var(--rd-font-size-sm);
+  color: var(--rd-muted);
+  line-height: 1.5;
+}
+
+.readar-notif-toggle {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--rd-accent);
+  cursor: pointer;
+}
+
+/* Account actions row */
+.readar-account-actions {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.readar-link-button--danger {
+  color: var(--readar-warm);
+}
+
+@media (max-width: 600px) {
+  .readar-identity {
+    align-items: flex-start;
+  }
+  .readar-identity-actions,
+  .readar-identity-actions .readar-button {
+    width: 100%;
+  }
+}
+
+/* ── Currently reading ───────────────────────────────────────────────── */
+.readar-reading-now-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.readar-reading-now-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--rd-radius-lg);
+  background: var(--rd-surface);
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.readar-reading-now-item:hover {
+  border-color: var(--rd-accent);
+  transform: translateY(-1px);
+}
+
+.readar-reading-now-item strong {
+  color: var(--rd-text);
+}
+
 /* Hero knowledge-map card */
 .fkm-hero {
   display: flex;

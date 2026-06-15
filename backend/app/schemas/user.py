@@ -34,3 +34,20 @@ class MeResponse(BaseModel):
     email: str
     is_admin: bool
 
+
+class NotificationPreferences(BaseModel):
+    """Email notification preferences for the current user."""
+    notify_email_recommendations: bool
+    notify_email_learning_tips: bool
+    notify_email_product: bool
+
+    class Config:
+        from_attributes = True
+
+
+class NotificationPreferencesUpdate(BaseModel):
+    """Partial update for notification preferences (only provided fields change)."""
+    notify_email_recommendations: Optional[bool] = None
+    notify_email_learning_tips: Optional[bool] = None
+    notify_email_product: Optional[bool] = None
+

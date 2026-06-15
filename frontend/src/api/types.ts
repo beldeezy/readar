@@ -11,7 +11,7 @@ export interface Token {
   token_type: string;
 }
 
-export type BookPreferenceStatus = "read_liked" | "read_disliked" | "interested" | "not_interested";
+export type BookPreferenceStatus = "read_liked" | "read_disliked" | "interested" | "currently_reading" | "not_interested";
 
 export type BookPreference = {
   book_id: string;
@@ -72,6 +72,12 @@ export interface KnowledgeMap {
   ideal: DomainScore[];
   total_books_scored: number;
   stage: string | null;
+}
+
+export interface NotificationPreferences {
+  notify_email_recommendations: boolean;
+  notify_email_learning_tips: boolean;
+  notify_email_product: boolean;
 }
 
 export interface Book {

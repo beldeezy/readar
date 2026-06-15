@@ -12,6 +12,7 @@ import type {
   CheckoutSessionRequest,
   CheckoutSessionResponse,
   KnowledgeMap,
+  NotificationPreferences,
 } from './types';
 import { getAccessToken, clearAccessToken } from '../auth/auth';
 
@@ -186,6 +187,21 @@ class ApiClient {
 
   async getCurrentUser(): Promise<User> {
     const response = await this.client.get<User>('/me');
+    return response.data;
+  }
+
+  async getNotificationPreferences(): Promise<NotificationPreferences> {
+    const response = await this.client.get<NotificationPreferences>('/me/notification-preferences');
+    return response.data;
+  }
+
+  async updateNotificationPreferences(
+    payload: Partial<NotificationPreferences>,
+  ): Promise<NotificationPreferences> {
+    const response = await this.client.patch<NotificationPreferences>(
+      '/me/notification-preferences',
+      payload,
+    );
     return response.data;
   }
 
@@ -572,6 +588,11 @@ class ApiClient {
       position: payload.position,
       source: payload.source || 'recommendations',
     });
+    return response.data;
+  }
+
+  async deleteBookStatus(bookId: string): Promise<{ ok: boolean }> {
+    const response = await this.client.delete<{ ok: boolean }>(`/book-status/${bookId}`);
     return response.data;
   }
 

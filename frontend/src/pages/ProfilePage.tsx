@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { BookOpen, Library, LogOut, Zap, Settings } from 'lucide-react';
 import { apiClient } from '../api/client';
-import type { OnboardingProfile, KnowledgeMap } from '../api/types';
+import { useAuth } from '../auth/AuthProvider';
+import type { OnboardingProfile, KnowledgeMap, NotificationPreferences } from '../api/types';
 import Button from '../components/Button';
 import Card from '../components/Card';
 import Badge from '../components/Badge';
@@ -41,6 +43,55 @@ const ACTIVITY_TABS: { key: ActivityTab; label: string }[] = [
   { key: 'not_for_me', label: 'Not for me' },
 ];
 
+// Fields that meaningfully sharpen recommendations. Used for the completeness pathway.
+const COMPLETENESS_FIELDS: { key: keyof OnboardingProfile; label: string }[] = [
+  { key: 'full_name', label: 'Name' },
+  { key: 'biggest_challenge', label: 'Biggest challenge' },
+  { key: 'business_stage', label: 'Business stage' },
+  { key: 'vision_6_12_months', label: 'Vision (6–12 months)' },
+  { key: 'industry', label: 'Industry' },
+  { key: 'business_model', label: 'Business model' },
+  { key: 'occupation', label: 'Occupation' },
+  { key: 'areas_of_business', label: 'Areas of business' },
+];
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function hasValue(v: unknown): boolean {
+  if (Array.isArray(v)) return v.length > 0;
+  if (typeof v === 'string') return v.trim().length > 0;
+  return v != null;
+}
+
+interface Completeness {
+  pct: number;
+  missing: { key: keyof OnboardingProfile; label: string }[];
+}
+
+function computeCompleteness(profile: OnboardingProfile): Completeness {
+  const missing = COMPLETENESS_FIELDS.filter((f) => !hasValue(profile[f.key]));
+  const filled = COMPLETENESS_FIELDS.length - missing.length;
+  return { pct: Math.round((filled / COMPLETENESS_FIELDS.length) * 100), missing };
+}
+
+// Largest gap between the ideal and the user's current coverage → the highest-leverage domain to read into.
+function weakestDomain(map: KnowledgeMap | null): { label: string; gap: number } | null {
+  if (!map?.domains?.length || !map?.ideal?.length) return null;
+  const idealByKey = new Map(map.ideal.map((d) => [d.key, d.score]));
+  let best: { label: string; gap: number } | null = null;
+  for (const d of map.domains) {
+    const ideal = idealByKey.get(d.key) ?? 0;
+    const gap = ideal - d.score;
+    if (gap > 0 && (!best || gap > best.gap)) best = { label: d.label, gap };
+  }
+  return best;
+}
+
 export default function ProfilePage() {
   const [profile, setProfile] = useState<OnboardingProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,6 +104,11 @@ export default function ProfilePage() {
   });
   const [loadingBookStatuses, setLoadingBookStatuses] = useState(false);
   const [activityTab, setActivityTab] = useState<ActivityTab>('interested');
+  const [currentlyReading, setCurrentlyReading] = useState<BookStatusItem[]>([]);
+
+  // Notification preferences
+  const [notifPrefs, setNotifPrefs] = useState<NotificationPreferences | null>(null);
+  const [savingNotifKey, setSavingNotifKey] = useState<keyof NotificationPreferences | null>(null);
 
   // Reading history / DNA
   const [readingProfile, setReadingProfile] = useState<ReadingProfileData | null>(null);
@@ -76,13 +132,43 @@ export default function ProfilePage() {
   const [focusError, setFocusError] = useState<string | null>(null);
 
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
 
   useEffect(() => {
     loadProfile();
     loadBookStatuses();
     loadReadingProfile();
     loadKnowledgeMap();
+    loadNotifPrefs();
   }, []);
+
+  const loadNotifPrefs = async () => {
+    try {
+      const prefs = await apiClient.getNotificationPreferences();
+      setNotifPrefs(prefs);
+    } catch {
+      // Non-fatal — section simply won't render
+    }
+  };
+
+  const toggleNotif = async (key: keyof NotificationPreferences) => {
+    if (!notifPrefs) return;
+    const next = !notifPrefs[key];
+    setNotifPrefs({ ...notifPrefs, [key]: next }); // optimistic
+    setSavingNotifKey(key);
+    try {
+      await apiClient.updateNotificationPreferences({ [key]: next });
+    } catch {
+      setNotifPrefs({ ...notifPrefs, [key]: !next }); // revert on failure
+    } finally {
+      setSavingNotifKey(null);
+    }
+  };
 
   const loadProfile = async () => {
     try {
@@ -103,11 +189,12 @@ export default function ProfilePage() {
   const loadBookStatuses = async () => {
     try {
       setLoadingBookStatuses(true);
-      const [interested, readLiked, readDisliked, notForMe] = await Promise.all([
+      const [interested, readLiked, readDisliked, notForMe, reading] = await Promise.all([
         apiClient.getBookStatusList('interested'),
         apiClient.getBookStatusList('read_liked'),
         apiClient.getBookStatusList('read_disliked'),
         apiClient.getBookStatusList('not_for_me'),
+        apiClient.getBookStatusList('currently_reading'),
       ]);
       setBookStatuses({
         interested,
@@ -115,6 +202,7 @@ export default function ProfilePage() {
         read_disliked: readDisliked,
         not_for_me: notForMe,
       });
+      setCurrentlyReading(reading);
     } catch (err: any) {
       console.warn('Failed to load book statuses:', err);
     } finally {
@@ -246,10 +334,73 @@ export default function ProfilePage() {
 
   const activeList = bookStatuses[activityTab];
 
+  // ── Derived signals (identity, momentum, completeness) ──────────────────
+  const stageLabel =
+    STAGE_OPTIONS.find((s) => s.value === profile.business_stage)?.label ?? profile.business_stage;
+  const completeness = computeCompleteness(profile);
+  const weakest = weakestDomain(knowledgeMap);
+  const booksReadCount = bookStatuses.read_liked.length + bookStatuses.read_disliked.length;
+  const interestedCount = bookStatuses.interested.length;
+  // Living momentum line: reflect what's in flight, then nudge toward the highest-leverage next read.
+  const momentumText = currentlyReading.length > 0
+    ? `Currently reading ${currentlyReading.length} ${currentlyReading.length === 1 ? 'book' : 'books'}` +
+      (weakest ? ` · biggest gap: ${weakest.label}.` : '.')
+    : weakest
+      ? `Your biggest knowledge gap is ${weakest.label} — your next read can close it.`
+      : booksReadCount === 0
+        ? 'Mark a book as read to start building your Knowledge Map.'
+        : `${booksReadCount} ${booksReadCount === 1 ? 'book' : 'books'} logged${
+            interestedCount > 0 ? ` · ${interestedCount} on your interested list` : ''
+          }.`;
+
   return (
     <div className="readar-profile-page">
       <div className="container">
-        <h1 className="readar-profile-title">Your Profile</h1>
+        {/* ── Identity + momentum + primary action (above the fold) ───────── */}
+        <Card variant="flat" className="readar-profile-section readar-identity">
+          <div className="readar-identity-main">
+            <div className="readar-avatar" aria-hidden="true">{getInitials(profile.full_name)}</div>
+            <div className="readar-identity-info">
+              <h1 className="readar-identity-name">{profile.full_name}</h1>
+              <div className="readar-identity-meta">
+                <Badge variant="purple" size="sm">{stageLabel}</Badge>
+                {profile.occupation && <span className="readar-identity-occ">{profile.occupation}</span>}
+              </div>
+              <p className="readar-identity-momentum">{momentumText}</p>
+            </div>
+          </div>
+          <div className="readar-identity-actions">
+            <Button variant="primary" onClick={() => navigate('/recommendations')} delayMs={0}>
+              <BookOpen size={18} strokeWidth={2} style={{ marginRight: '0.4rem', verticalAlign: 'text-bottom' }} />
+              See your recommendations
+            </Button>
+            <Button variant="secondary" onClick={() => navigate('/library')} delayMs={0}>
+              <Library size={18} strokeWidth={2} style={{ marginRight: '0.4rem', verticalAlign: 'text-bottom' }} />
+              Browse library
+            </Button>
+          </div>
+        </Card>
+
+        {/* ── Profile completeness pathway (utility-led) ──────────────── */}
+        {completeness.pct < 100 && (
+          <Card variant="flat" className="readar-profile-section readar-completeness">
+            <div className="readar-completeness-head">
+              <span className="readar-completeness-label">
+                Profile {completeness.pct}% complete
+              </span>
+              <button className="readar-link-button" onClick={startEditFocus}>
+                Sharpen recommendations
+              </button>
+            </div>
+            <div className="readar-completeness-bar">
+              <div className="readar-completeness-fill" style={{ width: `${completeness.pct}%` }} />
+            </div>
+            <p className="readar-completeness-hint">
+              Add {completeness.missing.slice(0, 3).map((m) => m.label).join(', ')}
+              {completeness.missing.length > 3 ? ' and more' : ''} so Readar can match books more precisely.
+            </p>
+          </Card>
+        )}
 
         {/* ── Hero: Founder Knowledge Map ─────────────────────────────── */}
         <Card variant="flat" className="readar-profile-section fkm-hero">
@@ -275,6 +426,44 @@ export default function ProfilePage() {
             </p>
           )}
         </Card>
+
+        {/* ── Currently reading ───────────────────────────────────────── */}
+        {currentlyReading.length > 0 && (
+          <Card variant="flat" className="readar-profile-section">
+            <div className="readar-profile-section-head">
+              <h2 className="readar-profile-section-title" style={{ border: 'none', marginBottom: 0, paddingBottom: 0 }}>
+                <BookOpen size={18} strokeWidth={2} style={{ marginRight: '0.45rem', verticalAlign: 'text-bottom' }} />
+                Currently reading
+              </h2>
+              <button className="readar-link-button" onClick={() => navigate('/library')}>
+                Manage in Library →
+              </button>
+            </div>
+            <ul className="readar-reading-now-list" style={{ marginTop: '1rem' }}>
+              {currentlyReading.map((item) => (
+                <li
+                  key={item.book_id}
+                  className="readar-reading-now-item"
+                  onClick={() => navigate(`/book/${item.book_id}`)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/book/${item.book_id}`); }}
+                >
+                  <div className="readar-reading-now-info">
+                    {item.title ? (
+                      <>
+                        <strong>{item.title}</strong>
+                        {item.author_name && <span className="readar-profile-muted"> by {item.author_name}</span>}
+                      </>
+                    ) : (
+                      <span className="readar-profile-muted">{item.book_id}</span>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
 
         {/* ── Your focus (editable, high-signal) ──────────────────────── */}
         <Card variant="flat" className="readar-profile-section">
@@ -379,6 +568,11 @@ export default function ProfilePage() {
                   <div className="readar-stat-value">{Math.round(readingProfile.reading_confidence * 100)}%</div>
                 </div>
               </div>
+              <p className="readar-stat-caption">
+                {readingProfile.reading_confidence >= 0.7
+                  ? 'Readar has a strong read on your taste — recommendations are well-tuned.'
+                  : 'Log or import a few more books to sharpen how well recommendations fit you.'}
+              </p>
               {readingProfile.profile_summary && (
                 <p className="readar-reading-summary">{readingProfile.profile_summary}</p>
               )}
@@ -463,9 +657,20 @@ export default function ProfilePage() {
           </div>
         </Card>
 
-        {/* ── Account details (compact, low-signal) ───────────────────── */}
+        {/* ── Account & settings ──────────────────────────────────────── */}
         <Card variant="flat" className="readar-profile-section">
-          <h2 className="readar-profile-section-title">Account details</h2>
+          <h2 className="readar-profile-section-title">
+            <Settings size={18} strokeWidth={2} style={{ marginRight: '0.45rem', verticalAlign: 'text-bottom' }} />
+            Account &amp; settings
+          </h2>
+          {user?.email && (
+            <p className="readar-profile-muted" style={{ marginBottom: '1.25rem' }}>
+              Signed in as {user.email}
+              {user.subscription_status === 'active' && (
+                <Badge variant="warm" size="sm" style={{ marginLeft: '0.5rem' }}>Premium</Badge>
+              )}
+            </p>
+          )}
           <div className="readar-account-grid">
             <div className="readar-profile-field"><strong>Name:</strong> {profile.full_name}</div>
             {profile.occupation && <div className="readar-profile-field"><strong>Occupation:</strong> {profile.occupation}</div>}
@@ -482,9 +687,59 @@ export default function ProfilePage() {
               ))}
             </div>
           )}
-          <div className="readar-account-foot">
+          {notifPrefs && (
+            <div className="readar-notif-block">
+              <h3 className="readar-notif-title">Email notifications</h3>
+              <p className="readar-profile-muted" style={{ marginBottom: '1rem' }}>
+                Sent to {user?.email ?? 'your account email'}.
+              </p>
+              {([
+                {
+                  key: 'notify_email_recommendations' as const,
+                  label: 'New recommendations',
+                  desc: 'Email me when fresh book recommendations are ready.',
+                },
+                {
+                  key: 'notify_email_learning_tips' as const,
+                  label: 'Learning tips',
+                  desc: 'Tips from the book you’re reading, tied to your current bottleneck.',
+                },
+                {
+                  key: 'notify_email_product' as const,
+                  label: 'Product updates',
+                  desc: 'Occasional news about new Readar features.',
+                },
+              ]).map((row) => (
+                <label key={row.key} className="readar-notif-row">
+                  <div className="readar-notif-text">
+                    <span className="readar-notif-label">{row.label}</span>
+                    <span className="readar-notif-desc">{row.desc}</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    className="readar-notif-toggle"
+                    checked={notifPrefs[row.key]}
+                    disabled={savingNotifKey === row.key}
+                    onChange={() => toggleNotif(row.key)}
+                  />
+                </label>
+              ))}
+            </div>
+          )}
+
+          <div className="readar-account-foot readar-account-actions">
+            {user?.subscription_status === 'free' && (
+              <Button variant="secondary" size="sm" onClick={() => navigate('/upgrade')} delayMs={0}>
+                <Zap size={16} strokeWidth={2} style={{ marginRight: '0.35rem', verticalAlign: 'text-bottom' }} />
+                Upgrade to Premium
+              </Button>
+            )}
             <button className="readar-link-button" onClick={() => navigate('/onboarding')}>
               Re-run full onboarding
+            </button>
+            <button className="readar-link-button readar-link-button--danger" onClick={handleLogout}>
+              <LogOut size={15} strokeWidth={2} style={{ marginRight: '0.3rem', verticalAlign: 'text-bottom' }} />
+              Log out
             </button>
           </div>
         </Card>

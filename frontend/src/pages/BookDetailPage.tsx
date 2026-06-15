@@ -35,7 +35,19 @@ export default function BookDetailPage() {
   const handleAction = async (status: BookPreferenceStatus) => {
     if (!id) return;
     try {
-      await apiClient.updateUserBook(id, status);
+      // "currently_reading" is a transient shelf state, not a graded interaction,
+      // so it only goes to the book-status dashboard store — not the interaction
+      // enum that feeds the Knowledge Map / recommendation scoring.
+      if (status !== 'currently_reading') {
+        await apiClient.updateUserBook(id, status);
+      }
+      // Persist to the book-status store that powers the Profile dashboard lists
+      // (interested / currently_reading / read_* sections).
+      try {
+        await apiClient.setBookStatus({ book_id: id, status, source: 'book_detail' });
+      } catch (err) {
+        console.warn('Failed to save book status for profile dashboard:', err);
+      }
       navigate('/recommendations');
     } catch (err) {
       console.error('Failed to update book status:', err);
@@ -131,6 +143,9 @@ export default function BookDetailPage() {
           <div className="readar-book-detail-actions">
             <Button variant="primary" onClick={() => handleAction('interested')} delayMs={140}>
               Save as Interested
+            </Button>
+            <Button variant="secondary" onClick={() => handleAction('currently_reading')} delayMs={140}>
+              I'm reading this
             </Button>
             <Button variant="secondary" onClick={() => handleAction('read_liked')} delayMs={140}>
               Mark as Read (Liked)

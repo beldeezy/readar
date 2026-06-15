@@ -83,6 +83,7 @@ export default function RecommendationCard({
     // Map status to feedback action
     const actionMap: Record<BookPreferenceStatus, string> = {
       'interested': 'save_interested',
+      'currently_reading': 'currently_reading',
       'read_liked': 'read_liked',
       'read_disliked': 'read_disliked',
       'not_interested': 'not_for_me',

@@ -11,6 +11,7 @@ import ImportReadingHistoryPage from './pages/ImportReadingHistoryPage';
 import BookDetailPage from './pages/BookDetailPage';
 import UpgradePage from './pages/UpgradePage';
 import ProfilePage from './pages/ProfilePage';
+import LibraryPage from './pages/LibraryPage';
 import AdminLayout from './pages/admin/AdminLayout';
 import Books from './pages/admin/Books';
 import Users from './pages/admin/Users';
@@ -147,6 +148,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <UpgradePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/library"
+        element={
+          <ProtectedRoute>
+            <LibraryPage />
           </ProtectedRoute>
         }
       />
