@@ -1,9 +1,9 @@
 """
 Book status endpoints for persisting user book status and powering Profile dashboard.
 """
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from sqlalchemy import and_, cast, func, String
 from pydantic import BaseModel
 from typing import Optional, List, Literal
 from uuid import UUID
@@ -12,11 +12,76 @@ import logging
 
 from app.database import get_db
 from app.core.auth import get_current_user
-from app.models import User, Book, UserBookStatusModel, UserBookInteraction
+from app.models import User, Book, UserBookStatusModel, UserBookInteraction, ReadingHistoryEntry
 from app.utils.instrumentation import log_event
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["book-status"])
+
+# Rating we record when a book is marked read in-app (Goodreads scale 1–5).
+READ_RATING = {"read_liked": 5.0, "read_disliked": 2.0}
+
+
+def _lookup_book(db: Session, book_id: str) -> Optional[Book]:
+    """Resolve a status book_id (UUID or external id) to a catalog Book."""
+    try:
+        return db.query(Book).filter(Book.id == UUID(book_id)).first()
+    except (ValueError, TypeError):
+        return (
+            db.query(Book)
+            .filter((Book.external_id == book_id) | (Book.id == book_id))
+            .first()
+        )
+
+
+def _record_read_in_history(db: Session, user_id, book: Book, status_value: str) -> None:
+    """
+    Upsert a 'read' ReadingHistoryEntry for a book the user marked read in-app,
+    so it counts toward total_books_read / reading confidence / the 50-book goal.
+    Keyed on (user_id, title, author) to merge with any Goodreads import.
+    """
+    title = book.title
+    author = book.author_name or ""
+    rating = READ_RATING.get(status_value)
+    existing = (
+        db.query(ReadingHistoryEntry)
+        .filter(
+            ReadingHistoryEntry.user_id == user_id,
+            func.lower(ReadingHistoryEntry.title) == title.lower(),
+            func.lower(cast(ReadingHistoryEntry.author, String)) == author.lower(),
+        )
+        .first()
+    )
+    if existing:
+        existing.shelf = "read"
+        existing.my_rating = rating
+        existing.catalog_book_id = book.id
+    else:
+        db.add(
+            ReadingHistoryEntry(
+                user_id=user_id,
+                title=title,
+                author=author,
+                my_rating=rating,
+                shelf="read",
+                source="readar",
+                catalog_book_id=book.id,
+            )
+        )
+
+
+def _regen_reading_profile(user_id) -> None:
+    """Background task: rebuild the user's reading profile from history."""
+    from app.database import SessionLocal
+    from app.services.reading_profile_service import generate_reading_profile
+
+    db = SessionLocal()
+    try:
+        generate_reading_profile(db=db, user_id=user_id)
+    except Exception as e:
+        logger.warning("Reading profile regen failed for user_id=%s: %s", user_id, e)
+    finally:
+        db.close()
 
 
 class SetBookStatusRequest(BaseModel):
@@ -43,6 +108,7 @@ class BookStatusResponse(BaseModel):
 @router.post("/book-status", status_code=status.HTTP_200_OK)
 async def set_book_status(
     payload: SetBookStatusRequest,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -99,6 +165,23 @@ async def set_book_status(
         if status_value == "currently_reading":
             _delete_interaction(db, user.id, payload.book_id)
             db.commit()
+
+        # Marking a book read feeds the user's reading history (powers the
+        # "Books read" count, reading confidence, and the 50-book goal), then
+        # rebuilds the reading profile in the background.
+        if status_value in READ_RATING:
+            book = _lookup_book(db, payload.book_id)
+            if book is not None:
+                try:
+                    _record_read_in_history(db, user.id, book, status_value)
+                    db.commit()
+                    background_tasks.add_task(_regen_reading_profile, user.id)
+                except Exception as e:
+                    db.rollback()
+                    logger.warning(
+                        "Failed to record reading history for book_id=%s: %s",
+                        payload.book_id, e,
+                    )
 
         # Log event (best-effort, must never fail the request)
         try:

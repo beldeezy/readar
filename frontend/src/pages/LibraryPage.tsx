@@ -1,20 +1,22 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, BookOpen } from 'lucide-react';
 import { apiClient } from '../api/client';
 import type { Book, BookPreferenceStatus } from '../api/types';
 import Card from '../components/Card';
+import Button from '../components/Button';
 import './LibraryPage.css';
 
 type LibraryTab = 'explore' | 'shelves';
 
-// Shelf options offered in the library. "currently_reading" is a transient state;
-// the read_* / interested options also feed the recommendation engine.
-const SHELF_OPTIONS: { value: BookPreferenceStatus; label: string }[] = [
-  { value: 'interested', label: 'Want to read' },
-  { value: 'currently_reading', label: 'Currently reading' },
-  { value: 'read_liked', label: 'Read · liked' },
-  { value: 'read_disliked', label: 'Read · disliked' },
+const READING_GOAL = 50;
+
+// Recommendation-style actions, shown on every library card.
+const ACTIONS: { status: BookPreferenceStatus; label: string; variant: 'secondary' | 'ghost' }[] = [
+  { status: 'interested', label: 'Save as Interested', variant: 'secondary' },
+  { status: 'read_liked', label: 'Mark as Read (Liked)', variant: 'secondary' },
+  { status: 'read_disliked', label: 'Mark as Read (Disliked)', variant: 'ghost' },
+  { status: 'not_interested', label: 'Not for me', variant: 'ghost' },
 ];
 
 const SHELF_SECTIONS: { status: BookPreferenceStatus; label: string }[] = [
@@ -24,10 +26,18 @@ const SHELF_SECTIONS: { status: BookPreferenceStatus; label: string }[] = [
   { status: 'read_disliked', label: 'Read · disliked' },
 ];
 
+const READ_STATUSES: BookPreferenceStatus[] = ['read_liked', 'read_disliked'];
+
 interface ShelfItem {
   book_id: string;
   title?: string;
   author_name?: string;
+}
+
+function truncate(text: string | undefined, max = 180): string {
+  if (!text) return '';
+  const clean = text.trim();
+  return clean.length > max ? clean.slice(0, max).trimEnd() + '…' : clean;
 }
 
 export default function LibraryPage() {
@@ -39,19 +49,21 @@ export default function LibraryPage() {
   const [results, setResults] = useState<Book[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Shelf membership: book_id -> current status (drives both Explore controls and Shelves view)
+  // Shelf membership: book_id -> current status
   const [shelfMap, setShelfMap] = useState<Record<string, BookPreferenceStatus>>({});
   const [shelfItems, setShelfItems] = useState<Record<string, ShelfItem>>({});
 
+  // Reading goal progress
+  const [booksRead, setBooksRead] = useState(0);
+
   useEffect(() => {
     loadShelves();
+    loadBooksRead();
   }, []);
 
   // Debounced catalog search
   useEffect(() => {
-    const t = setTimeout(() => {
-      loadBooks(query);
-    }, 250);
+    const t = setTimeout(() => loadBooks(query), 250);
     return () => clearTimeout(t);
   }, [query]);
 
@@ -73,6 +85,15 @@ export default function LibraryPage() {
     }
   };
 
+  const loadBooksRead = async () => {
+    try {
+      const profile = await apiClient.getReadingProfile();
+      setBooksRead(profile?.total_books_read ?? 0);
+    } catch {
+      // 404 = no reading profile yet
+    }
+  };
+
   const loadShelves = async () => {
     try {
       const statuses: BookPreferenceStatus[] = [
@@ -81,12 +102,16 @@ export default function LibraryPage() {
         'read_liked',
         'read_disliked',
       ];
-      const lists = await Promise.all(statuses.map((s) => apiClient.getBookStatusList(s)));
+      // not_for_me is tracked for active state but isn't its own shelf
+      const allStatuses = [...statuses, 'not_for_me'];
+      const lists = await Promise.all(allStatuses.map((s) => apiClient.getBookStatusList(s)));
       const map: Record<string, BookPreferenceStatus> = {};
       const items: Record<string, ShelfItem> = {};
-      statuses.forEach((status, i) => {
+      allStatuses.forEach((status, i) => {
+        // Backend stores "not_for_me"; normalize to the frontend's "not_interested"
+        const normalized = (status === 'not_for_me' ? 'not_interested' : status) as BookPreferenceStatus;
         for (const it of lists[i]) {
-          map[it.book_id] = status;
+          map[it.book_id] = normalized;
           items[it.book_id] = { book_id: it.book_id, title: it.title, author_name: it.author_name };
         }
       });
@@ -99,17 +124,22 @@ export default function LibraryPage() {
 
   const setShelf = async (book: Book, status: BookPreferenceStatus) => {
     const prev = shelfMap[book.id];
-    // Optimistic local update
+    // Optimistic update
     setShelfMap((m) => ({ ...m, [book.id]: status }));
     setShelfItems((m) => ({
       ...m,
       [book.id]: { book_id: book.id, title: book.title, author_name: book.author_name },
     }));
+    // Optimistically bump the reading goal when a book becomes "read" for the first time.
+    const wasRead = prev ? READ_STATUSES.includes(prev) : false;
+    const nowRead = READ_STATUSES.includes(status);
+    if (nowRead && !wasRead) {
+      setBooksRead((n) => n + 1);
+    }
 
     try {
       await apiClient.setBookStatus({ book_id: book.id, status, source: 'library' });
-      // Graded/interest signals also feed the recommendation engine; the transient
-      // "currently_reading" state does not (the backend clears any prior signal).
+      // Graded/interest signals also feed the recommendation engine.
       if (status !== 'currently_reading') {
         try {
           await apiClient.updateUserBook(book.id, status);
@@ -125,13 +155,15 @@ export default function LibraryPage() {
         else delete next[book.id];
         return next;
       });
+      if (nowRead && !wasRead) {
+        setBooksRead((n) => Math.max(0, n - 1));
+      }
     }
   };
 
   const removeFromShelf = async (bookId: string) => {
     const prev = shelfMap[bookId];
     const prevItem = shelfItems[bookId];
-    // Optimistic removal
     setShelfMap((m) => {
       const next = { ...m };
       delete next[bookId];
@@ -145,7 +177,6 @@ export default function LibraryPage() {
     try {
       await apiClient.deleteBookStatus(bookId);
     } catch {
-      // Revert on failure
       if (prev) setShelfMap((m) => ({ ...m, [bookId]: prev }));
       if (prevItem) setShelfItems((m) => ({ ...m, [bookId]: prevItem }));
     }
@@ -162,10 +193,29 @@ export default function LibraryPage() {
     );
   };
 
+  const goalPct = Math.min(100, Math.round((booksRead / READING_GOAL) * 100));
+  const remaining = Math.max(0, READING_GOAL - booksRead);
+
   return (
     <div className="readar-library-page">
       <div className="container">
         <h1 className="readar-library-title">Library</h1>
+
+        {/* Gamified reading goal */}
+        {booksRead < READING_GOAL && (
+          <Card variant="flat" className="readar-goal-card">
+            <div className="readar-goal-head">
+              <span className="readar-goal-label">📚 Reading goal</span>
+              <span className="readar-goal-count">{booksRead} / {READING_GOAL} read</span>
+            </div>
+            <div className="readar-goal-bar">
+              <div className="readar-goal-fill" style={{ width: `${goalPct}%` }} />
+            </div>
+            <p className="readar-goal-hint">
+              {remaining} more {remaining === 1 ? 'book' : 'books'} to fully tune your recommendations.
+            </p>
+          </Card>
+        )}
 
         <div className="readar-library-tabs">
           <button
@@ -201,38 +251,42 @@ export default function LibraryPage() {
               <p className="readar-library-muted">No books found. Try a different search.</p>
             ) : (
               <div className="readar-library-grid">
-                {results.map((book) => (
-                  <Card key={book.id} variant="flat" className="readar-lib-card">
-                    <div
-                      className="readar-lib-cover-wrap"
-                      onClick={() => navigate(`/book/${book.id}`)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/book/${book.id}`); }}
-                    >
-                      {renderCover(book)}
-                    </div>
-                    <div className="readar-lib-info">
-                      <strong className="readar-lib-book-title">{book.title}</strong>
-                      <span className="readar-lib-book-author">{book.author_name}</span>
-                    </div>
-                    <select
-                      className="readar-lib-shelf-select"
-                      value={shelfMap[book.id] ?? ''}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (v === '__remove__') removeFromShelf(book.id);
-                        else if (v) setShelf(book, v as BookPreferenceStatus);
-                      }}
-                    >
-                      <option value="">+ Add to shelf</option>
-                      {SHELF_OPTIONS.map((o) => (
-                        <option key={o.value} value={o.value}>{o.label}</option>
-                      ))}
-                      {shelfMap[book.id] && <option value="__remove__">Remove from shelf</option>}
-                    </select>
-                  </Card>
-                ))}
+                {results.map((book) => {
+                  const active = shelfMap[book.id];
+                  return (
+                    <Card key={book.id} variant="flat" className="readar-lib-card">
+                      <div
+                        className="readar-lib-cover-wrap"
+                        onClick={() => navigate(`/book/${book.id}`)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/book/${book.id}`); }}
+                      >
+                        {renderCover(book)}
+                      </div>
+                      <div className="readar-lib-info">
+                        <strong className="readar-lib-book-title">{book.title}</strong>
+                        <span className="readar-lib-book-author">{book.author_name}</span>
+                        {book.description && (
+                          <p className="readar-lib-desc">{truncate(book.description)}</p>
+                        )}
+                      </div>
+                      <div className="readar-lib-actions">
+                        {ACTIONS.map((a) => (
+                          <Button
+                            key={a.status}
+                            variant={active === a.status ? 'primary' : a.variant}
+                            size="sm"
+                            delayMs={0}
+                            onClick={() => setShelf(book, a.status)}
+                          >
+                            {active === a.status ? `✓ ${a.label}` : a.label}
+                          </Button>
+                        ))}
+                      </div>
+                    </Card>
+                  );
+                })}
               </div>
             )}
           </>

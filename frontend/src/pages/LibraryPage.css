@@ -84,11 +84,70 @@
   padding: 1rem 0;
 }
 
-/* Explore grid */
+/* Reading goal (gamification) */
+.readar-goal-card {
+  padding: 1.5rem 2rem;
+  max-width: 760px;
+  margin: 0 auto 2rem;
+}
+
+.readar-goal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.readar-goal-label {
+  font-weight: 600;
+  color: var(--rd-text);
+}
+
+.readar-goal-count {
+  font-size: var(--rd-font-size-sm);
+  color: var(--rd-accent);
+  font-weight: 600;
+}
+
+.readar-goal-bar {
+  height: 8px;
+  border-radius: var(--rd-radius-pill);
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  margin-bottom: 0.6rem;
+}
+
+.readar-goal-fill {
+  height: 100%;
+  border-radius: var(--rd-radius-pill);
+  background: var(--rd-accent);
+  transition: width 0.5s ease;
+}
+
+.readar-goal-hint {
+  font-size: var(--rd-font-size-sm);
+  color: var(--rd-muted);
+  margin: 0;
+}
+
+/* Explore grid — three columns */
 .readar-library-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 1.25rem;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+
+@media (max-width: 860px) {
+  .readar-library-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .readar-library-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .readar-lib-card {
@@ -146,20 +205,27 @@
   color: var(--rd-muted);
 }
 
-.readar-lib-shelf-select {
-  font-family: var(--rd-font);
+.readar-lib-desc {
   font-size: var(--rd-font-size-xs);
-  padding: 0.4rem 0.5rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: var(--rd-radius-md, 0.5rem);
-  background-color: var(--rd-surface);
-  color: var(--rd-text);
-  cursor: pointer;
+  color: var(--rd-muted);
+  line-height: 1.5;
+  margin: 0.4rem 0 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-.readar-lib-shelf-select:focus {
-  outline: none;
-  border-color: var(--rd-accent);
+/* Action buttons (recommendation-style) */
+.readar-lib-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: auto;
+}
+
+.readar-lib-actions .readar-button {
+  width: 100%;
 }
 
 /* Shelves view */
