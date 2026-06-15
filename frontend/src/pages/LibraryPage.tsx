@@ -7,7 +7,44 @@ import Card from '../components/Card';
 import Button from '../components/Button';
 import './LibraryPage.css';
 
-const READING_GOAL = 50;
+// Reading-confidence tiers (mirror backend reading_profile_service). Hitting
+// each one genuinely improves recommendation quality, so the carrot is honest.
+const TIERS: { at: number; label: string }[] = [
+  { at: 5, label: 'Basic personalization' },
+  { at: 15, label: 'Moderate personalization' },
+  { at: 30, label: 'Good personalization' },
+  { at: 50, label: 'Full personalization' },
+];
+
+interface Carrot {
+  pct: number;
+  remaining: number;
+  headline: string;
+  fullUnlocked: boolean;
+}
+
+// Dynamic "next milestone" carrot: always keeps an attainable target just ahead.
+function getCarrot(booksRead: number): Carrot {
+  const next = TIERS.find((t) => booksRead < t.at);
+  if (next) {
+    const remaining = next.at - booksRead;
+    return {
+      pct: Math.min(100, Math.round((booksRead / next.at) * 100)),
+      remaining,
+      headline: `${remaining} ${remaining === 1 ? 'book' : 'books'} to ${next.label}`,
+      fullUnlocked: false,
+    };
+  }
+  // Past full trust — roll a perpetual explore milestone every 25 books.
+  const target = (Math.floor(booksRead / 25) + 1) * 25;
+  const remaining = target - booksRead;
+  return {
+    pct: Math.min(100, Math.round((booksRead / target) * 100)),
+    remaining,
+    headline: `${remaining} more to your next milestone (${target} books)`,
+    fullUnlocked: true,
+  };
+}
 
 const ACTIONS: { status: BookPreferenceStatus; label: string; variant: 'secondary' | 'ghost' }[] = [
   { status: 'interested', label: 'Save as Interested', variant: 'secondary' },
@@ -115,8 +152,7 @@ export default function LibraryPage() {
     }
   };
 
-  const goalPct = Math.min(100, Math.round((booksRead / READING_GOAL) * 100));
-  const remaining = Math.max(0, READING_GOAL - booksRead);
+  const carrot = getCarrot(booksRead);
 
   return (
     <div className="readar-library-page">
@@ -124,21 +160,22 @@ export default function LibraryPage() {
         <h1 className="readar-library-title">Library</h1>
         <p className="readar-library-subtitle">Readar's curated catalog of books for entrepreneurs.</p>
 
-        {/* Reading goal */}
-        {booksRead < READING_GOAL && (
-          <Card variant="flat" className="readar-goal-card">
-            <div className="readar-goal-head">
-              <span className="readar-goal-label">📚 Reading goal</span>
-              <span className="readar-goal-count">{booksRead} / {READING_GOAL} read</span>
-            </div>
-            <div className="readar-goal-bar">
-              <div className="readar-goal-fill" style={{ width: `${goalPct}%` }} />
-            </div>
-            <p className="readar-goal-hint">
-              {remaining} more {remaining === 1 ? 'book' : 'books'} to fully tune your recommendations.
-            </p>
-          </Card>
-        )}
+        {/* Reading progress — dynamic milestone carrot */}
+        <Card variant="flat" className="readar-goal-card">
+          <div className="readar-goal-head">
+            <span className="readar-goal-label">📚 Reading progress</span>
+            <span className="readar-goal-count">
+              {booksRead} {booksRead === 1 ? 'book' : 'books'} read
+            </span>
+          </div>
+          <div className="readar-goal-bar">
+            <div className="readar-goal-fill" style={{ width: `${carrot.pct}%` }} />
+          </div>
+          <p className="readar-goal-hint">
+            {carrot.fullUnlocked && '🎉 Full personalization unlocked — '}
+            {carrot.headline}.
+          </p>
+        </Card>
 
         <div className="readar-library-search">
           <Search size={18} strokeWidth={2} className="readar-library-search-icon" />
