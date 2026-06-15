@@ -12,6 +12,7 @@ import BookDetailPage from './pages/BookDetailPage';
 import UpgradePage from './pages/UpgradePage';
 import ProfilePage from './pages/ProfilePage';
 import LibraryPage from './pages/LibraryPage';
+import ShelvesPage from './pages/ShelvesPage';
 import AdminLayout from './pages/admin/AdminLayout';
 import Books from './pages/admin/Books';
 import Users from './pages/admin/Users';
@@ -156,6 +157,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <LibraryPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/shelves"
+        element={
+          <ProtectedRoute>
+            <ShelvesPage />
           </ProtectedRoute>
         }
       />

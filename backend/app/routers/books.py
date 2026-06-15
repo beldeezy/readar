@@ -24,6 +24,7 @@ def get_books(
     has_cover: Optional[bool] = Query(None, description="Filter by cover presence"),
     category: Optional[str] = Query(None, description="Filter by category"),
     stage: Optional[str] = Query(None, description="Filter by business stage tag"),
+    curated: Optional[bool] = Query(None, description="If true, return only enriched catalog books (real description + at least one functional tag)"),
     limit: int = Query(100, ge=1, le=5000),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db)
@@ -64,6 +65,19 @@ def get_books(
                 )
             )
         
+        # Curated-only: real description + at least one functional tag
+        # Excludes Goodreads-import stubs and un-enriched books
+        if curated is True:
+            query = query.filter(
+                and_(
+                    Book.description.isnot(None),
+                    Book.description != '',
+                    ~Book.description.like('Imported from Goodreads%'),
+                    Book.functional_tags != [],
+                    Book.functional_tags.isnot(None),
+                )
+            )
+
         # Legacy filters (keep for backward compatibility)
         if category:
             query = query.filter(Book.categories.contains([category]))

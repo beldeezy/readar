@@ -435,8 +435,8 @@ export default function ProfilePage() {
                 <BookOpen size={18} strokeWidth={2} style={{ marginRight: '0.45rem', verticalAlign: 'text-bottom' }} />
                 Currently reading
               </h2>
-              <button className="readar-link-button" onClick={() => navigate('/library')}>
-                Manage in Library →
+              <button className="readar-link-button" onClick={() => navigate('/shelves')}>
+                Manage in Shelves →
               </button>
             </div>
             <ul className="readar-reading-now-list" style={{ marginTop: '1rem' }}>

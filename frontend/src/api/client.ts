@@ -403,6 +403,7 @@ class ApiClient {
     has_cover?: boolean;
     category?: string;
     stage?: string;
+    curated?: boolean;
     limit?: number;
     offset?: number;
   }): Promise<Book[]> {

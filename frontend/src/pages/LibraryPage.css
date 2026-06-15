@@ -77,6 +77,18 @@
   border-color: var(--rd-accent);
 }
 
+.readar-library-subtitle {
+  text-align: center;
+  color: var(--rd-muted);
+  font-size: var(--rd-font-size-sm);
+  margin-bottom: 2rem;
+  margin-top: -1rem;
+}
+
+.readar-lib-no-desc {
+  font-style: italic;
+}
+
 .readar-library-muted {
   color: var(--rd-muted);
   font-size: var(--rd-font-size-sm);

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { BookOpen, Library, User, MoreHorizontal, LogOut, Zap } from 'lucide-react';
+import { BookOpen, Library, BookMarked, User, MoreHorizontal, LogOut, Zap } from 'lucide-react';
 import { useAuth } from '../auth/AuthProvider';
 import './BottomNav.css';
 
@@ -63,6 +63,17 @@ export default function BottomNav() {
         >
           <Library size={22} strokeWidth={1.75} />
           <span>Library</span>
+        </NavLink>
+
+        <NavLink
+          to="/shelves"
+          className={({ isActive }) =>
+            `bottom-nav-tab${isActive ? ' bottom-nav-tab--active' : ''}`
+          }
+          aria-label="Shelves"
+        >
+          <BookMarked size={22} strokeWidth={1.75} />
+          <span>Shelves</span>
         </NavLink>
 
         <NavLink
