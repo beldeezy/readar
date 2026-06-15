@@ -65,16 +65,14 @@ def get_books(
                 )
             )
         
-        # Curated-only: real description + at least one functional tag
-        # Excludes Goodreads-import stubs and un-enriched books
+        # Curated-only: books enriched with real generated content (a "promise").
+        # The raw description field is an import placeholder, so we key off promise,
+        # which is generated during enrichment. Excludes un-enriched stubs.
         if curated is True:
             query = query.filter(
                 and_(
-                    Book.description.isnot(None),
-                    Book.description != '',
-                    ~Book.description.like('Imported from Goodreads%'),
-                    Book.functional_tags != [],
-                    Book.functional_tags.isnot(None),
+                    Book.promise.isnot(None),
+                    Book.promise != '',
                 )
             )
 

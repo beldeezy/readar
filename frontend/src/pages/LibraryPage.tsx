@@ -185,8 +185,8 @@ export default function LibraryPage() {
                     </strong>
                     <span className="readar-lib-book-author">{book.author_name}</span>
                     <p className="readar-lib-desc">
-                      {book.description
-                        ? truncate(book.description)
+                      {book.promise || book.best_for
+                        ? truncate(book.promise || book.best_for)
                         : <span className="readar-lib-no-desc">No description available yet.</span>
                       }
                     </p>
