@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, BookOpen } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { apiClient } from '../api/client';
 import type { Book, BookPreferenceStatus } from '../api/types';
 import Card from '../components/Card';
@@ -181,16 +181,6 @@ export default function LibraryPage() {
     }
   };
 
-  const renderCover = (book: Book) => {
-    const src = book.cover_image_url || book.thumbnail_url;
-    return src ? (
-      <img src={src} alt={book.title} className="readar-lib-cover" loading="lazy" />
-    ) : (
-      <div className="readar-lib-cover readar-lib-cover--placeholder">
-        <BookOpen size={28} strokeWidth={1.5} />
-      </div>
-    );
-  };
 
   const goalPct = Math.min(100, Math.round((booksRead / READING_GOAL) * 100));
   const remaining = Math.max(0, READING_GOAL - booksRead);
@@ -252,19 +242,30 @@ export default function LibraryPage() {
               <div className="readar-library-grid">
                 {results.map((book) => {
                   const active = shelfMap[book.id];
+                  const cover = book.cover_image_url || book.thumbnail_url;
                   return (
                     <Card key={book.id} variant="flat" className="readar-lib-card">
-                      <div
-                        className="readar-lib-cover-wrap"
-                        onClick={() => navigate(`/book/${book.id}`)}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/book/${book.id}`); }}
-                      >
-                        {renderCover(book)}
-                      </div>
+                      {cover && (
+                        <div
+                          className="readar-lib-cover-wrap"
+                          onClick={() => navigate(`/book/${book.id}`)}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/book/${book.id}`); }}
+                        >
+                          <img src={cover} alt={book.title} className="readar-lib-cover" loading="lazy" />
+                        </div>
+                      )}
                       <div className="readar-lib-info">
-                        <strong className="readar-lib-book-title">{book.title}</strong>
+                        <strong
+                          className="readar-lib-book-title readar-lib-title-link"
+                          onClick={() => navigate(`/book/${book.id}`)}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/book/${book.id}`); }}
+                        >
+                          {book.title}
+                        </strong>
                         <span className="readar-lib-book-author">{book.author_name}</span>
                         {book.description && (
                           <p className="readar-lib-desc">{truncate(book.description)}</p>

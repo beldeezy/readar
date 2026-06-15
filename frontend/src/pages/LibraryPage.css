@@ -200,6 +200,14 @@
   overflow: hidden;
 }
 
+.readar-lib-title-link {
+  cursor: pointer;
+}
+
+.readar-lib-title-link:hover {
+  color: var(--rd-accent);
+}
+
 .readar-lib-book-author {
   font-size: var(--rd-font-size-xs);
   color: var(--rd-muted);
