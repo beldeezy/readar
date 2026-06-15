@@ -178,7 +178,6 @@ export default function RecommendationCard({
             {/* Tailored pitch sentences — skeleton while loading, never show generic blurb */}
             {pitch ? (
               <div style={{ marginTop: '1rem' }}>
-                {(() => { console.log('[RecommendationCard] pitch fields:', { challenge: pitch.challenge?.slice(0,40), solution: pitch.solution?.slice(0,40), outcome: pitch.outcome?.slice(0,40) }); return null; })()}
                 {pitch.challenge && (
                   <p style={{ color: 'var(--rd-muted)', fontSize: '0.875rem', lineHeight: '1.5', margin: 0, marginBottom: '1.25rem' }}>
                     {pitch.challenge}
@@ -207,6 +206,12 @@ export default function RecommendationCard({
                   }} />
                 ))}
               </div>
+            ) : (book.promise || book.best_for) ? (
+              // Fallback when no tailored pitch is available (e.g. returning user
+              // with no onboarding context) — show the book's generic value prop.
+              <p style={{ color: 'var(--rd-muted)', fontSize: '0.875rem', lineHeight: '1.5', marginTop: '1rem' }}>
+                {book.promise || book.best_for}
+              </p>
             ) : null}
           </div>
 

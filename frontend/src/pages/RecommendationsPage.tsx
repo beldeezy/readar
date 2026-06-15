@@ -4,6 +4,7 @@ import { apiClient, fetchRecommendations } from '../api/client';
 import type { RecommendationItem, BookPreferenceStatus } from '../api/types';
 import RecommendationCard from '../components/RecommendationCard';
 import Card from '../components/Card';
+import Button from '../components/Button';
 import RadarIcon from '../components/RadarIcon';
 import { useAuth } from '../auth/AuthProvider';
 import './RecommendationsPage.css';
@@ -33,15 +34,14 @@ export default function RecommendationsPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user: authUser } = useAuth();
-  
-  if (!authUser) {
-    // This should not happen as ProtectedRoute should handle it, but just in case
-    navigate('/login');
-    return null;
-  }
+
+  // Defensive: ProtectedRoute should guarantee auth. Never call navigate during
+  // render (breaks the Rules of Hooks) — redirect from an effect instead.
+  useEffect(() => {
+    if (!authUser) navigate('/login');
+  }, [authUser, navigate]);
 
   useEffect(() => {
-    console.log('[RecommendationsPage] Mounted/re-rendered');
 
     // Liveness check: verify backend is reachable
     const rawBase = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
@@ -189,18 +189,29 @@ export default function RecommendationsPage() {
       }
     } catch { /* ignore */ }
 
-    // Use answers from navigation state, or fall back to localStorage (direct navigation)
-    const onboardingAnswers =
-      (location.state as any)?.onboardingAnswers ||
-      (() => {
-        try {
-          const saved = localStorage.getItem('readar_onboarding_answers');
-          return saved ? JSON.parse(saved) : null;
-        } catch { return null; }
-      })();
-    if (!onboardingAnswers) return; // No answers available — skip pitches
+    let cancelled = false;
+
+    // Resolve pitch context: navigation state → localStorage → stored backend
+    // profile. The last fallback is essential for returning users who land here
+    // directly (no nav state / local answers) — without it, cards show no pitch.
+    const resolveAnswers = async (): Promise<Record<string, any> | null> => {
+      const fromState = (location.state as any)?.onboardingAnswers;
+      if (fromState) return fromState;
+      try {
+        const saved = localStorage.getItem('readar_onboarding_answers');
+        if (saved) return JSON.parse(saved);
+      } catch { /* ignore */ }
+      try {
+        return await apiClient.getOnboarding();
+      } catch {
+        return null;
+      }
+    };
 
     const fetchPitches = async () => {
+      const onboardingAnswers = await resolveAnswers();
+      if (cancelled || !onboardingAnswers) return;
+
       setPitchesLoading(true);
       const pitchMap: Record<string, BookPitch> = {};
 
@@ -220,6 +231,7 @@ export default function RecommendationsPage() {
           onboardingAnswers,
           [toBook(recommendations[0])]
         );
+        if (cancelled) return;
         for (const item of firstResults) pitchMap[item.book_id] = item.pitch;
         setPitches({ ...pitchMap });
         setPitchesLoading(false);
@@ -230,6 +242,7 @@ export default function RecommendationsPage() {
             onboardingAnswers,
             recommendations.slice(1).map(toBook)
           );
+          if (cancelled) return;
           for (const item of restResults) pitchMap[item.book_id] = item.pitch;
           setPitches({ ...pitchMap });
         }
@@ -240,25 +253,46 @@ export default function RecommendationsPage() {
         } catch { /* ignore quota errors */ }
       } catch (err) {
         console.error('[RecommendationsPage] Failed to fetch pitches:', err);
-        setPitchesLoading(false);
+        if (!cancelled) setPitchesLoading(false);
       }
     };
 
     fetchPitches();
+    return () => { cancelled = true; };
   }, [recommendations]);
+
+  const refreshRecommendations = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetchRecommendations({ limit: 5 });
+      setRecommendations(response.items);
+      setRequestId(response.request_id);
+      setCarouselIndex(0);
+      setPitches({});
+    } catch (err: any) {
+      setError(err?.message || 'Failed to fetch recommendations');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleBookAction = async (
     bookId: string,
     status: BookPreferenceStatus
   ) => {
+    // Persist the interaction (the card already wrote book-status + feedback).
     try {
       await apiClient.updateUserBook(bookId, status);
-      // Optionally refresh recommendations or update UI
-      const response = await fetchRecommendations({ limit: 5 });
-      setRecommendations(response.items);
-      setRequestId(response.request_id);
     } catch (err: any) {
       console.error('Failed to update book status:', err);
+    }
+    // Keep the deck stable and advance to the next book. Only fetch a fresh set
+    // once the user has worked through the current recommendations.
+    if (carouselIndex >= recommendations.length - 1) {
+      refreshRecommendations();
+    } else {
+      setCarouselIndex((i) => i + 1);
     }
   };
 
@@ -315,20 +349,24 @@ export default function RecommendationsPage() {
     return (
       <div className="readar-recommendations-page">
         <div className="container">
-          <h1 style={{ 
-            fontSize: 'var(--rd-font-size-2xl)', 
-            fontWeight: 600, 
+          <h1 style={{
+            fontSize: 'var(--rd-font-size-2xl)',
+            fontWeight: 600,
             color: 'var(--rd-text)',
             marginBottom: '0.5rem'
           }}>
             Your recommendations
           </h1>
-          <p style={{ 
-            fontSize: 'var(--rd-font-size-sm)', 
-            color: 'var(--readar-warm)'
+          <p style={{
+            fontSize: 'var(--rd-font-size-sm)',
+            color: 'var(--rd-muted)',
+            marginBottom: '1.25rem'
           }}>
-            {error}
+            We couldn't load your recommendations right now. Please try again in a moment.
           </p>
+          <Button variant="primary" onClick={refreshRecommendations} delayMs={0}>
+            Try again
+          </Button>
         </div>
       </div>
     );
@@ -350,20 +388,21 @@ export default function RecommendationsPage() {
           <p style={{
             fontSize: 'var(--rd-font-size-sm)',
             color: 'var(--rd-muted)',
-            marginBottom: '1rem'
+            marginBottom: '1.5rem',
+            maxWidth: '48ch'
           }}>
-            Your catalog appears to be empty. To get personalized recommendations:
+            We don't have personalized picks for you yet. Mark a few books you've
+            read in the Library, or sharpen your focus in your profile, and we'll
+            surface the right books.
           </p>
-          <ul style={{
-            fontSize: 'var(--rd-font-size-sm)',
-            color: 'var(--rd-muted)',
-            paddingLeft: '1.5rem',
-            listStyle: 'disc'
-          }}>
-            <li>Add books to your catalog (run seed script if in development)</li>
-            <li>Rate books you&apos;ve read to improve recommendations</li>
-            <li>Upload your reading history for better personalization</li>
-          </ul>
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <Button variant="primary" onClick={() => navigate('/library')} delayMs={0}>
+              Browse the Library
+            </Button>
+            <Button variant="secondary" onClick={() => navigate('/profile')} delayMs={0}>
+              Update your profile
+            </Button>
+          </div>
         </div>
       </div>
     );
