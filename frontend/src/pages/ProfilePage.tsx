@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, Library, LogOut, Zap, Settings } from 'lucide-react';
+import { BookOpen, Library, BookMarked, LogOut, Zap, Settings } from 'lucide-react';
 import { apiClient } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
 import type { OnboardingProfile, KnowledgeMap, NotificationPreferences } from '../api/types';
@@ -377,6 +377,10 @@ export default function ProfilePage() {
             <Button variant="secondary" onClick={() => navigate('/library')} delayMs={0}>
               <Library size={18} strokeWidth={2} style={{ marginRight: '0.4rem', verticalAlign: 'text-bottom' }} />
               Browse library
+            </Button>
+            <Button variant="secondary" onClick={() => navigate('/shelves')} delayMs={0}>
+              <BookMarked size={18} strokeWidth={2} style={{ marginRight: '0.4rem', verticalAlign: 'text-bottom' }} />
+              My Shelves
             </Button>
           </div>
         </Card>

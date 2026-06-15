@@ -122,9 +122,21 @@ export default function AuthCallbackPage() {
             // (peak buy-in), overriding any stored redirect.
             target = '/onboarding/import';
           } else if (!target) {
-            // No redirect specified — determine destination from state
-            const hasPreview = !!localStorage.getItem(PREVIEW_RECS_KEY);
-            target = hasPreview ? '/recommendations' : '/onboarding';
+            // No redirect specified — route by the user's actual onboarding status.
+            if (localStorage.getItem(HAS_ONBOARDING_KEY) === '1') {
+              target = '/recommendations';
+            } else {
+              try {
+                // Returning users have an onboarding profile on the backend.
+                await apiClient.getOnboarding();
+                localStorage.setItem(HAS_ONBOARDING_KEY, '1');
+                target = '/recommendations';
+              } catch {
+                // No profile yet (404) — send new users to onboarding.
+                const hasPreview = !!localStorage.getItem(PREVIEW_RECS_KEY);
+                target = hasPreview ? '/recommendations' : '/onboarding';
+              }
+            }
           }
 
           navigate(target, { replace: true });

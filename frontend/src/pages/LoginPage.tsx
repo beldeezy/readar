@@ -16,8 +16,13 @@ export default function LoginPage() {
 
     try {
       const origin = window.location.origin;
-      const next = searchParams.get('next') || '/onboarding';
-      const callbackUrl = `${origin}/auth/callback?next=${encodeURIComponent(next)}`;
+      // Only forward an explicit `next`; otherwise let the callback decide the
+      // destination based on the user's actual onboarding status (returning
+      // users go to recommendations, new users to onboarding).
+      const next = searchParams.get('next');
+      const callbackUrl = next
+        ? `${origin}/auth/callback?next=${encodeURIComponent(next)}`
+        : `${origin}/auth/callback`;
 
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
