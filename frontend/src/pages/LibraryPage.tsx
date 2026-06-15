@@ -47,7 +47,7 @@ export default function LibraryPage() {
   // Explore
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Book[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // Shelf membership: book_id -> current status
   const [shelfMap, setShelfMap] = useState<Record<string, BookPreferenceStatus>>({});
@@ -74,7 +74,6 @@ export default function LibraryPage() {
         q: q.trim() || undefined,
         sort: 'title',
         order: 'asc',
-        has_cover: true,
         limit: 48,
       });
       setResults(books);
