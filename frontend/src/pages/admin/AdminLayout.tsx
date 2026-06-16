@@ -5,6 +5,7 @@ export default function AdminLayout() {
   const { pathname } = useLocation();
 
   const nav = [
+    { name: 'Analytics', path: '/admin/analytics' },
     { name: 'Books', path: '/admin/books' },
     { name: 'Users', path: '/admin/users' },
     { name: 'Engine Debug', path: '/admin/engine' },

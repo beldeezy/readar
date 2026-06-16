@@ -1,0 +1,204 @@
+.readar-analytics-page {
+  max-width: 900px;
+}
+
+.readar-analytics-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.readar-analytics-window {
+  display: flex;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+}
+
+.readar-analytics-window-btn {
+  padding: 0.35rem 0.8rem;
+  border-radius: var(--rd-radius-pill, 999px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: transparent;
+  color: var(--rd-muted);
+  font-family: var(--rd-font);
+  font-size: var(--rd-font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.readar-analytics-window-btn--active {
+  background: var(--rd-accent-soft);
+  border-color: var(--rd-accent);
+  color: var(--rd-accent);
+}
+
+.readar-analytics-muted {
+  color: var(--rd-muted);
+  font-size: var(--rd-font-size-sm);
+}
+
+.readar-analytics-error {
+  color: var(--readar-warm);
+  font-size: var(--rd-font-size-sm);
+}
+
+.readar-analytics-foot {
+  margin-top: 2rem;
+  text-align: right;
+}
+
+.readar-analytics-section {
+  margin-bottom: 2.25rem;
+}
+
+.readar-analytics-section-title {
+  font-size: var(--rd-font-size-lg);
+  font-weight: 700;
+  color: var(--rd-text);
+  margin: 0 0 1rem;
+}
+
+.readar-analytics-subtitle {
+  font-size: var(--rd-font-size-sm);
+  font-weight: 600;
+  color: var(--rd-muted);
+  margin: 1.25rem 0 0.5rem;
+}
+
+/* Funnel */
+.readar-funnel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.readar-funnel-row {
+  display: grid;
+  grid-template-columns: 200px 1fr 120px;
+  align-items: center;
+  gap: 1rem;
+}
+
+.readar-funnel-label {
+  font-size: var(--rd-font-size-sm);
+  color: var(--rd-text);
+}
+
+.readar-funnel-bar-track {
+  height: 22px;
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: var(--rd-radius-md, 6px);
+  overflow: hidden;
+}
+
+.readar-funnel-bar-fill {
+  height: 100%;
+  background: var(--rd-accent);
+  border-radius: var(--rd-radius-md, 6px);
+  transition: width 0.4s ease;
+  min-width: 2px;
+}
+
+.readar-funnel-value {
+  font-size: var(--rd-font-size-sm);
+  color: var(--rd-text);
+  text-align: right;
+}
+
+.readar-funnel-value span {
+  color: var(--rd-muted);
+}
+
+/* KPI grid */
+.readar-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1rem;
+}
+
+.readar-kpi {
+  padding: 1.1rem 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--rd-radius-lg, 10px);
+  background: var(--rd-surface);
+}
+
+.readar-kpi--highlight {
+  border-color: var(--rd-accent);
+  background: var(--rd-accent-soft);
+}
+
+.readar-kpi-value {
+  font-size: var(--rd-font-size-2xl);
+  font-weight: 700;
+  color: var(--rd-text);
+  line-height: 1.1;
+}
+
+.readar-kpi-label {
+  font-size: var(--rd-font-size-sm);
+  color: var(--rd-muted);
+  margin-top: 0.35rem;
+}
+
+.readar-kpi-sub {
+  font-size: var(--rd-font-size-xs);
+  color: var(--rd-muted);
+  margin-top: 0.2rem;
+  opacity: 0.85;
+}
+
+/* Breakdown list */
+.readar-analytics-breakdown {
+  display: flex;
+  flex-direction: column;
+}
+
+.readar-analytics-breakdown-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: var(--rd-font-size-sm);
+  color: var(--rd-text);
+}
+
+.readar-analytics-breakdown-row:last-child {
+  border-bottom: none;
+}
+
+/* Sparkline-ish daily bars */
+.readar-spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 80px;
+  padding: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--rd-radius-lg, 10px);
+  background: var(--rd-surface);
+}
+
+.readar-spark-col {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  height: 100%;
+}
+
+.readar-spark-bar {
+  width: 100%;
+  background: var(--rd-accent);
+  border-radius: 2px 2px 0 0;
+  min-height: 2px;
+}
+
+@media (max-width: 640px) {
+  .readar-funnel-row {
+    grid-template-columns: 110px 1fr 90px;
+    gap: 0.5rem;
+  }
+}

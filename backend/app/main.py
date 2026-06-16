@@ -20,6 +20,7 @@ from app.routers import (
     reading_history,
     debug,
     admin_debug,
+    admin_analytics,
     me,
     events,
     book_status,
@@ -140,6 +141,7 @@ app.include_router(book_status.router, prefix="/api")
 app.include_router(feedback.router, prefix="/api")
 app.include_router(debug.router, prefix="/api")
 app.include_router(admin_debug.router, prefix="/admin")
+app.include_router(admin_analytics.router, prefix="/api")
 
 # Debug: Print registered routes containing "onboarding" (only when DEBUG=true)
 # Note: This runs at module import time, so routes are registered

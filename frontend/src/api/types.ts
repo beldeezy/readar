@@ -80,6 +80,30 @@ export interface NotificationPreferences {
   notify_email_product: boolean;
 }
 
+export interface AdminAnalytics {
+  generated_at: string;
+  window_days: number;
+  funnel: { stage: string; count: number; pct_of_top: number | null }[];
+  monetization: {
+    refresh_used: number;
+    refresh_limit_hit: number;
+    refresh_limit_hit_users: number;
+    upgrade_prompt_click: number;
+    upgrade_prompt_click_users: number;
+    wall_to_click_rate: number | null;
+    paid_users: number;
+    free_users: number;
+  };
+  engagement: {
+    shelf_statuses: Record<string, number>;
+    books_read: number;
+    users_with_shelves: number;
+    catalog_size: number;
+  };
+  signups_by_day: Record<string, number>;
+  event_totals: Record<string, number>;
+}
+
 export interface Book {
   id: string;
   title: string;

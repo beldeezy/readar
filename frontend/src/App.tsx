@@ -19,6 +19,7 @@ import Users from './pages/admin/Users';
 import Engine from './pages/admin/Engine';
 import InsightReview from './pages/admin/InsightReview';
 import RecommendationsDebug from './pages/admin/RecommendationsDebug';
+import Analytics from './pages/admin/Analytics';
 import EnvCheckPage from './pages/EnvCheckPage';
 import Header from './components/Header';
 import BottomNav from './components/BottomNav';
@@ -174,13 +175,14 @@ function AppRoutes() {
         }
       />
       <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
+        <Route path="analytics" element={<Analytics />} />
         <Route path="books" element={<Books />} />
         <Route path="users" element={<Users />} />
         <Route path="engine" element={<Engine />}>
           <Route path="insight-review" element={<InsightReview />} />
         </Route>
         <Route path="recommendations-debug" element={<RecommendationsDebug />} />
-        <Route index element={<Navigate to="/admin/books" replace />} />
+        <Route index element={<Navigate to="/admin/analytics" replace />} />
       </Route>
     </Routes>
   );

@@ -13,6 +13,7 @@ import type {
   CheckoutSessionResponse,
   KnowledgeMap,
   NotificationPreferences,
+  AdminAnalytics,
 } from './types';
 import { getAccessToken, clearAccessToken } from '../auth/auth';
 
@@ -623,6 +624,13 @@ class ApiClient {
         limit,
         debug: debug ? 'true' : 'false',
       },
+    });
+    return response.data;
+  }
+
+  async getAdminAnalytics(days = 30): Promise<AdminAnalytics> {
+    const response = await this.client.get<AdminAnalytics>('/admin/analytics', {
+      params: { days },
     });
     return response.data;
   }
