@@ -1,7 +1,10 @@
+import { Link } from "react-router-dom";
 import LoopsNewsletterForm from "./LoopsNewsletterForm";
 import "./Footer.css";
 
 export default function Footer() {
+  const year = new Date().getFullYear();
+
   return (
     <footer className="site-footer">
       <div className="footer-inner">
@@ -17,6 +20,13 @@ export default function Footer() {
           <div className="footer-newsletter-form">
             <LoopsNewsletterForm ctaLabel="Subscribe" />
           </div>
+        </div>
+
+        <div className="footer-bottom">
+          <span className="footer-copyright">© {year} Readar</span>
+          <nav className="footer-bottom-links">
+            <Link to="/admin" className="footer-bottom-link">Admin</Link>
+          </nav>
         </div>
       </div>
     </footer>

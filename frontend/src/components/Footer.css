@@ -46,13 +46,50 @@
   max-width: 520px;
 }
 
+/* Bottom bar: copyright + utility links (Admin, etc.) */
+.footer-bottom {
+  margin-top: 56px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.footer-copyright {
+  font-size: 13px;
+  color: rgba(148, 163, 184, 0.7);
+}
+
+.footer-bottom-links {
+  display: flex;
+  gap: 20px;
+}
+
+.footer-bottom-link {
+  font-size: 13px;
+  color: rgba(148, 163, 184, 0.7);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.footer-bottom-link:hover {
+  color: rgba(249, 250, 251, 0.95);
+}
+
 @media (max-width: 640px) {
   .site-footer {
     padding: 60px 20px;
   }
-  
+
   .footer-newsletter {
     max-width: 100%;
+  }
+
+  .footer-bottom {
+    margin-top: 40px;
   }
 }
 
