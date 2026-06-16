@@ -68,6 +68,15 @@ def get_analytics(
             or 0
         )
 
+    def ev_sessions(name: str) -> int:
+        # Distinct anonymous sessions — the right unit for pre-auth funnel steps.
+        return (
+            db.query(func.count(distinct(EventLog.session_id)))
+            .filter(EventLog.event_name == name, EventLog.session_id.isnot(None))
+            .scalar()
+            or 0
+        )
+
     refresh_used = ev_count("refresh_used")
     limit_hits = ev_count("refresh_limit_hit")
     limit_hit_users = ev_users("refresh_limit_hit")
@@ -118,10 +127,22 @@ def get_analytics(
     )
     event_totals = {name: c for name, c in event_rows}
 
+    # ── Onboarding funnel (sessions, stitched by anon session_id) ─────────
+    started = ev_sessions("onboarding_started")
+    onboarding_funnel = [
+        {"stage": "Started chat", "count": started, "pct_of_top": 1.0 if started else None},
+        {"stage": "Finished chat", "count": ev_sessions("onboarding_chat_completed"), "pct_of_top": _rate(ev_sessions("onboarding_chat_completed"), started)},
+        {"stage": "Clicked finish", "count": ev_sessions("onboarding_finish_clicked"), "pct_of_top": _rate(ev_sessions("onboarding_finish_clicked"), started)},
+        {"stage": "Prompted to sign in", "count": ev_sessions("onboarding_signin_prompted"), "pct_of_top": _rate(ev_sessions("onboarding_signin_prompted"), started)},
+        {"stage": "Completed (saved)", "count": ev_users("onboarding_completed"), "pct_of_top": _rate(ev_users("onboarding_completed"), started)},
+        {"stage": "Imported history", "count": ev_sessions("onboarding_import_completed"), "pct_of_top": _rate(ev_sessions("onboarding_import_completed"), started)},
+    ]
+
     return {
         "generated_at": now.isoformat(),
         "window_days": days,
         "funnel": funnel,
+        "onboarding_funnel": onboarding_funnel,
         "monetization": monetization,
         "engagement": engagement,
         "signups_by_day": signups_by_day,

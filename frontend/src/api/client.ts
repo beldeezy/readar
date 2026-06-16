@@ -852,6 +852,27 @@ export async function logRecommendationClick(params: {
   }
 }
 
+const ANON_SESSION_KEY = 'readar_anon_session';
+
+/**
+ * Stable anonymous session id (persists across the OAuth redirect) so pre-auth
+ * funnel events can be stitched together and counted as distinct sessions.
+ */
+export function getAnonSessionId(): string {
+  try {
+    let id = localStorage.getItem(ANON_SESSION_KEY);
+    if (!id) {
+      id = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem(ANON_SESSION_KEY, id);
+    }
+    return id;
+  } catch {
+    return 'anon';
+  }
+}
+
 /**
  * Log a generic client-side analytics event (best-effort, never throws).
  */
@@ -860,7 +881,11 @@ export async function logEvent(
   properties?: Record<string, any>
 ): Promise<void> {
   const url = `${API_BASE_URL}/events/log`;
-  const body = JSON.stringify({ event_name, properties: properties ?? {} });
+  const body = JSON.stringify({
+    event_name,
+    properties: properties ?? {},
+    session_id: getAnonSessionId(),
+  });
   try {
     const authHeader = getAuthHeader();
     const headers: HeadersInit = { 'Content-Type': 'application/json' };

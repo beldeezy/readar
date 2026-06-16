@@ -84,6 +84,7 @@ export interface AdminAnalytics {
   generated_at: string;
   window_days: number;
   funnel: { stage: string; count: number; pct_of_top: number | null }[];
+  onboarding_funnel: { stage: string; count: number; pct_of_top: number | null }[];
   monetization: {
     refresh_used: number;
     refresh_limit_hit: number;

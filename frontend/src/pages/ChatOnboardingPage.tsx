@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mic, X, Check } from 'lucide-react';
-import { apiClient } from '../api/client';
+import { apiClient, logEvent } from '../api/client';
 import ChatMessage from '../components/Onboarding/ChatMessage';
 import RadarIcon from '../components/RadarIcon';
 import { useSpeechToText } from '../hooks/useSpeechToText';
@@ -111,6 +111,7 @@ const ChatOnboardingPage: React.FC = () => {
   useEffect(() => {
     if (initializedRef.current) return;
     initializedRef.current = true;
+    void logEvent('onboarding_started');
     void runTurn([], 0, 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -129,12 +130,16 @@ const ChatOnboardingPage: React.FC = () => {
       addBot(res.message);
       const nextHist = [...hist, { role: 'assistant' as const, content: res.message }];
       setHistory(nextHist);
+      if (res.stage_index > stage) {
+        void logEvent('onboarding_stage_advanced', { stage: res.stage_index });
+      }
       setStageIndex(res.stage_index);
       setTurnsInStage(res.turns_in_stage);
       setUi(res.ui);
       // Don't auto-redirect — let the user finish reading, then click through.
       if (res.done) {
         setDone(true);
+        void logEvent('onboarding_chat_completed', { stage: res.stage_index });
       }
     } catch (e: any) {
       setError(e?.message || 'Something went wrong. Please try again.');
@@ -215,7 +220,13 @@ const ChatOnboardingPage: React.FC = () => {
         </div>
       ) : done ? (
         <div className="nepq-finish-bar">
-          <button className="nepq-finish-btn" onClick={() => completeOnboarding(history)}>
+          <button
+            className="nepq-finish-btn"
+            onClick={() => {
+              void logEvent('onboarding_finish_clicked');
+              completeOnboarding(history);
+            }}
+          >
             Take me to my recommendations →
           </button>
         </div>

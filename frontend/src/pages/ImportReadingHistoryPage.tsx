@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { apiClient } from '../api/client';
+import { apiClient, logEvent } from '../api/client';
 import RadarIcon from '../components/RadarIcon';
 import './ImportReadingHistoryPage.css';
 
@@ -18,9 +18,15 @@ export default function ImportReadingHistoryPage() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    void logEvent('onboarding_import_shown');
+  }, []);
+
   // Skip keeps the conversation-based picks we already fetched.
-  const skipToPicks = () =>
+  const skipToPicks = () => {
+    void logEvent('onboarding_import_skipped');
     navigate('/recommendations', { state: { prefetchedRecommendations: prefetched }, replace: true });
+  };
 
   // After import, re-fetch fresh so the just-imported history is reflected.
   const continueWithFreshPicks = () => navigate('/recommendations', { replace: true });
@@ -34,6 +40,7 @@ export default function ImportReadingHistoryPage() {
     setError(null);
     try {
       await apiClient.uploadReadingHistoryCsv(file);
+      void logEvent('onboarding_import_completed');
       continueWithFreshPicks();
     } catch (e: any) {
       setError(

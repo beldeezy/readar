@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { fetchRecommendations, apiClient } from '../api/client';
+import { fetchRecommendations, apiClient, logEvent } from '../api/client';
 import type { OnboardingPayload } from '../api/types';
 import { setPostAuthRedirect } from '../auth/postAuthRedirect';
 import { useAuth } from '../auth/AuthProvider';
@@ -159,6 +159,7 @@ export default function RecommendationsLoadingPage() {
             await sleep(1200);
             if (cancelled) return;
 
+            void logEvent('onboarding_signin_prompted', { has_preview: itemCount > 0 });
             setPostAuthRedirect('/recommendations');
             navigate('/login');
             return;

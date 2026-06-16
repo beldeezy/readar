@@ -61,25 +61,19 @@ export default function Analytics() {
 
       {data && !loading && (
         <>
-          {/* Funnel */}
+          {/* Funnels */}
           <section className="readar-analytics-section">
             <h2 className="readar-analytics-section-title">Acquisition funnel</h2>
-            <div className="readar-funnel">
-              {data.funnel.map((s) => (
-                <div key={s.stage} className="readar-funnel-row">
-                  <div className="readar-funnel-label">{s.stage}</div>
-                  <div className="readar-funnel-bar-track">
-                    <div
-                      className="readar-funnel-bar-fill"
-                      style={{ width: `${(s.pct_of_top ?? 0) * 100}%` }}
-                    />
-                  </div>
-                  <div className="readar-funnel-value">
-                    <strong>{s.count}</strong> <span>{pct(s.pct_of_top)}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <Funnel stages={data.funnel} />
+          </section>
+
+          <section className="readar-analytics-section">
+            <h2 className="readar-analytics-section-title">Onboarding funnel</h2>
+            <p className="readar-analytics-muted" style={{ marginBottom: '0.75rem' }}>
+              Where people drop within onboarding (by anonymous session). The "Prompted to sign in" →
+              "Completed" gap is the auth-wall leak.
+            </p>
+            <Funnel stages={data.onboarding_funnel} />
           </section>
 
           {/* Monetization */}
@@ -159,6 +153,24 @@ export default function Analytics() {
           </p>
         </>
       )}
+    </div>
+  );
+}
+
+function Funnel({ stages }: { stages: { stage: string; count: number; pct_of_top: number | null }[] }) {
+  return (
+    <div className="readar-funnel">
+      {stages.map((s) => (
+        <div key={s.stage} className="readar-funnel-row">
+          <div className="readar-funnel-label">{s.stage}</div>
+          <div className="readar-funnel-bar-track">
+            <div className="readar-funnel-bar-fill" style={{ width: `${(s.pct_of_top ?? 0) * 100}%` }} />
+          </div>
+          <div className="readar-funnel-value">
+            <strong>{s.count}</strong> <span>{pct(s.pct_of_top)}</span>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
