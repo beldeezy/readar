@@ -151,6 +151,79 @@ def _extract_identifiers(volume_info: dict) -> tuple[Optional[str], Optional[str
     return isbn_10, isbn_13
 
 
+def apply_google_metadata(book: "models.Book", only_missing: bool = True) -> bool:
+    """
+    Fetch Google Books metadata for a single book and apply it in place.
+    Returns True if any field changed. The caller is responsible for committing.
+    Safe to call without an API key (returns False) so it can be used inside
+    the import flow without breaking it.
+    """
+    if not GOOGLE_BOOKS_API_KEY:
+        return False
+
+    volume = _fetch_google_metadata(book.title, book.author_name)
+    if not volume:
+        return False
+
+    info = volume.get("volumeInfo", {})
+    volume_id = volume.get("id")
+    page_count = info.get("pageCount")
+    categories = info.get("categories")
+    description = info.get("description")
+    language = info.get("language")
+    published_date = info.get("publishedDate")
+    average_rating = info.get("averageRating")
+    ratings_count = info.get("ratingsCount")
+    isbn_10, isbn_13 = _extract_identifiers(info)
+    cover_url, thumb_url = _extract_cover_urls(info)
+
+    changed = False
+
+    if not book.external_id and volume_id:
+        book.external_id = volume_id
+        changed = True
+    if (not only_missing or book.page_count is None) and page_count:
+        book.page_count = page_count
+        changed = True
+    if (not only_missing or not book.categories) and categories:
+        book.categories = categories
+        changed = True
+    if description and (not only_missing or _is_placeholder_description(book)):
+        book.description = description
+        changed = True
+    if (not only_missing or not book.cover_image_url) and cover_url:
+        book.cover_image_url = cover_url
+        changed = True
+    if (not only_missing or not book.thumbnail_url) and thumb_url:
+        book.thumbnail_url = thumb_url
+        changed = True
+    if (not only_missing or book.published_year is None) and published_date:
+        try:
+            year = int(str(published_date)[:4])
+            if year > 0:
+                book.published_year = year
+                changed = True
+        except ValueError:
+            pass
+    if (not only_missing or not book.language) and language:
+        book.language = language
+        changed = True
+    if (not only_missing or not book.isbn_10) and isbn_10:
+        book.isbn_10 = isbn_10
+        changed = True
+    if (not only_missing or not book.isbn_13) and isbn_13:
+        book.isbn_13 = isbn_13
+        changed = True
+    if (not only_missing or book.average_rating is None) and average_rating is not None:
+        book.average_rating = float(average_rating)
+        changed = True
+    if (not only_missing or book.ratings_count is None) and ratings_count is not None:
+        book.ratings_count = int(ratings_count)
+        changed = True
+
+    return changed
+
+
 def enrich_books(
     limit: Optional[int] = None,
     only_missing: bool = True,
@@ -197,91 +270,11 @@ def enrich_books(
         for book in books:
             logger.info("Enriching '%s' by %s", book.title, book.author_name)
 
-            volume = _fetch_google_metadata(book.title, book.author_name)
-            if not volume:
-                continue
-
-            info = volume.get("volumeInfo", {})
-            volume_id = volume.get("id")
-            page_count = info.get("pageCount")
-            categories = info.get("categories")
-            description = info.get("description")
-            language = info.get("language")
-            published_date = info.get("publishedDate")
-            average_rating = info.get("averageRating")
-            ratings_count = info.get("ratingsCount")
-            isbn_10, isbn_13 = _extract_identifiers(info)
-
-            changed = False
-
-            # external_id → Google Books volumeId
-            if not book.external_id and volume_id:
-                book.external_id = volume_id
-                changed = True
-
-            # Page count
-            if (not only_missing or book.page_count is None) and page_count:
-                book.page_count = page_count
-                changed = True
-
-            # Categories
-            if (not only_missing or not book.categories) and categories:
-                book.categories = categories
-                changed = True
-
-            # Description – override when empty/placeholder (or when --all)
-            if description and (not only_missing or _is_placeholder_description(book)):
-                book.description = description
-                changed = True
-
-            # Cover images – set when missing (or when --all)
-            cover_url, thumb_url = _extract_cover_urls(info)
-            if (not only_missing or not book.cover_image_url) and cover_url:
-                book.cover_image_url = cover_url
-                changed = True
-            if (not only_missing or not book.thumbnail_url) and thumb_url:
-                book.thumbnail_url = thumb_url
-                changed = True
-
-            # Published year – only if missing
-            if (not only_missing or book.published_year is None) and published_date:
-                try:
-                    year = int(str(published_date)[:4])
-                    if year > 0:
-                        book.published_year = year
-                        changed = True
-                except ValueError:
-                    pass
-
-            # Language
-            if (not only_missing or not book.language) and language:
-                book.language = language
-                changed = True
-
-            # ISBNs
-            if (not only_missing or not book.isbn_10) and isbn_10:
-                book.isbn_10 = isbn_10
-                changed = True
-
-            if (not only_missing or not book.isbn_13) and isbn_13:
-                book.isbn_13 = isbn_13
-                changed = True
-
-            # Ratings
-            if (not only_missing or book.average_rating is None) and average_rating is not None:
-                book.average_rating = float(average_rating)
-                changed = True
-
-            if (not only_missing or book.ratings_count is None) and ratings_count is not None:
-                book.ratings_count = int(ratings_count)
-                changed = True
-
-            if changed:
+            if apply_google_metadata(book, only_missing=only_missing):
                 updated_count += 1
                 logger.info(
-                    "  Updated: cover=%s desc=%s external_id=%s page_count=%s isbn_13=%s",
+                    "  Updated: cover=%s desc=%s external_id=%s",
                     bool(book.cover_image_url), bool(book.description), book.external_id,
-                    book.page_count, book.isbn_13,
                 )
 
             if sleep:

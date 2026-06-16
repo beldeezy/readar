@@ -109,6 +109,24 @@ def normalize_isbn(value: str | None) -> str | None:
     return value if value else None
 
 
+def canonical_title_key(title: str, author: str) -> tuple[str, str]:
+    """
+    Build a de-duplication key that collapses edition/subtitle variants of the
+    same book, e.g. "$100M Leads", "$100M Leads: How to..." and
+    "$100M Leads (Acquisition.com $100M Series)" all map to ("100m leads", author).
+
+    Title: drop subtitle after the first colon, drop parentheticals, strip
+    punctuation, collapse whitespace. Author: strip punctuation.
+    """
+    t = (title or "").lower().split(":")[0]
+    t = re.sub(r"\([^)]*\)", " ", t)        # remove (series/edition) notes
+    t = re.sub(r"[^a-z0-9 ]", " ", t)       # drop punctuation
+    t = re.sub(r"\s+", " ", t).strip()
+    a = re.sub(r"[^a-z0-9 ]", " ", (author or "").lower())
+    a = re.sub(r"\s+", " ", a).strip()
+    return (t, a)
+
+
 def _find_catalog_book(db: Session, title: str, author: str,
                        isbn: str | None, isbn13: str | None) -> Optional[Book]:
     """Find an existing Book in the catalog by ISBN or normalized title+author."""
@@ -289,6 +307,12 @@ def _enrich_books_and_profile(user_id: UUID, new_book_ids: List[UUID]) -> None:
     Background task: tag newly upserted books via Claude, then regenerate
     the user's reading profile. Uses its own DB session.
     """
+    # Lazy import to avoid a hard dependency on GOOGLE_BOOKS_API_KEY at import.
+    try:
+        from app.scripts.enrich_books_with_google import apply_google_metadata
+    except Exception:
+        apply_google_metadata = None
+
     db: Session = SessionLocal()
     try:
         # Tag each new book (rate-limited: 1 call/sec to stay within Haiku limits)
@@ -302,11 +326,20 @@ def _enrich_books_and_profile(user_id: UUID, new_book_ids: List[UUID]) -> None:
             data = _tag_book_with_claude(book.title, book.author_name)
             if data:
                 _apply_tags_to_book(book, data)
+
+            # Fetch a real description + cover from Google Books (best-effort)
+            # so imported books don't keep the placeholder/no-cover state.
+            if apply_google_metadata is not None:
                 try:
-                    db.commit()
-                    logger.info("Tagged book '%s' (%s)", book.title, book_id)
-                except Exception:
-                    db.rollback()
+                    apply_google_metadata(book, only_missing=True)
+                except Exception as e:
+                    logger.warning("Google enrichment failed for '%s': %s", book.title, e)
+
+            try:
+                db.commit()
+                logger.info("Enriched book '%s' (%s)", book.title, book_id)
+            except Exception:
+                db.rollback()
             time.sleep(0.5)  # modest rate limiting
 
         # Regenerate reading profile
@@ -359,6 +392,12 @@ async def upload_reading_history_csv(
         (b.title.lower().strip(), b.author_name.lower().strip()): b
         for b in all_books if b.title and b.author_name
     }
+    # Canonical key collapses edition/subtitle variants → prevents duplicate
+    # catalog rows for the same underlying book.
+    catalog_by_canonical: dict = {
+        canonical_title_key(b.title, b.author_name): b
+        for b in all_books if b.title and b.author_name
+    }
 
     existing_entries = (
         db.query(ReadingHistoryEntry)
@@ -408,11 +447,14 @@ async def upload_reading_history_csv(
         shelf = (row.get("Exclusive Shelf") or row.get("Bookshelves") or "").strip().lower() or None
         date_read = (row.get("Date Read") or "").strip() or None
 
-        # Look up catalog book from in-memory dicts — no DB query
+        # Look up catalog book from in-memory dicts — no DB query.
+        # Order: exact ISBN → exact title+author → canonical (edition-collapsed).
+        canon_key = canonical_title_key(title, author)
         catalog_book = (
             (isbn and catalog_by_isbn10.get(isbn))
             or (isbn13 and catalog_by_isbn13.get(isbn13))
             or catalog_by_title_author.get((title.lower(), author.lower()))
+            or catalog_by_canonical.get(canon_key)
         )
         is_new = False
         if catalog_book is None:
@@ -436,6 +478,7 @@ async def upload_reading_history_csv(
             if isbn13:
                 catalog_by_isbn13[isbn13] = catalog_book
             catalog_by_title_author[(title.lower(), author.lower())] = catalog_book
+            catalog_by_canonical[canon_key] = catalog_book
             is_new = True
 
         pending_rows.append((title, author, isbn, isbn13, my_rating, date_read, shelf, catalog_book, is_new))
