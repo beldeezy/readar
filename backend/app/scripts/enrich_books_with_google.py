@@ -1,11 +1,19 @@
 # backend/app/scripts/enrich_books_with_google.py
 
 import os
+import time
 import logging
 from typing import Optional, Dict, Any
 
 import requests
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # no-op in prod (env vars are real); loads .env locally
+except Exception:
+    pass
 
 from app.database import SessionLocal
 from app import models
@@ -13,11 +21,43 @@ from app import models
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
+# Read lazily so this module can be imported without the key set (the key is
+# only required when actually enriching).
 GOOGLE_BOOKS_API_KEY = os.getenv("GOOGLE_BOOKS_API_KEY")
-if not GOOGLE_BOOKS_API_KEY:
-    raise RuntimeError("Missing GOOGLE_BOOKS_API_KEY. Add it to backend/.env")
 
 GOOGLE_BOOKS_BASE_URL = "https://www.googleapis.com/books/v1/volumes"
+
+# Descriptions we consider "not real" and safe to overwrite.
+PLACEHOLDER_DESCRIPTIONS = (
+    "No description available.",
+    "Imported from Goodreads reading history. Tags pending enrichment.",
+)
+
+
+def _is_placeholder_description(book: "models.Book") -> bool:
+    """True when a book's description is empty or a known placeholder."""
+    desc = (book.description or "").strip()
+    if not desc:
+        return True
+    if desc in PLACEHOLDER_DESCRIPTIONS:
+        return True
+    if desc.startswith("Imported from Goodreads"):
+        return True
+    if desc.startswith(f"A book by {book.author_name}"):
+        return True
+    return False
+
+
+def _to_https(url: Optional[str]) -> Optional[str]:
+    return url.replace("http://", "https://") if url else url
+
+
+def _extract_cover_urls(volume_info: dict) -> tuple[Optional[str], Optional[str]]:
+    """Return (cover_image_url, thumbnail_url) from Google Books imageLinks."""
+    links = volume_info.get("imageLinks") or {}
+    cover = links.get("thumbnail") or links.get("smallThumbnail")
+    thumb = links.get("smallThumbnail") or links.get("thumbnail")
+    return _to_https(cover), _to_https(thumb)
 
 
 def _build_query(title: str, author: str) -> Dict[str, Any]:
@@ -111,19 +151,32 @@ def _extract_identifiers(volume_info: dict) -> tuple[Optional[str], Optional[str
     return isbn_10, isbn_13
 
 
-def enrich_books(limit: Optional[int] = None, only_missing: bool = True, descriptions_only: bool = False) -> None:
+def enrich_books(
+    limit: Optional[int] = None,
+    only_missing: bool = True,
+    descriptions_only: bool = False,
+    sleep: float = 0.0,
+) -> None:
     """
     Enrich books in the database with metadata from Google Books.
 
     :param limit: Optional max number of books to process (for testing).
     :param only_missing: If True, only update fields that are currently null / placeholder.
     :param descriptions_only: If True, only process books with placeholder descriptions.
+    :param sleep: Seconds to pause between Google Books requests (rate-limit friendly).
     """
+    if not GOOGLE_BOOKS_API_KEY:
+        raise RuntimeError("Missing GOOGLE_BOOKS_API_KEY. Add it to backend/.env")
+
     db: Session = SessionLocal()
     try:
         query = db.query(models.Book).order_by(models.Book.created_at.asc())
         if descriptions_only:
-            query = query.filter(models.Book.description == "No description available.")
+            query = query.filter(or_(
+                models.Book.description.is_(None),
+                models.Book.description == "No description available.",
+                models.Book.description.like("Imported from Goodreads%"),
+            ))
         if limit:
             query = query.limit(limit)
 
@@ -167,17 +220,19 @@ def enrich_books(limit: Optional[int] = None, only_missing: bool = True, descrip
                 book.categories = categories
                 changed = True
 
-            # Description – override if empty, placeholder, or generic fallback
-            generic_prefix = f"A book by {book.author_name}"
-            if description:
-                is_placeholder = (
-                    not book.description
-                    or book.description == "No description available."
-                    or book.description.startswith(generic_prefix)
-                )
-                if is_placeholder:
-                    book.description = description
-                    changed = True
+            # Description – override when empty/placeholder (or when --all)
+            if description and (not only_missing or _is_placeholder_description(book)):
+                book.description = description
+                changed = True
+
+            # Cover images – set when missing (or when --all)
+            cover_url, thumb_url = _extract_cover_urls(info)
+            if (not only_missing or not book.cover_image_url) and cover_url:
+                book.cover_image_url = cover_url
+                changed = True
+            if (not only_missing or not book.thumbnail_url) and thumb_url:
+                book.thumbnail_url = thumb_url
+                changed = True
 
             # Published year – only if missing
             if (not only_missing or book.published_year is None) and published_date:
@@ -215,9 +270,13 @@ def enrich_books(limit: Optional[int] = None, only_missing: bool = True, descrip
             if changed:
                 updated_count += 1
                 logger.info(
-                    "  Updated: external_id=%s, page_count=%s, language=%s, isbn_10=%s, isbn_13=%s, average_rating=%s, ratings_count=%s",
-                    book.external_id, book.page_count, book.language, book.isbn_10, book.isbn_13, book.average_rating, book.ratings_count
+                    "  Updated: cover=%s desc=%s external_id=%s page_count=%s isbn_13=%s",
+                    bool(book.cover_image_url), bool(book.description), book.external_id,
+                    book.page_count, book.isbn_13,
                 )
+
+            if sleep:
+                time.sleep(sleep)
 
         db.commit()
         logger.info("Enrichment complete. Updated %d book(s).", updated_count)
@@ -246,9 +305,20 @@ if __name__ == "__main__":
     parser.add_argument(
         "--descriptions-only",
         action="store_true",
-        help="Only process books with placeholder descriptions.",
+        help="Only process books with placeholder/missing descriptions.",
+    )
+    parser.add_argument(
+        "--sleep",
+        type=float,
+        default=0.2,
+        help="Seconds to pause between Google Books requests (default 0.2).",
     )
     args = parser.parse_args()
 
     only_missing = not args.all
-    enrich_books(limit=args.limit, only_missing=only_missing, descriptions_only=args.descriptions_only)
+    enrich_books(
+        limit=args.limit,
+        only_missing=only_missing,
+        descriptions_only=args.descriptions_only,
+        sleep=args.sleep,
+    )

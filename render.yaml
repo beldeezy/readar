@@ -19,6 +19,8 @@ services:
       # - SUPABASE_ANON_KEY
       # - SUPABASE_JWT_SECRET
       # - ANTHROPIC_API_KEY (for transition summary + book pitches)
+      # - GOOGLE_BOOKS_API_KEY (for catalog description + cover enrichment)
+      # - RESEND_API_KEY (for notification/transactional email)
       # - STRIPE_SECRET_KEY (if used)
       # - STRIPE_PUBLISHABLE_KEY (if used)
       # - STRIPE_WEBHOOK_SECRET (if used)

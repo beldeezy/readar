@@ -100,10 +100,21 @@ export default function BookDetailPage() {
             </div>
           </div>
           
-          <div className="readar-book-detail-description">
-            <h3>Description</h3>
-            <p>{book.description}</p>
-          </div>
+          {(() => {
+            // Hide the Goodreads-import placeholder; fall back to the book's
+            // promise/best_for until a real description is backfilled.
+            const isPlaceholder =
+              !book.description ||
+              book.description.startsWith('Imported from Goodreads') ||
+              book.description === 'No description available.';
+            const desc = isPlaceholder ? (book.promise || book.best_for) : book.description;
+            return desc ? (
+              <div className="readar-book-detail-description">
+                <h3>Description</h3>
+                <p>{desc}</p>
+              </div>
+            ) : null;
+          })()}
           
           {(book.categories || book.business_stage_tags || book.functional_tags) && (
             <div className="readar-book-detail-tags">
