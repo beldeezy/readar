@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=DIN+Alternate:wght@400;700&display=swap');
 
 * {
@@ -32,6 +33,25 @@
   }
 }
 
+/* ============================================
+   BRAND TYPOGRAPHY (Poppins headings, Inter body)
+   ============================================ */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--rd-font-display);
+  letter-spacing: -0.01em;
+}
+
+/* Radar-forward technical label: uppercase, tracked metadata
+   (e.g. "SECTOR: STRATEGY", "UPDATED 2M AGO", "STATE: SCANNING"). */
+.rd-tech {
+  font-family: var(--rd-font-tech);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: var(--rd-font-size-xs);
+  font-weight: 500;
+  color: var(--rd-muted);
+}
+
 :root {
   /* ============================================
      DESIGN TOKENS - New 2D Flat Aesthetic
@@ -44,9 +64,18 @@
   --rd-header-bg: rgba(2, 6, 23, 0.85); /* header background (unchanged, separate from main bg) */
   --rd-text: #F9FAFB;                  /* primary text (light for dark background) */
   --rd-muted: #D1D5DB;                 /* secondary text (lighter grey for dark background) */
-  --rd-accent: #35FFC9;                /* primary brand accent (Readar teal) */
-  --rd-accent-soft: rgba(53, 255, 201, 0.12); /* subtle accent background */
+  --rd-accent: #53FFC9;                /* primary brand accent (brand mint) */
+  --rd-accent-soft: rgba(83, 255, 201, 0.12); /* subtle accent background */
+  --rd-accent-hover: #2AE5B8;          /* darker mint for hover/press */
   --rd-radar: #7C8C6A;                 /* muted olive for subtle radar/military accents */
+
+  /* Brand palette (from the Readar brand asset sheet) */
+  --rd-teal: #0FA0A2;
+  --rd-teal-deep: #054745;
+  --rd-cyan: #2CB3BE;
+  --rd-amber: #ECB767;
+  --rd-purple: #6935F4;
+  --rd-light: #DBE9EF;
   
   /* Shape */
   --rd-radius-sm: 8px;
@@ -73,8 +102,10 @@
   --rd-focus-ring: 2px solid var(--rd-accent); /* WCAG-visible keyboard focus */
 
   /* Typography */
-  --rd-font: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --rd-font: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; /* body / data */
+  --rd-font-display: 'Poppins', 'Inter', system-ui, sans-serif;  /* brand headings */
   --rd-font-logo: 'DIN Alternate', 'DIN Alternate Bold', 'Arial Black', sans-serif;
+  --rd-font-tech: 'Inter', ui-monospace, monospace; /* technical labels (uppercase, tracked) */
   
   /* Font Sizes - Typography Scale */
   --rd-font-size-xs: 0.75rem;

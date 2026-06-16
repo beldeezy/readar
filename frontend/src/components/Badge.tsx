@@ -3,7 +3,7 @@ import './Badge.css';
 
 interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   children: React.ReactNode;
-  variant?: 'primary' | 'secondary' | 'warm' | 'purple' | 'dark';
+  variant?: 'primary' | 'secondary' | 'warm' | 'purple' | 'dark' | 'signal';
   size?: 'sm' | 'md';
 }
 

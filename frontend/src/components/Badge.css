@@ -47,3 +47,24 @@
   border-color: var(--readar-border);
 }
 
+/* Radar-forward signal badge: dot + uppercase tracked label (e.g. "HIGH FIT") */
+.readar-badge--signal {
+  background-color: var(--rd-accent-soft);
+  color: var(--rd-accent);
+  border-color: rgba(83, 255, 201, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  gap: 0.4rem;
+}
+
+.readar-badge--signal::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background-color: var(--rd-accent);
+  display: inline-block;
+  flex: 0 0 auto;
+}
+
