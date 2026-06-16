@@ -7,6 +7,31 @@
   box-sizing: border-box;
 }
 
+/* ============================================
+   ACCESSIBILITY BASELINE (WCAG 2.2)
+   ============================================ */
+
+/* Visible, consistent keyboard focus on all interactive elements.
+   Uses :focus-visible so it shows for keyboard/AT users, not mouse clicks. */
+:where(a, button, input, textarea, select, [tabindex], [role="button"], [role="tab"]):focus-visible {
+  outline: var(--rd-focus-ring);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* Honor reduced-motion preferences: collapse animations/transitions and
+   disable the radar sweep/pulse motifs. (Report + MDN guidance.) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 :root {
   /* ============================================
      DESIGN TOKENS - New 2D Flat Aesthetic
@@ -24,9 +49,29 @@
   --rd-radar: #7C8C6A;                 /* muted olive for subtle radar/military accents */
   
   /* Shape */
+  --rd-radius-sm: 8px;
+  --rd-radius-md: 10px;
   --rd-radius-lg: 18px;
   --rd-radius-pill: 999px;
-  
+  --rd-border: rgba(255, 255, 255, 0.1);          /* default hairline border on dark */
+  --rd-border-strong: rgba(255, 255, 255, 0.2);
+
+  /* Spacing scale (4 / 8-point system) */
+  --rd-space-1: 4px;
+  --rd-space-2: 8px;
+  --rd-space-3: 12px;
+  --rd-space-4: 16px;
+  --rd-space-5: 24px;
+  --rd-space-6: 32px;
+  --rd-space-8: 48px;
+
+  /* Motion */
+  --rd-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --rd-dur-fast: 120ms;
+  --rd-dur-base: 200ms;
+  --rd-dur-slow: 320ms;
+  --rd-focus-ring: 2px solid var(--rd-accent); /* WCAG-visible keyboard focus */
+
   /* Typography */
   --rd-font: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --rd-font-logo: 'DIN Alternate', 'DIN Alternate Bold', 'Arial Black', sans-serif;
@@ -53,6 +98,7 @@
   --readar-muted: var(--rd-muted);
   --readar-primary: var(--rd-accent);
   --readar-primary-dark: #2AE5B8;
+  --readar-mint: var(--rd-accent);
   --readar-accent-purple: #6935F4;
   --readar-warm: #ECB767;
   --readar-text-muted: var(--rd-muted);
