@@ -21,10 +21,35 @@ type Ui = 'yes_no' | 'confirm' | null;
 
 const PENDING_ONBOARDING_KEY = 'readar_pending_onboarding';
 const ONBOARDING_ANSWERS_KEY = 'readar_onboarding_answers';
+const PROGRESS_KEY = 'readar_onboarding_progress'; // in-progress chat, for resume-on-refresh
 const TOTAL_STAGES = 7; // for a non-labeled progress hint only
 
 let seq = 0;
 const newId = (p: string) => `${p}-${Date.now()}-${seq++}`;
+
+interface ChatSnapshot {
+  messages: Message[];
+  history: ChatTurn[];
+  stageIndex: number;
+  turnsInStage: number;
+  ui: Ui;
+  done: boolean;
+}
+
+function saveProgress(s: ChatSnapshot) {
+  try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(s)); } catch { /* ignore quota */ }
+}
+function loadProgress(): ChatSnapshot | null {
+  try {
+    const raw = localStorage.getItem(PROGRESS_KEY);
+    return raw ? (JSON.parse(raw) as ChatSnapshot) : null;
+  } catch {
+    return null;
+  }
+}
+function clearProgress() {
+  try { localStorage.removeItem(PROGRESS_KEY); } catch { /* ignore */ }
+}
 
 const ChatOnboardingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -107,14 +132,38 @@ const ChatOnboardingPage: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
-  // Kick off the conversation with the opener (once).
+  // Resume a saved chat if present; otherwise kick off the opener (once).
   useEffect(() => {
     if (initializedRef.current) return;
     initializedRef.current = true;
+
+    const saved = loadProgress();
+    if (saved && saved.messages?.length) {
+      // Rehydrate prior progress (don't re-fire onboarding_started — already counted).
+      setMessages(saved.messages.map((m) => ({ ...m, timestamp: new Date(m.timestamp) })));
+      setHistory(saved.history);
+      setStageIndex(saved.stageIndex);
+      setTurnsInStage(saved.turnsInStage);
+      setUi(saved.ui);
+      setDone(saved.done);
+      // If they refreshed right after sending (bot reply was lost), recover it.
+      const last = saved.history[saved.history.length - 1];
+      if (!saved.done && last && last.role === 'user') {
+        void runTurn(saved.history, saved.stageIndex, saved.turnsInStage);
+      }
+      return;
+    }
+
     void logEvent('onboarding_started');
     void runTurn([], 0, 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Persist in-progress chat so a refresh / accidental nav resumes instead of restarting.
+  useEffect(() => {
+    if (messages.length === 0) return;
+    saveProgress({ messages, history, stageIndex, turnsInStage, ui, done });
+  }, [messages, history, stageIndex, turnsInStage, ui, done]);
 
   const addBot = (content: string) =>
     setMessages((prev) => [...prev, { id: newId('bot'), type: 'bot', content, timestamp: new Date() }]);
@@ -168,6 +217,7 @@ const ChatOnboardingPage: React.FC = () => {
       const payload = { full_name: '', ...profile };
       localStorage.setItem(PENDING_ONBOARDING_KEY, JSON.stringify(payload));
       localStorage.setItem(ONBOARDING_ANSWERS_KEY, JSON.stringify(profile));
+      clearProgress(); // chat finished — don't resume it next time
       navigate('/recommendations/loading');
     } catch (e: any) {
       setCompleting(false);
