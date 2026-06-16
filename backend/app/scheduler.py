@@ -9,6 +9,7 @@ from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.utils.email import send_weekly_pending_books_email
+from app.services.reengagement import send_recommendation_emails
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,22 @@ def send_weekly_report_job():
         logger.info(f"Weekly report job completed: {result}")
     except Exception as e:
         logger.exception(f"Weekly report job failed: {e}")
+    finally:
+        db.close()
+
+
+def send_recommendation_emails_job():
+    """
+    Scheduled job: send the recommendations re-engagement email to eligible,
+    opted-in users (frequency-capped). Runs weekly.
+    """
+    logger.info("Running recommendations re-engagement email job")
+    db: Session = SessionLocal()
+    try:
+        result = send_recommendation_emails(db)
+        logger.info(f"Re-engagement email job completed: {result}")
+    except Exception as e:
+        logger.exception(f"Re-engagement email job failed: {e}")
     finally:
         db.close()
 
@@ -56,8 +73,17 @@ def start_scheduler():
         replace_existing=True
     )
 
+    # Recommendations re-engagement: every Tuesday at 15:00 UTC (~mid-morning US)
+    scheduler.add_job(
+        send_recommendation_emails_job,
+        trigger=CronTrigger(day_of_week='tue', hour=15, minute=0),
+        id='recommendation_reengagement_email',
+        name='Send recommendations re-engagement email',
+        replace_existing=True
+    )
+
     scheduler.start()
-    logger.info("Background scheduler started with weekly report job")
+    logger.info("Background scheduler started with weekly report + re-engagement jobs")
 
 
 def stop_scheduler():

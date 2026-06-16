@@ -71,6 +71,8 @@ class User(Base):
     notify_email_recommendations = Column(Boolean, nullable=False, server_default=sa.true(), default=True)
     notify_email_learning_tips = Column(Boolean, nullable=False, server_default=sa.false(), default=False)
     notify_email_product = Column(Boolean, nullable=False, server_default=sa.false(), default=False)
+    # Frequency cap for the recommendations re-engagement email
+    last_recommendations_email_at = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     onboarding_profile = relationship("OnboardingProfile", back_populates="user", uselist=False)

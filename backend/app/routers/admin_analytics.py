@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, distinct
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 from app.database import get_db
 from app.core.auth import require_admin_user
@@ -22,12 +23,31 @@ from app.models import (
     EventLog,
     SubscriptionStatus,
 )
+from app.services.reengagement import send_recommendation_emails
 
 router = APIRouter(tags=["admin_analytics"], dependencies=[Depends(require_admin_user)])
 
 
 def _rate(numerator: int, denominator: int):
     return round(numerator / denominator, 4) if denominator else None
+
+
+@router.post("/admin/send-recommendation-emails")
+def trigger_recommendation_emails(
+    force: bool = Query(False, description="Ignore the per-user frequency cap."),
+    max_users: Optional[int] = Query(None, description="Cap users processed this run."),
+    only_email: Optional[str] = Query(None, description="Send to just this user's email (testing)."),
+    db: Session = Depends(get_db),
+):
+    """Manually trigger the recommendations re-engagement email (admin/testing)."""
+    only_user_id = None
+    if only_email:
+        user = db.query(User).filter(func.lower(User.email) == only_email.lower()).first()
+        if not user:
+            return {"status": "error", "message": f"No user with email {only_email}"}
+        only_user_id = user.id
+        force = True  # a targeted test send should bypass the cap
+    return send_recommendation_emails(db, force=force, max_users=max_users, only_user_id=only_user_id)
 
 
 @router.get("/admin/analytics")
