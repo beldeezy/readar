@@ -843,3 +843,28 @@ export async function logRecommendationClick(params: {
     console.warn('Failed to log recommendation click:', err);
   }
 }
+
+/**
+ * Log a generic client-side analytics event (best-effort, never throws).
+ */
+export async function logEvent(
+  event_name: string,
+  properties?: Record<string, any>
+): Promise<void> {
+  const url = `${API_BASE_URL}/events/log`;
+  const body = JSON.stringify({ event_name, properties: properties ?? {} });
+  try {
+    const authHeader = getAuthHeader();
+    const headers: HeadersInit = { 'Content-Type': 'application/json' };
+    if (authHeader) headers.Authorization = authHeader.Authorization;
+    await fetch(url, {
+      method: 'POST',
+      headers,
+      body,
+      keepalive: true,
+      credentials: 'include',
+    });
+  } catch (err) {
+    console.warn('Failed to log event:', event_name, err);
+  }
+}

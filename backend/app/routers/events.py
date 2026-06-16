@@ -66,6 +66,33 @@ async def log_recommendation_click(
     return None
 
 
+class GenericEventRequest(BaseModel):
+    """Request body for a generic client-side event."""
+    event_name: str
+    properties: Optional[dict] = None
+    session_id: Optional[str] = None
+
+
+@router.post("/log", status_code=status.HTTP_204_NO_CONTENT)
+async def log_generic_event(
+    payload: GenericEventRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Log a generic client-side event (best-effort; never breaks the request).
+    Authentication is optional — user_id is attached when available.
+    """
+    user = get_optional_user(request, db)
+    log_event_best_effort(
+        event_name=payload.event_name,
+        user_id=user.id if user else None,
+        properties=payload.properties or {},
+        session_id=payload.session_id,
+    )
+    return None
+
+
 @router.get("/recent")
 async def get_recent_events(
     limit: int = 20,

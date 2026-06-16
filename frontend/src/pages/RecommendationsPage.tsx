@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { apiClient, fetchRecommendations } from '../api/client';
+import { apiClient, fetchRecommendations, logEvent } from '../api/client';
 import type { RecommendationItem, BookPreferenceStatus } from '../api/types';
 import RecommendationCard from '../components/RecommendationCard';
 import Card from '../components/Card';
@@ -23,6 +23,27 @@ interface PresentationPitch {
 const PREVIEW_RECS_KEY = 'readar_preview_recs';
 const PITCHES_CACHE_KEY = 'readar_pitches_cache';
 
+// Free users get a soft daily refresh allowance; hitting it prompts an upgrade.
+// (Client-side metering — fine for validating willingness-to-pay; would move
+// server-side before treating it as a hard paywall.)
+const FREE_DAILY_REFRESHES = 3;
+
+function refreshCountKey(): string {
+  return `readar_refreshes_${new Date().toISOString().slice(0, 10)}`;
+}
+function getRefreshesUsed(): number {
+  try {
+    return parseInt(localStorage.getItem(refreshCountKey()) || '0', 10) || 0;
+  } catch {
+    return 0;
+  }
+}
+function bumpRefreshesUsed(): number {
+  const n = getRefreshesUsed() + 1;
+  try { localStorage.setItem(refreshCountKey(), String(n)); } catch { /* ignore */ }
+  return n;
+}
+
 export default function RecommendationsPage() {
   const [recommendations, setRecommendations] = useState<RecommendationItem[]>([]);
   const [requestId, setRequestId] = useState<string | null>(null);
@@ -31,6 +52,8 @@ export default function RecommendationsPage() {
   const [pitches, setPitches] = useState<Record<string, BookPitch>>({});
   const [pitchesLoading, setPitchesLoading] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
+  const [refreshesUsed, setRefreshesUsed] = useState(getRefreshesUsed());
+  const [showUpgrade, setShowUpgrade] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { user: authUser } = useAuth();
@@ -259,6 +282,31 @@ export default function RecommendationsPage() {
     }
   };
 
+  const isPremium = authUser?.subscription_status === 'active';
+  const freeRefreshesLeft = Math.max(0, FREE_DAILY_REFRESHES - refreshesUsed);
+
+  // Explicit "Get new recommendations" spin — metered for free users.
+  const handleRefreshClick = () => {
+    if (isPremium) {
+      refreshRecommendations();
+      return;
+    }
+    if (refreshesUsed >= FREE_DAILY_REFRESHES) {
+      setShowUpgrade(true);
+      logEvent('refresh_limit_hit', { used: refreshesUsed, limit: FREE_DAILY_REFRESHES });
+      return;
+    }
+    const n = bumpRefreshesUsed();
+    setRefreshesUsed(n);
+    logEvent('refresh_used', { used: n, limit: FREE_DAILY_REFRESHES });
+    refreshRecommendations();
+  };
+
+  const handleUpgradeClick = () => {
+    logEvent('upgrade_prompt_click', { source: 'recommendations_refresh' });
+    navigate('/upgrade');
+  };
+
   const handleBookAction = async (
     bookId: string,
     status: BookPreferenceStatus
@@ -459,13 +507,38 @@ export default function RecommendationsPage() {
           </div>
 
           <div className="recommendations-carousel__refresh">
-            <button
-              className="recommendations-refresh-btn"
-              onClick={refreshRecommendations}
-              aria-label="Get new recommendations"
-            >
-              ↻ Get new recommendations
-            </button>
+            {showUpgrade ? (
+              <div className="recommendations-upgrade-prompt">
+                <p className="recommendations-upgrade-text">
+                  You've used today's free refreshes. Upgrade to Premium for unlimited recommendations.
+                </p>
+                <div className="recommendations-upgrade-actions">
+                  <Button variant="primary" size="sm" onClick={handleUpgradeClick} delayMs={0}>
+                    Upgrade to Premium
+                  </Button>
+                  <button className="recommendations-refresh-btn" onClick={() => setShowUpgrade(false)}>
+                    Maybe later
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="recommendations-refresh-wrap">
+                <button
+                  className="recommendations-refresh-btn"
+                  onClick={handleRefreshClick}
+                  aria-label="Get new recommendations"
+                >
+                  ↻ Get new recommendations
+                </button>
+                {!isPremium && (
+                  <span className="recommendations-refresh-hint">
+                    {freeRefreshesLeft > 0
+                      ? `${freeRefreshesLeft} free ${freeRefreshesLeft === 1 ? 'refresh' : 'refreshes'} left today`
+                      : 'No free refreshes left today'}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
