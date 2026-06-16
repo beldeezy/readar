@@ -177,6 +177,15 @@ def enrich_books(
                 models.Book.description == "No description available.",
                 models.Book.description.like("Imported from Goodreads%"),
             ))
+        elif only_missing:
+            # Default backfill: only touch books that still need a cover or a
+            # real description. Makes reruns idempotent + quota-efficient.
+            query = query.filter(or_(
+                models.Book.cover_image_url.is_(None),
+                models.Book.description.is_(None),
+                models.Book.description == "No description available.",
+                models.Book.description.like("Imported from Goodreads%"),
+            ))
         if limit:
             query = query.limit(limit)
 
