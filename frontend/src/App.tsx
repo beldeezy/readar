@@ -28,10 +28,7 @@ import BackendHealthGate from './components/BackendHealthGate';
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading, onboardingComplete, onboardingChecked } = useAuth();
   const location = useLocation();
-  
-  // Debug log
-  console.log("[route] authed=", isAuthenticated, "onboarded=", onboardingComplete, "checked=", onboardingChecked, "path=", location.pathname);
-  
+
   if (loading) {
     return (
       <div style={{ 

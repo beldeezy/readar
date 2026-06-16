@@ -157,6 +157,17 @@ export default function RecommendationCard({
               </Badge>
             )}
           </div>
+          {(book.cover_image_url || book.thumbnail_url) && (
+            <div className="readar-book-cover-wrap">
+              <img
+                src={book.cover_image_url || book.thumbnail_url}
+                alt={book.title}
+                className="readar-book-cover"
+                loading="lazy"
+                onClick={handleClick}
+              />
+            </div>
+          )}
           <div className="readar-book-content">
             <h3 onClick={handleClick} className="readar-book-title" style={{ cursor: 'pointer' }}>
               {book.title}

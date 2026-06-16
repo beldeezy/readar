@@ -16,6 +16,27 @@
   margin-bottom: 1rem;
 }
 
+.readar-book-cover-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+}
+
+.readar-book-cover {
+  max-height: 200px;
+  max-width: 140px;
+  width: auto;
+  height: auto;
+  border-radius: var(--rd-radius-md, 0.5rem);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.readar-book-cover:hover {
+  transform: scale(1.03);
+}
+
 .readar-book-content {
   flex: 1;
   margin-bottom: 1.5rem;

@@ -63,6 +63,30 @@
   gap: 1.25rem;
 }
 
+.recommendations-carousel__refresh {
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.recommendations-refresh-btn {
+  background: none;
+  border: none;
+  color: var(--rd-muted);
+  font-family: var(--rd-font);
+  font-size: var(--rd-font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--rd-radius-pill);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.recommendations-refresh-btn:hover {
+  color: var(--rd-accent);
+  background: rgba(255, 255, 255, 0.05);
+}
+
 .recommendations-carousel__btn {
   background: var(--rd-surface);
   border: 2px solid rgba(255, 255, 255, 0.2);

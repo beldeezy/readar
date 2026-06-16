@@ -49,11 +49,6 @@ export default function RecommendationsPage() {
 
     // Check if we have prefetched recommendations from the loading page
     const prefetchedData = (location.state as any)?.prefetchedRecommendations;
-    console.log('[RecommendationsPage] Checking for prefetched data:', {
-      hasPrefetchedData: !!prefetchedData,
-      isArray: Array.isArray(prefetchedData),
-      hasItems: prefetchedData?.items !== undefined,
-    });
 
     const prefetchedRecs = Array.isArray(prefetchedData)
       ? prefetchedData as RecommendationItem[]
@@ -62,18 +57,13 @@ export default function RecommendationsPage() {
 
     if (prefetchedRecs !== undefined) {
       // Use prefetched results immediately (even if empty array)
-      const itemCount = prefetchedRecs?.length ?? 0;
-      console.log(`[RecommendationsPage] Using prefetched recommendations: ${itemCount} items`);
       setRecommendations(prefetchedRecs);
       if (prefetchedRequestId) {
         setRequestId(prefetchedRequestId);
       }
       setLoading(false);
-      console.log('[RecommendationsPage] Prefetch complete, will render empty state or items');
       return;
     }
-
-    console.log('[RecommendationsPage] No prefetched data, will check backend health');
 
     // Otherwise, check backend health first, then fetch recommendations
     let cancelled = false;
@@ -90,12 +80,10 @@ export default function RecommendationsPage() {
           throw new Error(`Backend health check failed: ${healthRes.status} ${healthRes.statusText}`);
         }
         
-        const healthData = await healthRes.json();
-        console.log('[Backend Health] Backend is reachable:', healthData);
+        await healthRes.json();
       } catch (err: any) {
         console.error('[Backend Health] Backend is unreachable:', err);
-        const errorMsg = err?.message || 'Unknown error';
-        
+
         // If backend is down, try to fall back to preview recs from localStorage
         const previewRecsStr = localStorage.getItem(PREVIEW_RECS_KEY);
         if (previewRecsStr) {
@@ -114,10 +102,7 @@ export default function RecommendationsPage() {
         }
         
         if (!cancelled) {
-          setError(
-            `Backend is offline (${errorMsg}). Please ensure FastAPI is running. ` +
-            `API_BASE_URL=${apiBaseUrl}. Check browser console for details.`
-          );
+          setError('offline');
           setLoading(false);
         }
         return; // Don't proceed with recommendations fetch if backend is down
@@ -130,11 +115,8 @@ export default function RecommendationsPage() {
       setError(null);
 
       try {
-        console.log('[RecommendationsPage] Fetching recommendations from backend...');
         const response = await fetchRecommendations({ limit: 5 });
         if (!cancelled) {
-          const itemCount = response?.items?.length ?? 0;
-          console.log(`[RecommendationsPage] Received ${itemCount} recommendations from backend`);
           setRecommendations(response.items);
           setRequestId(response.request_id);
           // Clear preview recs if we successfully fetched from backend
@@ -373,7 +355,6 @@ export default function RecommendationsPage() {
   }
 
   if (!recommendations.length) {
-    console.log('[RecommendationsPage] Rendering empty state (0 recommendations)');
     return (
       <div className="readar-recommendations-page">
         <div className="container">
@@ -474,6 +455,16 @@ export default function RecommendationsPage() {
               aria-label="Next book"
             >
               →
+            </button>
+          </div>
+
+          <div className="recommendations-carousel__refresh">
+            <button
+              className="recommendations-refresh-btn"
+              onClick={refreshRecommendations}
+              aria-label="Get new recommendations"
+            >
+              ↻ Get new recommendations
             </button>
           </div>
         </div>
