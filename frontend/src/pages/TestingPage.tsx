@@ -105,8 +105,11 @@ export default function TestingPage() {
             <input className="tb-inp tb-inp--pal" placeholder="Scan the catalog…" />
           </section>
           <section className="tb-col">
-            <div className="tb-col-head"><span className="tb-label rd-tech">04 · Hybrid</span></div>
-            <input className="tb-inp tb-inp--hyb" placeholder="SCAN THE CATALOG…" />
+            <div className="tb-col-head"><span className="tb-label rd-tech">04 · Hybrid (winner)</span></div>
+            <div className="tb-inp-hybterm">
+              <span className="tb-inp-hybterm-prompt">&gt;</span>
+              <input className="tb-inp-hybterm-field" placeholder="SCAN THE CATALOG…" />
+            </div>
           </section>
         </div>
 

@@ -117,7 +117,30 @@
 .tb-inp { width: 100%; padding: 0.7rem 1rem; background: var(--rd-surface); color: var(--rd-text); font-family: var(--rd-font); font-size: 0.95rem; }
 .tb-inp--current { border: 1px solid var(--rd-border-strong); border-radius: var(--rd-radius-lg); }
 .tb-inp--pal { background: transparent; border: 1px solid var(--rd-border-strong); border-radius: 2px; font-family: var(--rd-font-tech); text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.82rem; }
-.tb-inp--hyb { border: 1px solid var(--rd-border-strong); border-left: 3px solid var(--rd-accent); border-radius: 6px; font-family: var(--rd-font-tech); text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.82rem; }
+/* Hybrid input (winner): accent left-edge + terminal black/green + carrot,
+   border lights up on type (focus). */
+.tb-inp-hybterm {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #0b0f14;
+  border: 1px solid var(--rd-border-strong);
+  border-left: 3px solid var(--rd-accent);
+  border-radius: 6px;
+  padding: 0 0.8rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.tb-inp-hybterm:focus-within {
+  border-color: var(--rd-accent);
+  box-shadow: 0 0 0 3px var(--rd-accent-soft);
+}
+.tb-inp-hybterm-prompt { color: var(--rd-accent); font-family: var(--rd-font-tech); font-weight: 700; }
+.tb-inp-hybterm-field {
+  flex: 1; min-width: 0; background: transparent; border: 0; outline: none;
+  color: var(--rd-accent); font-family: var(--rd-font-tech);
+  text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.85rem; padding: 0.7rem 0;
+}
+.tb-inp-hybterm-field::placeholder { color: rgba(83, 255, 201, 0.45); }
 
 .tb-inp-term { display: flex; align-items: center; gap: 0.5rem; background: #0b0f14; border: 1px solid var(--rd-accent); border-radius: 2px; padding: 0 0.7rem; }
 .tb-inp-term-prompt { color: var(--rd-accent); font-family: var(--rd-font-tech); font-weight: 700; }
