@@ -164,7 +164,7 @@ export default function LibraryPage() {
         <p className="readar-library-subtitle">Readar's curated catalog of books for entrepreneurs.</p>
 
         {/* Reading progress — Braun-dial gauge toward the next milestone */}
-        <Card variant="flat" className="readar-goal-card">
+        <Card variant="flat" className="readar-goal-card rd-grille">
           <Gauge
             value={booksRead}
             max={booksRead + carrot.remaining}

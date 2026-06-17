@@ -8,6 +8,8 @@ import Button from '../components/Button';
 import Card from '../components/Card';
 import Badge from '../components/Badge';
 import FounderKnowledgeMap from '../components/FounderKnowledgeMap';
+import Gauge from '../components/Gauge';
+import SegmentReadout from '../components/SegmentReadout';
 import './ProfilePage.css';
 
 interface BookStatusItem {
@@ -556,21 +558,18 @@ export default function ProfilePage() {
           <h2 className="readar-profile-section-title">Reading History</h2>
           {readingProfile ? (
             <div>
-              <div className="readar-reading-stats">
-                <div className="readar-stat">
-                  <span className="readar-stat-label">Books read</span>
-                  <div className="readar-stat-value">{readingProfile.total_books_read}</div>
-                </div>
+              <div className="readar-reading-instruments">
+                <SegmentReadout value={readingProfile.total_books_read} label="Books read" />
                 {readingProfile.avg_rating != null && (
-                  <div className="readar-stat">
-                    <span className="readar-stat-label">Avg rating</span>
-                    <div className="readar-stat-value">{readingProfile.avg_rating.toFixed(1)} / 5</div>
-                  </div>
+                  <SegmentReadout value={readingProfile.avg_rating.toFixed(1)} label="Avg rating" />
                 )}
-                <div className="readar-stat">
-                  <span className="readar-stat-label">Reading confidence</span>
-                  <div className="readar-stat-value">{Math.round(readingProfile.reading_confidence * 100)}%</div>
-                </div>
+                <Gauge
+                  value={Math.round(readingProfile.reading_confidence * 100)}
+                  max={100}
+                  displayValue={`${Math.round(readingProfile.reading_confidence * 100)}%`}
+                  label="Confidence"
+                  size={150}
+                />
               </div>
               <p className="readar-stat-caption">
                 {readingProfile.reading_confidence >= 0.7

@@ -82,6 +82,13 @@ h1, h2, h3, h4, h5, h6 {
   z-index: 1;
 }
 
+/* Braun speaker-grille dot texture (subtle, decorative). */
+.rd-grille {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1.5px);
+  background-size: 9px 9px;
+  background-position: center;
+}
+
 /* ============================================
    FORM CONTROLS — unified focus treatment
    ============================================ */

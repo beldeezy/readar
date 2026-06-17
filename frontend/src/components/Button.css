@@ -1,37 +1,28 @@
 .readar-button {
   font-family: var(--rd-font);
   font-weight: 600;
-  border: 2px solid transparent;
-  border-radius: var(--rd-radius-pill);
+  /* Rams / flat 2D: thin border, controlled rounded-rect, no shadow/lift */
+  border: 1px solid transparent;
+  border-radius: var(--rd-radius-md);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   text-decoration: none;
   line-height: 1;
-
-  /* interaction — flat/quiet (Rams: unobtrusive, honest) */
-  transform: translateY(0);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  box-shadow: none;
   transition:
-    transform var(--rd-dur-fast) var(--rd-ease),
-    box-shadow var(--rd-dur-fast) var(--rd-ease),
     background-color var(--rd-dur-fast) linear,
     border-color var(--rd-dur-fast) linear,
     filter var(--rd-dur-fast) linear;
 }
 
 .readar-button:hover:not(:disabled) {
-  /* subtle lift */
-  transform: translateY(-1px);
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.28);
+  filter: brightness(1.06);
 }
 
 .readar-button:active:not(:disabled) {
-  /* gentle press */
-  transform: translateY(0);
-  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
-  transition-duration: 0ms;
+  filter: brightness(0.93);
 }
 
 .readar-button:disabled {

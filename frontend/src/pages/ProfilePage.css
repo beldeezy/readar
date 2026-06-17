@@ -380,6 +380,16 @@
   margin-bottom: 1rem;
 }
 
+/* Reading instruments cluster (flip readouts + confidence gauge) */
+.readar-reading-instruments {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+
 .readar-stat-label {
   color: var(--rd-muted);
   font-size: var(--rd-font-size-sm);
