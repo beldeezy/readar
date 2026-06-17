@@ -152,8 +152,8 @@ export default function RecommendationCard({
         <div>
           <div className="readar-book-header">
             {isTopMatch && (
-              <Badge variant="primary" size="sm">
-                Great Match
+              <Badge variant="signal" size="sm">
+                High fit
               </Badge>
             )}
           </div>
@@ -174,6 +174,18 @@ export default function RecommendationCard({
             </h3>
             {book.subtitle && <p className="readar-book-subtitle">{book.subtitle}</p>}
             {book.author_name && <p className="readar-book-author">by {book.author_name}</p>}
+
+            {/* Radar-forward technical labels */}
+            {(book.functional_tags?.length || book.business_stage_tags?.length) ? (
+              <div className="readar-book-tech-row">
+                {book.functional_tags?.[0] && (
+                  <span className="rd-tech">SECTOR: {book.functional_tags[0].replace(/_/g, ' ')}</span>
+                )}
+                {book.business_stage_tags?.[0] && (
+                  <span className="rd-tech">STAGE: {book.business_stage_tags[0].replace(/-/g, ' ')}</span>
+                )}
+              </div>
+            ) : null}
 
             {/* Metadata line */}
             {meta && (

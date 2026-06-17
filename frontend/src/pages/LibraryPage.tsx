@@ -182,14 +182,14 @@ export default function LibraryPage() {
           <input
             type="text"
             className="readar-library-search-input"
-            placeholder="Search by title or author…"
+            placeholder="Scan the catalog by title or author…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
 
         {loading ? (
-          <p className="readar-library-muted">Loading catalog…</p>
+          <p className="readar-library-muted">Scanning the catalog…</p>
         ) : results.length === 0 ? (
           <p className="readar-library-muted">No books found. Try a different search.</p>
         ) : (
