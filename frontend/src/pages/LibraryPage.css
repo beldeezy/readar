@@ -51,30 +51,39 @@
   margin: 0 auto 2rem;
 }
 
+/* Terminal-hybrid scan field: black bg, accent edge + icon, green text,
+   border lights up on focus/type. */
 .readar-library-search-icon {
   position: absolute;
-  left: 1rem;
+  left: 0.9rem;
   top: 50%;
   transform: translateY(-50%);
-  color: var(--rd-muted);
+  color: var(--rd-accent);
   pointer-events: none;
 }
 
 .readar-library-search-input {
   width: 100%;
-  font-family: var(--rd-font);
-  font-size: var(--rd-font-size-base);
-  padding: 0.75rem 1rem 0.75rem 2.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: var(--rd-radius-pill);
-  background-color: var(--rd-surface);
-  color: var(--rd-text);
-  transition: border-color 0.2s ease;
+  font-family: var(--rd-font-tech);
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+  padding: 0.8rem 1rem 0.8rem 2.6rem;
+  background-color: #0b0f14;
+  color: var(--rd-accent);
+  border: 1px solid var(--rd-border-strong);
+  border-left: 3px solid var(--rd-accent);
+  border-radius: 6px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.readar-library-search-input::placeholder {
+  color: rgba(83, 255, 201, 0.45);
 }
 
 .readar-library-search-input:focus {
   outline: none;
   border-color: var(--rd-accent);
+  box-shadow: 0 0 0 3px var(--rd-accent-soft);
 }
 
 .readar-library-subtitle {

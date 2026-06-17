@@ -138,7 +138,7 @@
 .tb-inp-hybterm-field {
   flex: 1; min-width: 0; background: transparent; border: 0; outline: none;
   color: var(--rd-accent); font-family: var(--rd-font-tech);
-  text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.85rem; padding: 0.7rem 0;
+  letter-spacing: 0.02em; font-size: 0.9rem; padding: 0.7rem 0;
 }
 .tb-inp-hybterm-field::placeholder { color: rgba(83, 255, 201, 0.45); }
 
