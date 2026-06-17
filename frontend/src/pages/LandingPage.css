@@ -11,6 +11,21 @@
   overflow: hidden; /* Contain radar animations within hero bounds */
 }
 
+/* Restrained "scan field" backdrop: faint accent glow + grid lines. */
+.readar-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 32%, var(--rd-accent-soft), transparent 58%),
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px) 0 0 / 100% 44px,
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px) 0 0 / 44px 100%;
+  mask-image: radial-gradient(circle at 50% 40%, #000 35%, transparent 80%);
+  -webkit-mask-image: radial-gradient(circle at 50% 40%, #000 35%, transparent 80%);
+}
+
 .readar-hero-content {
   position: relative;
   z-index: 10; /* Ensure content sits above radar graphics */
@@ -35,11 +50,39 @@
   margin-bottom: 0.5rem;
 }
 
+/* Radar-forward eyebrow: dot + uppercase tracked tagline ("KEEP SEEKING"). */
+.readar-hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.9rem;
+  background-color: var(--rd-accent-soft);
+  border: 1px solid rgba(83, 255, 201, 0.4);
+  border-radius: var(--rd-radius-pill);
+  color: var(--rd-accent);
+  font-family: var(--rd-font-tech);
+  font-size: var(--rd-font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.readar-hero-eyebrow::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background-color: var(--rd-accent);
+  box-shadow: 0 0 0 4px var(--rd-accent-soft);
+}
+
 .readar-hero-title {
+  font-family: var(--rd-font-display);
   font-size: var(--rd-font-size-5xl);
   font-weight: 700;
+  letter-spacing: -0.02em;
   color: var(--rd-text);
-  line-height: 1.1;
+  line-height: 1.08;
   margin: 0;
 }
 

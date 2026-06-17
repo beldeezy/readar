@@ -15,6 +15,7 @@ export default function LandingPage() {
     <div className="readar-landing">
       <div className="readar-hero">
         <div className="readar-hero-content">
+          <span className="readar-hero-eyebrow">Keep Seeking</span>
           <h1 className="readar-hero-title">Know what to read next.</h1>
           <p className="readar-hero-subtitle">
             Built for entrepreneurs who want to find the right book to eliminate blind spots and move their business forward.
