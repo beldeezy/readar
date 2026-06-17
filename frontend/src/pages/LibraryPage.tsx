@@ -7,6 +7,7 @@ import Card from '../components/Card';
 import Button from '../components/Button';
 import EmptyState from '../components/EmptyState';
 import Gauge from '../components/Gauge';
+import ScrollTopButton from '../components/ScrollTopButton';
 import { RadarScopeArt } from '../components/illustrations';
 import './LibraryPage.css';
 
@@ -260,6 +261,7 @@ export default function LibraryPage() {
           </div>
         )}
       </div>
+      <ScrollTopButton />
     </div>
   );
 }

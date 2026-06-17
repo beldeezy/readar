@@ -1,0 +1,37 @@
+.rd-scrolltop {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.5rem;
+  z-index: 50;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--rd-radius-md);
+  background: linear-gradient(180deg, #6dffd9 0%, #2fd9a8 100%);
+  color: #06251c;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 4px 0 #19a37e,
+    0 9px 16px rgba(0, 0, 0, 0.45);
+  transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.08s ease;
+}
+
+.rd-scrolltop:hover {
+  filter: brightness(1.05);
+}
+
+.rd-scrolltop:active {
+  transform: translateY(3px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 1px 0 rgba(0, 0, 0, 0.4), 0 2px 5px rgba(0, 0, 0, 0.4);
+}
+
+/* Clear the mobile bottom nav (shown ≤768px). */
+@media (max-width: 768px) {
+  .rd-scrolltop {
+    bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  }
+}

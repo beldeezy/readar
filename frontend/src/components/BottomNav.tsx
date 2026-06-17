@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { BookOpen, Library, BookMarked, User, MoreHorizontal, LogOut, Zap } from 'lucide-react';
+import { Radar, Library, BookMarked, User, MoreHorizontal, LogOut, Zap } from 'lucide-react';
 import { useAuth } from '../auth/AuthProvider';
 import './BottomNav.css';
 
@@ -50,7 +50,7 @@ export default function BottomNav() {
           }
           aria-label="Recommendations"
         >
-          <BookOpen size={22} strokeWidth={1.75} />
+          <Radar size={22} strokeWidth={1.75} />
           <span>Recs</span>
         </NavLink>
 
