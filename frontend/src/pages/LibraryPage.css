@@ -183,10 +183,14 @@
 
 .readar-lib-cover-wrap {
   cursor: pointer;
-  border-radius: var(--rd-radius-lg);
+  border-radius: var(--rd-radius-md);
   overflow: hidden;
   aspect-ratio: 2 / 3;
   display: flex;
+  /* Cap to the source thumbnail resolution (~128px) so covers stay crisp. */
+  width: 100%;
+  max-width: 104px;
+  margin: 0 auto 0.25rem;
 }
 
 .readar-lib-cover {
