@@ -65,9 +65,14 @@ export default function Gauge({
         {/* bezel arc */}
         <path d={trackPath} fill="none" stroke="var(--rd-border)" strokeWidth={1.5} />
         {tickEls}
-        {/* needle */}
+        {/* pointer */}
         <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="var(--rd-accent)" strokeWidth={2.5} strokeLinecap="round" />
-        <circle cx={cx} cy={cy} r={5} fill="var(--rd-surface)" stroke="var(--rd-accent)" strokeWidth={2} />
+        {/* indicator dot at the pointer tip (Braun knob) */}
+        <circle cx={nx} cy={ny} r={3.5} fill="var(--rd-accent)" />
+        {/* knob cap with a tilted grip line */}
+        <circle cx={cx} cy={cy} r={10} fill="var(--rd-surface)" stroke="var(--rd-border-strong)" strokeWidth={1.5} />
+        <line x1={cx - 6} y1={cy + 6} x2={cx + 6} y2={cy - 6} stroke="var(--rd-border-strong)" strokeWidth={1.5} strokeLinecap="round" />
+        <circle cx={cx} cy={cy} r={2.5} fill="var(--rd-accent)" />
         {/* center readout */}
         <text x={cx} y={cy - 14} textAnchor="middle" className="rd-gauge-value">
           {displayValue ?? Math.round(value)}

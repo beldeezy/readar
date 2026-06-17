@@ -15,9 +15,9 @@
   min-width: 1.4rem;
   padding: 0.4rem 0.35rem;
   text-align: center;
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  font-size: 1.6rem;
-  font-weight: 700;
+  font-family: var(--rd-font-tech);
+  font-size: 1.5rem;
+  font-weight: 600;
   line-height: 1;
   color: var(--rd-accent);
   background: #0b0f14;
