@@ -20,6 +20,7 @@ import Engine from './pages/admin/Engine';
 import InsightReview from './pages/admin/InsightReview';
 import RecommendationsDebug from './pages/admin/RecommendationsDebug';
 import Analytics from './pages/admin/Analytics';
+import TestingPage from './pages/TestingPage';
 import EnvCheckPage from './pages/EnvCheckPage';
 import Header from './components/Header';
 import BottomNav from './components/BottomNav';
@@ -114,6 +115,7 @@ function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route path="/env" element={<EnvCheckPage />} />
+      <Route path="/testing" element={<TestingPage />} />
       <Route
         path="/onboarding"
         element={<ChatOnboardingPage />}

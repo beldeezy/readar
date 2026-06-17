@@ -1,0 +1,155 @@
+.tb-page {
+  min-height: calc(100vh - 80px);
+  background: var(--rd-bg);
+  padding: 3rem 0 5rem;
+}
+
+.tb-title {
+  text-align: center;
+  color: var(--rd-text);
+  font-size: var(--rd-font-size-3xl);
+  margin-bottom: 0.4rem;
+}
+
+.tb-sub {
+  text-align: center;
+  margin-bottom: 2.5rem;
+}
+
+.tb-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.25rem;
+}
+
+@media (max-width: 900px) {
+  .tb-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 520px) {
+  .tb-grid { grid-template-columns: 1fr; }
+}
+
+.tb-col {
+  border: 1px solid var(--rd-border);
+  border-radius: var(--rd-radius-lg);
+  background: var(--rd-surface);
+  padding: 1.25rem;
+}
+
+.tb-col-head {
+  min-height: 90px;
+  margin-bottom: 1.25rem;
+}
+
+.tb-label {
+  display: block;
+  color: var(--rd-accent);
+  margin-bottom: 0.5rem;
+}
+
+.tb-desc {
+  font-size: var(--rd-font-size-sm);
+  color: var(--rd-muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.tb-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  align-items: flex-start;
+}
+
+.tb-stack > button {
+  font-family: var(--rd-font);
+  font-weight: 600;
+  font-size: var(--rd-font-size-base);
+  cursor: pointer;
+}
+
+.tb-stack > button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── 02 · 2D FLAT (extreme) ───────────────────────────────────────── */
+.tb-flat {
+  padding: 0.7rem 1.25rem;
+  border: 0;
+  border-radius: 3px;
+  transition: filter 0.12s linear;
+}
+.tb-flat:hover:not(:disabled) { filter: brightness(1.07); }
+.tb-flat--primary { background: var(--rd-accent); color: #06251c; }
+.tb-flat--secondary { background: var(--rd-radar-bg); color: var(--rd-text); }
+.tb-flat--ghost { background: transparent; color: var(--rd-muted); border: 1px solid var(--rd-border-strong); }
+
+/* ── 03 · 3D DIETER RAMS (extreme) ────────────────────────────────── */
+.tb-rams {
+  padding: 0.75rem 1.4rem;
+  border: 0;
+  border-radius: 12px;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.08s ease;
+}
+.tb-rams--primary {
+  background: linear-gradient(180deg, #6dffd9 0%, #2fd9a8 100%);
+  color: #06251c;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.65),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.18),
+    0 4px 0 #19a37e,
+    0 9px 16px rgba(0, 0, 0, 0.45);
+}
+.tb-rams--secondary {
+  background: linear-gradient(180deg, #2b3947 0%, #1b2530 100%);
+  color: var(--rd-text);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.4),
+    0 4px 0 #0c1218,
+    0 9px 16px rgba(0, 0, 0, 0.45);
+}
+.tb-rams--ghost {
+  background: linear-gradient(180deg, #222c36 0%, #161e26 100%);
+  color: var(--rd-muted);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 3px 0 #0c1218,
+    0 7px 12px rgba(0, 0, 0, 0.4);
+}
+.tb-rams:hover:not(:disabled) { filter: brightness(1.04); }
+.tb-rams:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+    0 1px 0 rgba(0, 0, 0, 0.4),
+    0 2px 4px rgba(0, 0, 0, 0.35);
+}
+
+/* ── 04 · HYBRID ──────────────────────────────────────────────────── */
+.tb-hybrid {
+  padding: 0.72rem 1.35rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+}
+.tb-hybrid--primary {
+  background: var(--rd-accent);
+  color: #06251c;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+.tb-hybrid--secondary {
+  background: var(--rd-surface);
+  color: var(--rd-text);
+  border-color: var(--rd-border-strong);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+.tb-hybrid--ghost {
+  background: transparent;
+  color: var(--rd-muted);
+  border-color: var(--rd-border-strong);
+}
+.tb-hybrid:hover:not(:disabled) { filter: brightness(1.05); transform: translateY(-1px); }
+.tb-hybrid:active:not(:disabled) { transform: translateY(0); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 1px 2px rgba(0, 0, 0, 0.3); }
