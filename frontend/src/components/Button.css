@@ -1,9 +1,11 @@
 .readar-button {
-  font-family: var(--rd-font);
+  /* Cohesive deep: sculpted key, mono label (no caps), matched radius +
+     accent-edge dark variants so buttons sit with cards/inputs/tags. */
+  font-family: var(--rd-font-tech);
   font-weight: 600;
-  /* 3D Rams: sculpted hardware key — bevel, depth, tactile press */
+  letter-spacing: 0.02em;
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--rd-radius-md);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -14,16 +16,15 @@
 }
 
 .readar-button:hover:not(:disabled) {
-  filter: brightness(1.04);
+  filter: brightness(1.05);
 }
 
 .readar-button:active:not(:disabled) {
   transform: translateY(3px);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.35),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
     0 1px 0 rgba(0, 0, 0, 0.4),
-    0 2px 4px rgba(0, 0, 0, 0.35);
+    0 2px 5px rgba(0, 0, 0, 0.4);
 }
 
 .readar-button:disabled {
@@ -39,35 +40,32 @@
 .readar-button--md { padding: 0.75rem 1.5rem; font-size: var(--readar-font-size-base); }
 .readar-button--lg { padding: 1rem 2rem; font-size: var(--readar-font-size-lg); }
 
-/* Variants — sculpted keys */
+/* Variants */
 .readar-button--primary,
 .readar-button--mint {
   background: linear-gradient(180deg, #6dffd9 0%, #2fd9a8 100%);
   color: #06251c;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.65),
-    inset 0 -2px 0 rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.16),
     0 4px 0 #19a37e,
     0 9px 16px rgba(0, 0, 0, 0.45);
 }
 
-.readar-button--secondary {
-  background: linear-gradient(180deg, #2b3947 0%, #1b2530 100%);
+/* Dark keys with the system accent left-edge */
+.readar-button--secondary,
+.readar-button--ghost {
+  background: #0b0f14;
   color: var(--rd-text);
+  border-left: 3px solid var(--rd-accent);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    inset 0 -2px 0 rgba(0, 0, 0, 0.4),
-    0 4px 0 #0c1218,
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 4px 0 #060a0e,
     0 9px 16px rgba(0, 0, 0, 0.45);
 }
 
 .readar-button--ghost {
-  background: linear-gradient(180deg, #222c36 0%, #161e26 100%);
   color: var(--rd-muted);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 3px 0 #0c1218,
-    0 7px 12px rgba(0, 0, 0, 0.4);
 }
 
 .readar-button--warm {

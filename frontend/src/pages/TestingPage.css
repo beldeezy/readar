@@ -59,9 +59,8 @@
   border: 0;
   border-radius: var(--rd-radius-md);
   font-family: var(--rd-font-tech);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-size: 0.84rem;
+  letter-spacing: 0.02em;
+  font-size: 0.9rem;
   font-weight: 600;
   transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.08s ease;
 }
