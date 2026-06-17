@@ -53,6 +53,36 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* ============================================
+   SCAN-FIELD BACKDROP (reusable, restrained)
+   ============================================ */
+/* A faint accent glow + grid anchored at the top that fades out quickly,
+   carrying the hero's "scan field" feel into in-app surfaces without
+   competing with dense content. Apply to a page wrapper. */
+.rd-scan-bg {
+  position: relative;
+}
+
+.rd-scan-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% -8%, var(--rd-accent-soft), transparent 42%),
+    linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px) 0 0 / 100% 44px,
+    linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px) 0 0 / 44px 100%;
+  mask-image: linear-gradient(#000, transparent 28%);
+  -webkit-mask-image: linear-gradient(#000, transparent 28%);
+}
+
+/* Keep direct content above the backdrop. */
+.rd-scan-bg > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ============================================
    FORM CONTROLS — unified focus treatment
    ============================================ */
 /* Every text control gets the same brand-accent focus glow, app-wide,

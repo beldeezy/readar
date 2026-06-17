@@ -297,7 +297,7 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="readar-profile-page">
+      <div className="readar-profile-page rd-scan-bg">
         <div className="container">
           <div className="readar-loading">Loading...</div>
         </div>
@@ -307,7 +307,7 @@ export default function ProfilePage() {
 
   if (error) {
     return (
-      <div className="readar-profile-page">
+      <div className="readar-profile-page rd-scan-bg">
         <div className="container">
           <Card variant="flat" className="readar-error-card">
             Error: {error}
@@ -319,7 +319,7 @@ export default function ProfilePage() {
 
   if (!profile) {
     return (
-      <div className="readar-profile-page">
+      <div className="readar-profile-page rd-scan-bg">
         <div className="container">
           <Card variant="elevated">
             <p>No profile found. Let's get you set up.</p>
@@ -354,7 +354,7 @@ export default function ProfilePage() {
           }.`;
 
   return (
-    <div className="readar-profile-page">
+    <div className="readar-profile-page rd-scan-bg">
       <div className="container">
         {/* ── Identity + momentum + primary action (above the fold) ───────── */}
         <Card variant="flat" className="readar-profile-section readar-identity">

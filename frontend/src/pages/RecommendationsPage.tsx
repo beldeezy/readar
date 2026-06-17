@@ -328,7 +328,7 @@ export default function RecommendationsPage() {
 
   if (loading) {
     return (
-      <div className="readar-recommendations-page">
+      <div className="readar-recommendations-page rd-scan-bg">
         <div className="container">
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.25rem' }}>
             <RadarIcon size={96} opacity={0.85} animationDuration={7} />
@@ -377,7 +377,7 @@ export default function RecommendationsPage() {
 
   if (error) {
     return (
-      <div className="readar-recommendations-page">
+      <div className="readar-recommendations-page rd-scan-bg">
         <div className="container">
           <h1 style={{
             fontSize: 'var(--rd-font-size-2xl)',
@@ -404,7 +404,7 @@ export default function RecommendationsPage() {
 
   if (!recommendations.length) {
     return (
-      <div className="readar-recommendations-page">
+      <div className="readar-recommendations-page rd-scan-bg">
         <div className="container">
           <h1 style={{
             fontSize: 'var(--rd-font-size-2xl)',
@@ -442,7 +442,7 @@ export default function RecommendationsPage() {
   const currentPitch = currentBook ? pitches[currentBook.book_id] : undefined;
 
   return (
-    <div className="readar-recommendations-page">
+    <div className="readar-recommendations-page rd-scan-bg">
       <div className="container">
         <div className="readar-recommendations-header">
           <h1 className="readar-recommendations-title">Your recommendations</h1>
