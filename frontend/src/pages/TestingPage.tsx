@@ -29,9 +29,9 @@ export default function TestingPage() {
         <div className="tb-grid">
           {[
             { code: '01', name: 'Current (3D Rams)', desc: 'Shipped baseline — Braun sculpted key.', cls: 'tb-rams' },
-            { code: '02', name: '3D Rams × Anduril', desc: 'Sculpted key, tactical: mono label, sharp corners, amber status dot.', cls: 'tb-rand' },
-            { code: '03', name: '3D Rams × Palantir', desc: 'Refined + shallow: subdued mint, hairline, restrained mono.', cls: 'tb-rpal' },
-            { code: '04', name: '3D Rams × Hybrid', desc: 'Full depth + mono technical label.', cls: 'tb-rhyb' },
+            { code: '02', name: 'Cohesive · deep', desc: 'Rams depth + system cues: accent left-edge (dark), mono label, matched radius.', cls: 'tb-cohd' },
+            { code: '03', name: 'Cohesive · shallow', desc: 'Same cues, shallower travel — sits closer to the inputs/cards.', cls: 'tb-cohs' },
+            { code: '04', name: 'Cohesive · flat', desc: 'Black field + accent edge + mono — matches the inputs & tags directly.', cls: 'tb-cohf' },
           ].map((c) => (
             <section className="tb-col" key={c.code}>
               <div className="tb-col-head">

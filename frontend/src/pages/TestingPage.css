@@ -53,66 +53,58 @@
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), inset 0 -1px 0 rgba(0,0,0,0.2), 0 1px 0 rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.35);
 }
 
-/* ── BUTTON 02 · 3D RAMS × ANDURIL (tactical sculpted key) ─────────── */
-.tb-rand {
-  position: relative; padding: 0.72rem 1.3rem 0.72rem 1.55rem; border: 0; border-radius: 5px;
-  font-family: var(--rd-font-tech); text-transform: uppercase; letter-spacing: 0.06em;
-  font-size: 0.82rem; font-weight: 600; transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.08s ease;
+/* Shared cohesive button traits (match cards/inputs/tags) */
+.tb-cohd, .tb-cohs, .tb-cohf {
+  padding: 0.74rem 1.35rem;
+  border: 0;
+  border-radius: var(--rd-radius-md);
+  font-family: var(--rd-font-tech);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.84rem;
+  font-weight: 600;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.08s ease;
 }
-.tb-rand--primary::before, .tb-rand--secondary::before {
-  content: ""; position: absolute; left: 0.72rem; top: 50%; transform: translateY(-50%);
-  width: 6px; height: 6px; border-radius: 999px; background: var(--rd-amber); box-shadow: 0 0 0 2px rgba(236,183,103,0.25);
-}
-.tb-rand--primary {
-  background: linear-gradient(180deg, #4fe3bd 0%, #1f9e7c 100%); color: #06251c;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.5), inset 0 -2px 0 rgba(0,0,0,0.25), 0 4px 0 #0c1b16, 0 9px 16px rgba(0,0,0,0.5);
-}
-.tb-rand--secondary {
-  background: linear-gradient(180deg, #2b3540 0%, #1a222b 100%); color: var(--rd-text);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), inset 0 -2px 0 rgba(0,0,0,0.4), 0 4px 0 #0a0f14, 0 9px 16px rgba(0,0,0,0.5);
-}
-.tb-rand--ghost {
-  padding-left: 1.3rem; background: linear-gradient(180deg, #222c36 0%, #161e26 100%); color: var(--rd-muted);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 3px 0 #0c1218, 0 7px 12px rgba(0,0,0,0.4);
-}
-.tb-rand:hover:not(:disabled) { filter: brightness(1.05); }
-.tb-rand:active:not(:disabled) { transform: translateY(3px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.35), 0 1px 0 #0c1b16, 0 2px 5px rgba(0,0,0,0.45); }
+.tb-cohd:hover:not(:disabled), .tb-cohs:hover:not(:disabled), .tb-cohf:hover:not(:disabled) { filter: brightness(1.05); }
 
-/* ── BUTTON 03 · 3D RAMS × PALANTIR (refined shallow key) ──────────── */
-.tb-rpal {
-  padding: 0.7rem 1.3rem; border: 1px solid var(--rd-border-strong); border-radius: 6px;
-  font-family: var(--rd-font-tech); text-transform: uppercase; letter-spacing: 0.04em;
-  font-size: 0.8rem; font-weight: 500; transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.08s ease;
-}
-.tb-rpal--primary {
-  background: linear-gradient(180deg, #33b896 0%, #1e8e70 100%); color: #eafff8; border-color: #0e5742;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), 0 2px 0 #0e5742, 0 4px 8px rgba(0,0,0,0.4);
-}
-.tb-rpal--secondary {
-  background: linear-gradient(180deg, #222b34 0%, #1a222b 100%); color: var(--rd-text);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 2px 0 #0c1218, 0 4px 8px rgba(0,0,0,0.4);
-}
-.tb-rpal--ghost { background: transparent; color: var(--rd-muted); box-shadow: none; }
-.tb-rpal:hover:not(:disabled) { filter: brightness(1.06); }
-.tb-rpal:active:not(:disabled) { transform: translateY(2px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.15), 0 1px 2px rgba(0,0,0,0.45); }
-
-/* ── BUTTON 04 · 3D RAMS × HYBRID (depth + mono label) ────────────── */
-.tb-rhyb {
-  padding: 0.74rem 1.4rem; border: 0; border-radius: 10px; font-family: var(--rd-font-tech);
-  text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.85rem; font-weight: 600;
-  transition: transform 0.1s ease, box-shadow 0.1s ease, filter 0.1s ease;
-}
-.tb-rhyb--primary {
+/* ── 02 · COHESIVE DEEP (Rams depth + accent edge on dark + mono) ──── */
+.tb-cohd--primary {
   background: linear-gradient(180deg, #6dffd9 0%, #2fd9a8 100%); color: #06251c;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), inset 0 -2px 0 rgba(0,0,0,0.16), 0 4px 0 #19a37e, 0 9px 16px rgba(0,0,0,0.45);
 }
-.tb-rhyb--secondary {
-  background: linear-gradient(180deg, #2b3947 0%, #1b2530 100%); color: var(--rd-text);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -2px 0 rgba(0,0,0,0.35), 0 4px 0 #0c1218, 0 9px 16px rgba(0,0,0,0.45);
+.tb-cohd--secondary, .tb-cohd--ghost {
+  background: #0b0f14; color: var(--rd-text); border-left: 3px solid var(--rd-accent);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 4px 0 #060a0e, 0 9px 16px rgba(0,0,0,0.45);
 }
-.tb-rhyb--ghost { background: linear-gradient(180deg, #222c36 0%, #161e26 100%); color: var(--rd-muted); box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 3px 0 #0c1218, 0 7px 12px rgba(0,0,0,0.4); }
-.tb-rhyb:hover:not(:disabled) { filter: brightness(1.04); }
-.tb-rhyb:active:not(:disabled) { transform: translateY(3px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 1px 0 rgba(0,0,0,0.35), 0 2px 5px rgba(0,0,0,0.35); }
+.tb-cohd--ghost { color: var(--rd-muted); }
+.tb-cohd:active:not(:disabled) { transform: translateY(3px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.35), 0 1px 0 rgba(0,0,0,0.4), 0 2px 5px rgba(0,0,0,0.4); }
+.tb-cohd--secondary:active:not(:disabled), .tb-cohd--ghost:active:not(:disabled) { border-left: 3px solid var(--rd-accent); }
+
+/* ── 03 · COHESIVE SHALLOW (closer to inputs) ─────────────────────── */
+.tb-cohs--primary {
+  background: linear-gradient(180deg, #5cf3cf 0%, #2bcfa0 100%); color: #06251c;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.5), 0 2px 0 #178f70, 0 4px 9px rgba(0,0,0,0.4);
+}
+.tb-cohs--secondary, .tb-cohs--ghost {
+  background: #0b0f14; color: var(--rd-text); border-left: 3px solid var(--rd-accent);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 2px 0 #060a0e, 0 4px 9px rgba(0,0,0,0.4);
+}
+.tb-cohs--ghost { color: var(--rd-muted); }
+.tb-cohs:active:not(:disabled) { transform: translateY(2px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.2), 0 1px 2px rgba(0,0,0,0.4); }
+.tb-cohs--secondary:active:not(:disabled), .tb-cohs--ghost:active:not(:disabled) { border-left: 3px solid var(--rd-accent); }
+
+/* ── 04 · COHESIVE FLAT (matches inputs/tags directly) ────────────── */
+.tb-cohf--primary {
+  background: var(--rd-accent); color: #06251c;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.4);
+}
+.tb-cohf--secondary {
+  background: #0b0f14; color: var(--rd-text); border: 1px solid var(--rd-border-strong); border-left: 3px solid var(--rd-accent);
+}
+.tb-cohf--ghost {
+  background: transparent; color: var(--rd-muted); border: 1px solid var(--rd-border-strong); border-left: 3px solid var(--rd-accent);
+}
+.tb-cohf:active:not(:disabled) { filter: brightness(0.93); }
 
 /* ── PANELS ───────────────────────────────────────────────────────── */
 .tb-panel-h { font-family: var(--rd-font-display); font-size: 1rem; color: var(--rd-text); margin: 0 0 0.25rem; }
