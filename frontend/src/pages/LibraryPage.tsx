@@ -51,6 +51,7 @@ function getCarrot(booksRead: number): Carrot {
 
 const ACTIONS: { status: BookPreferenceStatus; label: string; variant: 'secondary' | 'ghost' }[] = [
   { status: 'interested', label: 'Save as Interested', variant: 'secondary' },
+  { status: 'currently_reading', label: 'Reading now', variant: 'secondary' },
   { status: 'read_liked', label: 'Mark as Read (Liked)', variant: 'secondary' },
   { status: 'read_disliked', label: 'Mark as Read (Disliked)', variant: 'ghost' },
   { status: 'not_interested', label: 'Not for me', variant: 'ghost' },

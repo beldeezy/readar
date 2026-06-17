@@ -13,6 +13,7 @@ import UpgradePage from './pages/UpgradePage';
 import ProfilePage from './pages/ProfilePage';
 import LibraryPage from './pages/LibraryPage';
 import ShelvesPage from './pages/ShelvesPage';
+import ReadingPage from './pages/ReadingPage';
 import AdminLayout from './pages/admin/AdminLayout';
 import Books from './pages/admin/Books';
 import Users from './pages/admin/Users';
@@ -165,6 +166,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <ShelvesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/reading"
+        element={
+          <ProtectedRoute>
+            <ReadingPage />
           </ProtectedRoute>
         }
       />
