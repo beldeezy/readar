@@ -73,6 +73,27 @@ export default function FounderKnowledgeMap({ data }: Props) {
   return (
     <div className="fkm">
       <svg viewBox={viewBox} className="fkm-svg" role="img" aria-label="Founder Knowledge Map radar chart">
+        {/* Radar scope bezel + bearing ticks (instrument framing, flat) */}
+        <circle cx={CENTER} cy={CENTER} r={RADIUS + 14} fill="none" stroke="var(--rd-border)" strokeWidth={1.5} />
+        {Array.from({ length: 36 }).map((_, k) => {
+          const a = ((k * 10 - 90) * Math.PI) / 180;
+          const major = k % 9 === 0;
+          const rOut = RADIUS + 14;
+          const rIn = rOut - (major ? 8 : 4);
+          return (
+            <line
+              key={`tick-${k}`}
+              x1={CENTER + rOut * Math.cos(a)}
+              y1={CENTER + rOut * Math.sin(a)}
+              x2={CENTER + rIn * Math.cos(a)}
+              y2={CENTER + rIn * Math.sin(a)}
+              stroke={major ? 'var(--rd-accent)' : 'var(--rd-border-strong)'}
+              strokeWidth={major ? 2 : 1}
+              strokeLinecap="round"
+            />
+          );
+        })}
+
         {/* Reference rings */}
         {rings.map((pts, i) => (
           <polygon key={i} className="fkm-ring" points={pts} />

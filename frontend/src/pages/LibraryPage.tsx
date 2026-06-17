@@ -6,6 +6,7 @@ import type { Book, BookPreferenceStatus } from '../api/types';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import EmptyState from '../components/EmptyState';
+import Gauge from '../components/Gauge';
 import { RadarScopeArt } from '../components/illustrations';
 import './LibraryPage.css';
 
@@ -162,21 +163,15 @@ export default function LibraryPage() {
         <h1 className="readar-library-title">Library</h1>
         <p className="readar-library-subtitle">Readar's curated catalog of books for entrepreneurs.</p>
 
-        {/* Reading progress — dynamic milestone carrot */}
+        {/* Reading progress — Braun-dial gauge toward the next milestone */}
         <Card variant="flat" className="readar-goal-card">
-          <div className="readar-goal-head">
-            <span className="readar-goal-label">📚 Reading progress</span>
-            <span className="readar-goal-count">
-              {booksRead} {booksRead === 1 ? 'book' : 'books'} read
-            </span>
-          </div>
-          <div className="readar-goal-bar">
-            <div className="readar-goal-fill" style={{ width: `${carrot.pct}%` }} />
-          </div>
-          <p className="readar-goal-hint">
-            {carrot.fullUnlocked && '🎉 Full personalization unlocked — '}
-            {carrot.headline}.
-          </p>
+          <Gauge
+            value={booksRead}
+            max={booksRead + carrot.remaining}
+            displayValue={String(booksRead)}
+            label="Books read"
+            caption={`${carrot.fullUnlocked ? '🎉 Full personalization unlocked — ' : ''}${carrot.headline}.`}
+          />
         </Card>
 
         <div className="readar-library-search">

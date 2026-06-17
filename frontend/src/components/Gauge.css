@@ -1,0 +1,31 @@
+.rd-gauge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.rd-gauge-value {
+  font-family: var(--rd-font-display);
+  font-weight: 700;
+  font-size: 1.6rem;
+  fill: var(--rd-text);
+}
+
+.rd-gauge-label {
+  font-family: var(--rd-font-tech);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: var(--rd-font-size-xs);
+  font-weight: 600;
+  color: var(--rd-muted);
+  margin-top: -0.5rem;
+}
+
+.rd-gauge-caption {
+  font-size: var(--rd-font-size-sm);
+  color: var(--rd-muted);
+  line-height: 1.4;
+  margin-top: 0.35rem;
+  max-width: 26ch;
+}
