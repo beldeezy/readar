@@ -28,10 +28,10 @@ export default function TestingPage() {
         <h2 className="tb-section-title">Buttons</h2>
         <div className="tb-grid">
           {[
-            { code: '01', name: 'Current (3D Rams)', desc: 'Winner — Braun hardware key.', cls: 'tb-rams' },
-            { code: '02', name: 'Anduril (bracketed)', desc: 'Flat tactical: mono, sharp, accent edge.', cls: 'tb-and' },
-            { code: '03', name: 'Palantir (tool)', desc: 'Understated flat hairline control.', cls: 'tb-pal' },
-            { code: '04', name: 'Hybrid', desc: 'Rams depth + mono technical label.', cls: 'tb-hyb' },
+            { code: '01', name: 'Current (3D Rams)', desc: 'Shipped baseline — Braun sculpted key.', cls: 'tb-rams' },
+            { code: '02', name: '3D Rams × Anduril', desc: 'Sculpted key, tactical: mono label, sharp corners, amber status dot.', cls: 'tb-rand' },
+            { code: '03', name: '3D Rams × Palantir', desc: 'Refined + shallow: subdued mint, hairline, restrained mono.', cls: 'tb-rpal' },
+            { code: '04', name: '3D Rams × Hybrid', desc: 'Full depth + mono technical label.', cls: 'tb-rhyb' },
           ].map((c) => (
             <section className="tb-col" key={c.code}>
               <div className="tb-col-head">
