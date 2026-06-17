@@ -52,6 +52,19 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--rd-muted);
 }
 
+/* ============================================
+   FORM CONTROLS — unified focus treatment
+   ============================================ */
+/* Every text control gets the same brand-accent focus glow, app-wide,
+   so inputs/selects/textareas feel like one instrument set. */
+input:not([type="checkbox"]):not([type="radio"]):focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--rd-accent);
+  box-shadow: 0 0 0 3px var(--rd-accent-soft);
+}
+
 :root {
   /* ============================================
      DESIGN TOKENS - New 2D Flat Aesthetic
