@@ -409,7 +409,7 @@ export default function ProfilePage() {
         )}
 
         {/* ── Hero: Founder Knowledge Map ─────────────────────────────── */}
-        <Card variant="flat" className="readar-profile-section fkm-hero">
+        <Card variant="flat" className="readar-profile-section fkm-hero rd-signal-panel">
           <div className="fkm-hero-head">
             <h2 className="readar-profile-section-title" style={{ border: 'none', marginBottom: 0, paddingBottom: 0 }}>
               Founder Knowledge Map

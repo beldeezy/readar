@@ -342,12 +342,13 @@
   font-family: var(--rd-font);
   font-size: var(--rd-font-size-base);
   padding: 0.75rem 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: var(--rd-radius-lg);
-  background-color: var(--rd-surface);
+  border: 1px solid var(--rd-border-strong);
+  border-left: 3px solid var(--rd-accent);
+  border-radius: var(--rd-radius-md);
+  background-color: #0b0f14;
   color: var(--rd-text);
   width: 100%;
-  transition: border-color 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.15s ease;
 }
 
 .readar-textarea {

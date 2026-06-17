@@ -148,7 +148,7 @@ export default function RecommendationCard({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <Card variant="default" className="readar-book-card" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <Card variant="default" className="readar-book-card rd-signal-panel" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         <div>
           <div className="readar-book-header">
             {isTopMatch && (

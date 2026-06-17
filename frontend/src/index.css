@@ -82,6 +82,12 @@ h1, h2, h3, h4, h5, h6 {
   z-index: 1;
 }
 
+/* Signal panel: accent left-edge on key "signal" cards (compound selector
+   beats the Card variant border). */
+.readar-card.rd-signal-panel {
+  border-left: 3px solid var(--rd-accent);
+}
+
 /* Braun speaker-grille dot texture (subtle, decorative). */
 .rd-grille {
   background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1.5px);
