@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import type { BookPreferenceStatus } from '../api/types';
 import Card from '../components/Card';
+import Badge from '../components/Badge';
 import './ShelvesPage.css';
 
 const SHELF_SECTIONS: { status: BookPreferenceStatus | 'not_for_me'; label: string; description: string }[] = [
@@ -91,7 +92,7 @@ export default function ShelvesPage() {
                       <h2 className="readar-shelf-heading">{section.label}</h2>
                       <p className="readar-shelves-muted">{section.description}</p>
                     </div>
-                    <span className="readar-shelf-count">{items.length}</span>
+                    <Badge variant="signal" size="sm">{items.length}</Badge>
                   </div>
 
                   {items.length === 0 ? (

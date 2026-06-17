@@ -225,6 +225,13 @@
   color: var(--rd-muted);
 }
 
+.readar-lib-tech-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.85rem;
+  margin-top: 0.4rem;
+}
+
 .readar-lib-desc {
   font-size: var(--rd-font-size-xs);
   color: var(--rd-muted);

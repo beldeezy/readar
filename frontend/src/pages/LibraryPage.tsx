@@ -221,6 +221,16 @@ export default function LibraryPage() {
                       {book.title}
                     </strong>
                     <span className="readar-lib-book-author">{book.author_name}</span>
+                    {(book.functional_tags?.length || book.business_stage_tags?.length) ? (
+                      <div className="readar-lib-tech-row">
+                        {book.functional_tags?.[0] && (
+                          <span className="rd-tech">SECTOR: {book.functional_tags[0].replace(/_/g, ' ')}</span>
+                        )}
+                        {book.business_stage_tags?.[0] && (
+                          <span className="rd-tech">STAGE: {book.business_stage_tags[0].replace(/-/g, ' ')}</span>
+                        )}
+                      </div>
+                    ) : null}
                     <p className="readar-lib-desc">
                       {book.promise || book.best_for
                         ? truncate(book.promise || book.best_for)
