@@ -5,6 +5,8 @@ import { apiClient } from '../api/client';
 import type { Book, BookPreferenceStatus } from '../api/types';
 import Card from '../components/Card';
 import Button from '../components/Button';
+import EmptyState from '../components/EmptyState';
+import { RadarScopeArt } from '../components/illustrations';
 import './LibraryPage.css';
 
 // Reading-confidence tiers (mirror backend reading_profile_service). Hitting
@@ -191,7 +193,12 @@ export default function LibraryPage() {
         {loading ? (
           <p className="readar-library-muted">Scanning the catalog…</p>
         ) : results.length === 0 ? (
-          <p className="readar-library-muted">No books found. Try a different search.</p>
+          <EmptyState
+            compact
+            art={<RadarScopeArt />}
+            title="No signal"
+            message="No books matched that scan. Try a different title or author."
+          />
         ) : (
           <div className="readar-library-grid">
             {results.map((book) => {

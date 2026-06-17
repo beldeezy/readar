@@ -4,6 +4,8 @@ import { apiClient } from '../api/client';
 import type { BookPreferenceStatus } from '../api/types';
 import Card from '../components/Card';
 import Badge from '../components/Badge';
+import EmptyState from '../components/EmptyState';
+import { EmptyShelfArt } from '../components/illustrations';
 import './ShelvesPage.css';
 
 const SHELF_SECTIONS: { status: BookPreferenceStatus | 'not_for_me'; label: string; description: string }[] = [
@@ -79,6 +81,17 @@ export default function ShelvesPage() {
 
         {loading ? (
           <p className="readar-shelves-muted">Loading your shelves…</p>
+        ) : totalBooks === 0 ? (
+          <EmptyState
+            art={<EmptyShelfArt />}
+            title="Your shelves are empty"
+            message="Save books from the Library or Recommendations and they'll collect here."
+            action={
+              <button className="readar-shelves-link" onClick={() => navigate('/library')}>
+                Browse the Library →
+              </button>
+            }
+          />
         ) : (
           <div className="readar-shelves-sections">
             {SHELF_SECTIONS.map((section) => {

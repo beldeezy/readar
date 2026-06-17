@@ -5,6 +5,8 @@ import type { RecommendationItem, BookPreferenceStatus } from '../api/types';
 import RecommendationCard from '../components/RecommendationCard';
 import Card from '../components/Card';
 import Button from '../components/Button';
+import EmptyState from '../components/EmptyState';
+import { BookSignalArt } from '../components/illustrations';
 import RadarIcon from '../components/RadarIcon';
 import { useAuth } from '../auth/AuthProvider';
 import './RecommendationsPage.css';
@@ -406,32 +408,21 @@ export default function RecommendationsPage() {
     return (
       <div className="readar-recommendations-page rd-scan-bg">
         <div className="container">
-          <h1 style={{
-            fontSize: 'var(--rd-font-size-2xl)',
-            fontWeight: 600,
-            color: 'var(--rd-text)',
-            marginBottom: '0.5rem'
-          }}>
-            No recommendations yet
-          </h1>
-          <p style={{
-            fontSize: 'var(--rd-font-size-sm)',
-            color: 'var(--rd-muted)',
-            marginBottom: '1.5rem',
-            maxWidth: '48ch'
-          }}>
-            We don't have personalized picks for you yet. Mark a few books you've
-            read in the Library, or sharpen your focus in your profile, and we'll
-            surface the right books.
-          </p>
-          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-            <Button variant="primary" onClick={() => navigate('/library')} delayMs={0}>
-              Browse the Library
-            </Button>
-            <Button variant="secondary" onClick={() => navigate('/profile')} delayMs={0}>
-              Update your profile
-            </Button>
-          </div>
+          <EmptyState
+            art={<BookSignalArt />}
+            title="No recommendations yet"
+            message="We don't have personalized picks for you yet. Mark a few books you've read in the Library, or sharpen your focus in your profile, and we'll surface the right books."
+            action={
+              <>
+                <Button variant="primary" onClick={() => navigate('/library')} delayMs={0}>
+                  Browse the Library
+                </Button>
+                <Button variant="secondary" onClick={() => navigate('/profile')} delayMs={0}>
+                  Update your profile
+                </Button>
+              </>
+            }
+          />
         </div>
       </div>
     );
