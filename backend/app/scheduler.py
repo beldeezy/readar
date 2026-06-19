@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.utils.email import send_weekly_pending_books_email
 from app.services.reengagement import send_recommendation_emails
+from app.services.learning_tips import send_learning_tip_emails
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,22 @@ def send_recommendation_emails_job():
         db.close()
 
 
+def send_learning_tip_emails_job():
+    """
+    Scheduled job: send the learning-tips email to eligible, opted-in users.
+    Runs weekly, but the service's 13-day per-user cap makes it ~biweekly.
+    """
+    logger.info("Running learning-tips email job")
+    db: Session = SessionLocal()
+    try:
+        result = send_learning_tip_emails(db)
+        logger.info(f"Learning-tips email job completed: {result}")
+    except Exception as e:
+        logger.exception(f"Learning-tips email job failed: {e}")
+    finally:
+        db.close()
+
+
 def start_scheduler():
     """
     Start the background scheduler with all configured jobs.
@@ -82,8 +99,18 @@ def start_scheduler():
         replace_existing=True
     )
 
+    # Learning tips: every Thursday at 16:00 UTC (separated from the Tue recs email).
+    # The 13-day per-user cap in the service makes delivery effectively biweekly.
+    scheduler.add_job(
+        send_learning_tip_emails_job,
+        trigger=CronTrigger(day_of_week='thu', hour=16, minute=0),
+        id='learning_tips_email',
+        name='Send learning-tips email',
+        replace_existing=True
+    )
+
     scheduler.start()
-    logger.info("Background scheduler started with weekly report + re-engagement jobs")
+    logger.info("Background scheduler started with weekly report + re-engagement + learning-tips jobs")
 
 
 def stop_scheduler():

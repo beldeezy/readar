@@ -24,6 +24,7 @@ from app.models import (
     SubscriptionStatus,
 )
 from app.services.reengagement import send_recommendation_emails
+from app.services.learning_tips import send_learning_tip_emails
 
 router = APIRouter(tags=["admin_analytics"], dependencies=[Depends(require_admin_user)])
 
@@ -48,6 +49,24 @@ def trigger_recommendation_emails(
         only_user_id = user.id
         force = True  # a targeted test send should bypass the cap
     return send_recommendation_emails(db, force=force, max_users=max_users, only_user_id=only_user_id)
+
+
+@router.post("/admin/send-learning-tip-emails")
+def trigger_learning_tip_emails(
+    force: bool = Query(False, description="Ignore the per-user frequency cap."),
+    max_users: Optional[int] = Query(None, description="Cap users processed this run."),
+    only_email: Optional[str] = Query(None, description="Send to just this user's email (testing)."),
+    db: Session = Depends(get_db),
+):
+    """Manually trigger the learning-tips email (admin/testing)."""
+    only_user_id = None
+    if only_email:
+        user = db.query(User).filter(func.lower(User.email) == only_email.lower()).first()
+        if not user:
+            return {"status": "error", "message": f"No user with email {only_email}"}
+        only_user_id = user.id
+        force = True  # a targeted test send should bypass the cap
+    return send_learning_tip_emails(db, force=force, max_users=max_users, only_user_id=only_user_id)
 
 
 @router.get("/admin/analytics")

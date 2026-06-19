@@ -102,6 +102,78 @@ def send_recommendations_email(recipient: str, name: Optional[str], books: list)
     return _send_email(recipient, "Your next reads are ready", html)
 
 
+def build_learning_tip_email_html(
+    name: Optional[str],
+    book_title: str,
+    author: Optional[str],
+    tip: dict,
+    app_url: Optional[str] = None,
+) -> str:
+    """
+    Render the learning-tips email. `tip` is {focus, insight, action} produced by
+    the learning_tips service (Claude), tying the user's current book to their
+    biggest challenge.
+    """
+    app_url = app_url or _app_url()
+    greeting = f"Hi {name}," if name else "Hi,"
+    by_line = f" by {author}" if author else ""
+
+    focus = (tip.get("focus") or "").strip()
+    insight = (tip.get("insight") or "").strip()
+    action = (tip.get("action") or "").strip()
+
+    focus_block = (
+        f'<div style="text-transform:uppercase;letter-spacing:.06em;font-size:12px;'
+        f'color:#0E7490;font-weight:700;margin:0 0 6px;">{focus}</div>'
+        if focus else ""
+    )
+    insight_block = (
+        f'<p style="color:#475467;font-size:15px;line-height:1.6;margin:0 0 16px;">{insight}</p>'
+        if insight else ""
+    )
+    action_block = (
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0">'
+        f'<tr><td style="background:#F6F4EF;border-radius:10px;padding:14px 16px;">'
+        f'<div style="font-size:12px;font-weight:700;color:#111315;text-transform:uppercase;'
+        f'letter-spacing:.06em;margin:0 0 4px;">Try this</div>'
+        f'<div style="color:#475467;font-size:14px;line-height:1.5;">{action}</div>'
+        f'</td></tr></table>'
+        if action else ""
+    )
+
+    return f"""\
+<html><body style="margin:0;background:#F6F4EF;padding:24px;font-family:Inter,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:#fff;border-radius:14px;border:1px solid #E5E7EB;">
+    <tr><td style="padding:28px 28px 8px;">
+      <div style="font-size:20px;font-weight:700;color:#111315;">A tip for your current read</div>
+      <p style="color:#475467;font-size:15px;line-height:1.6;margin:10px 0 0;">{greeting} you're reading <strong>{book_title}</strong>{by_line}. Here's a way to apply it to what you're working on right now:</p>
+    </td></tr>
+    <tr><td style="padding:16px 28px 4px;">
+      {focus_block}{insight_block}{action_block}
+    </td></tr>
+    <tr><td style="padding:20px 28px 28px;">
+      <a href="{app_url}/reading" style="display:inline-block;background:#111315;color:#fff;text-decoration:none;font-weight:600;font-size:15px;padding:12px 22px;border-radius:10px;">Open your reading hub →</a>
+      <p style="color:#98A2B3;font-size:12px;line-height:1.5;margin:22px 0 0;">You're receiving this because learning tips are on. Manage this in your <a href="{app_url}/profile" style="color:#0E7490;">profile</a>.</p>
+    </td></tr>
+  </table>
+</body></html>"""
+
+
+def send_learning_tip_email(
+    recipient: str,
+    name: Optional[str],
+    book_title: str,
+    author: Optional[str],
+    tip: dict,
+) -> dict:
+    """Send the learning-tips email to one recipient."""
+    if not tip or not (tip.get("insight") or tip.get("action")):
+        return {"status": "skipped", "message": "no tip content", "recipient": recipient}
+    html = build_learning_tip_email_html(name, book_title, author, tip)
+    subject = f"A tip for {book_title}"
+    return _send_email(recipient, subject, html)
+
+
 def generate_weekly_pending_books_report(db: Session) -> str:
     """
     Generate HTML email report of new books added to pending_books in the past week.
