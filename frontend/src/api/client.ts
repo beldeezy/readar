@@ -15,7 +15,18 @@ import type {
   NotificationPreferences,
   AdminAnalytics,
 } from './types';
-import { getAccessToken, clearAccessToken } from '../auth/auth';
+import { getAccessToken, setAccessToken, clearAccessToken } from '../auth/auth';
+import { supabase } from '../auth/supabaseClient';
+
+// Allow per-request opt-outs (background/optional calls) and internal retry flag.
+declare module 'axios' {
+  export interface AxiosRequestConfig {
+    /** When true, a failed 401 will NOT redirect to /login (background/optional call). */
+    skipAuthRedirect?: boolean;
+    /** Internal: marks a request that has already been retried after a token refresh. */
+    _retry?: boolean;
+  }
+}
 
 // Require VITE_API_BASE_URL and make it deterministic
 const envApiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
@@ -69,6 +80,33 @@ function formatApiDetail(detail: any): string {
 // Prevent redirect storms on repeated 401s
 let redirectingToLogin = false;
 
+// Single-flight Supabase token refresh shared across concurrent 401s, so a burst
+// of in-flight requests triggers at most one refresh attempt.
+let refreshPromise: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      try {
+        const { data, error } = await supabase.auth.refreshSession();
+        const token = data?.session?.access_token ?? null;
+        if (error || !token) {
+          return null;
+        }
+        // Keep the localStorage mirror in sync with the freshly-rotated token.
+        setAccessToken(token);
+        return token;
+      } catch {
+        return null;
+      } finally {
+        // Let the next 401 (after this settles) start a fresh attempt.
+        refreshPromise = null;
+      }
+    })();
+  }
+  return refreshPromise;
+}
+
 class ApiClient {
   private client: AxiosInstance;
 
@@ -98,7 +136,7 @@ class ApiClient {
     // Add response interceptor to handle errors
     this.client.interceptors.response.use(
       (response) => response,
-      (error) => {
+      async (error) => {
         // Axios timeout (backend reachable but not responding fast enough OR connection never completes)
         if (error.code === 'ECONNABORTED' || String(error.message || '').includes('timeout')) {
           const debug = getApiBaseUrlDebug();
@@ -125,16 +163,36 @@ class ApiClient {
           );
         }
 
-        // If backend answered with 401, clear token + redirect once
+        // If backend answered with 401, attempt a Supabase token refresh + retry
+        // before nuking the session. The localStorage token mirror can lag behind
+        // Supabase's background auto-refresh, producing a stale (expired) token on
+        // an otherwise-valid session — refreshing recovers it without a logout.
         if (error.response?.status === 401) {
+          const originalConfig = error.config || {};
+
+          // One refresh + retry per request to avoid loops.
+          if (!originalConfig._retry) {
+            originalConfig._retry = true;
+            const newToken = await refreshAccessToken();
+            if (newToken) {
+              originalConfig.headers = originalConfig.headers || {};
+              originalConfig.headers.Authorization = `Bearer ${newToken}`;
+              return this.client(originalConfig);
+            }
+          }
+
+          // Refresh failed (or we already retried) — the session is truly dead.
           clearAccessToken();
 
-          const path = window.location.pathname;
-          const isAuthPage = path === '/login' || path === '/auth' || path === '/auth/callback';
+          // Background/optional calls opt out of the hard redirect.
+          if (!originalConfig.skipAuthRedirect) {
+            const path = window.location.pathname;
+            const isAuthPage = path === '/login' || path === '/auth' || path === '/auth/callback';
 
-          if (!isAuthPage && !redirectingToLogin) {
-            redirectingToLogin = true;
-            window.location.href = '/login';
+            if (!isAuthPage && !redirectingToLogin) {
+              redirectingToLogin = true;
+              window.location.href = '/login';
+            }
           }
         }
 

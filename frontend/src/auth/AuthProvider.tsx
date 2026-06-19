@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, ReactNod
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
 import { apiClient, getApiBaseUrlDebug } from '../api/client';
-import { getAccessToken } from './auth';
+import { getAccessToken, setAccessToken, clearAccessToken } from './auth';
 import type { User, OnboardingPayload } from '../api/types';
 
 const PENDING_ONBOARDING_KEY = 'readar_pending_onboarding';
@@ -63,6 +63,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Get initial session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
+      // Keep the localStorage token mirror in sync with Supabase on first load.
+      if (session?.access_token) {
+        setAccessToken(session.access_token);
+      }
       if (session?.user) {
         const baseUser: User = {
           id: session.user.id,
@@ -83,6 +87,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
+      // Mirror the current token (incl. background TOKEN_REFRESHED rotations) so
+      // the API client never sends a stale/expired token on a live session.
+      if (session?.access_token) {
+        setAccessToken(session.access_token);
+      } else {
+        clearAccessToken();
+      }
       if (session?.user) {
         const baseUser: User = {
           id: session.user.id,
