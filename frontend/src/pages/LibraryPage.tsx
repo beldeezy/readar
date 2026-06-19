@@ -211,7 +211,7 @@ export default function LibraryPage() {
                       tabIndex={0}
                       onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/book/${book.id}`); }}
                     >
-                      <img src={cover} alt={book.title} className="readar-lib-cover" loading="lazy" />
+                      <img src={cover} alt={book.title} className="readar-lib-cover" loading="lazy" referrerPolicy="no-referrer" />
                     </div>
                   )}
                   <div className="readar-lib-info">

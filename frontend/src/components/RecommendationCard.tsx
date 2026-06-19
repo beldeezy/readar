@@ -164,6 +164,7 @@ export default function RecommendationCard({
                 alt={book.title}
                 className="readar-book-cover"
                 loading="lazy"
+                referrerPolicy="no-referrer"
                 onClick={handleClick}
               />
             </div>

@@ -148,14 +148,22 @@ def get_analytics(
     event_totals = {name: c for name, c in event_rows}
 
     # ── Onboarding funnel (sessions, stitched by anon session_id) ─────────
+    # NOTE: pre-auth steps count distinct sessions; "Completed" counts users,
+    # and completions can predate the onboarding_started instrumentation —
+    # so ratios are clamped to <=100% to avoid a misleading >100% bar.
     started = ev_sessions("onboarding_started")
+
+    def _pct(n: int):
+        r = _rate(n, started)
+        return None if r is None else min(1.0, r)
+
     onboarding_funnel = [
         {"stage": "Started chat", "count": started, "pct_of_top": 1.0 if started else None},
-        {"stage": "Finished chat", "count": ev_sessions("onboarding_chat_completed"), "pct_of_top": _rate(ev_sessions("onboarding_chat_completed"), started)},
-        {"stage": "Clicked finish", "count": ev_sessions("onboarding_finish_clicked"), "pct_of_top": _rate(ev_sessions("onboarding_finish_clicked"), started)},
-        {"stage": "Prompted to sign in", "count": ev_sessions("onboarding_signin_prompted"), "pct_of_top": _rate(ev_sessions("onboarding_signin_prompted"), started)},
-        {"stage": "Completed (saved)", "count": ev_users("onboarding_completed"), "pct_of_top": _rate(ev_users("onboarding_completed"), started)},
-        {"stage": "Imported history", "count": ev_sessions("onboarding_import_completed"), "pct_of_top": _rate(ev_sessions("onboarding_import_completed"), started)},
+        {"stage": "Finished chat", "count": ev_sessions("onboarding_chat_completed"), "pct_of_top": _pct(ev_sessions("onboarding_chat_completed"))},
+        {"stage": "Clicked finish", "count": ev_sessions("onboarding_finish_clicked"), "pct_of_top": _pct(ev_sessions("onboarding_finish_clicked"))},
+        {"stage": "Prompted to sign in", "count": ev_sessions("onboarding_signin_prompted"), "pct_of_top": _pct(ev_sessions("onboarding_signin_prompted"))},
+        {"stage": "Completed (saved)", "count": ev_users("onboarding_completed"), "pct_of_top": _pct(ev_users("onboarding_completed"))},
+        {"stage": "Imported history", "count": ev_sessions("onboarding_import_completed"), "pct_of_top": _pct(ev_sessions("onboarding_import_completed"))},
     ]
 
     return {
