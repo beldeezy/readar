@@ -42,6 +42,7 @@ DEFAULT_FILES = [
     BASE_DIR / "data" / "readar_canon_services_v1.json",
     BASE_DIR / "data" / "readar_canon_saas_v1.json",
     BASE_DIR / "data" / "readar_canon_expansion_v1.json",
+    BASE_DIR / "data" / "readar_canon_expansion_v2.json",
     BASE_DIR / "data" / "books_seed.json",
 ]
 
