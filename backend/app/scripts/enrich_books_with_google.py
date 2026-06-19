@@ -27,6 +27,12 @@ GOOGLE_BOOKS_API_KEY = os.getenv("GOOGLE_BOOKS_API_KEY")
 
 GOOGLE_BOOKS_BASE_URL = "https://www.googleapis.com/books/v1/volumes"
 
+# Open Library — free, key-less fallback for titles Google Books can't match.
+OPENLIBRARY_SEARCH_URL = "https://openlibrary.org/search.json"
+OPENLIBRARY_COVER_URL = "https://covers.openlibrary.org/b/id/{cover_id}-{size}.jpg"
+# Open Library asks API consumers to identify themselves with a descriptive UA.
+OPENLIBRARY_USER_AGENT = "ReadarBookEnricher/1.0 (+https://readar.ai)"
+
 # Descriptions we consider "not real" and safe to overwrite.
 PLACEHOLDER_DESCRIPTIONS = (
     "No description available.",
@@ -224,11 +230,204 @@ def apply_google_metadata(book: "models.Book", only_missing: bool = True) -> boo
     return changed
 
 
+# ---------------------------------------------------------------------------
+# Open Library fallback
+# ---------------------------------------------------------------------------
+
+def _book_needs_enrichment(book: "models.Book") -> bool:
+    """True when a book still lacks a cover or a real (non-placeholder) description."""
+    return not book.cover_image_url or _is_placeholder_description(book)
+
+
+def _ol_pick_best_match(title: str, author: str, docs: list[dict]) -> Optional[dict]:
+    """Mirror of _pick_best_match for Open Library search docs."""
+    title_lower = title.lower()
+    author_lower = author.lower()
+    best_doc = None
+    best_score = 0
+
+    for doc in docs:
+        d_title = (doc.get("title") or "").lower()
+        d_authors = [a.lower() for a in (doc.get("author_name") or [])]
+
+        title_score = 0
+        if d_title == title_lower:
+            title_score = 3
+        elif title_lower in d_title or d_title in title_lower:
+            title_score = 2
+
+        author_score = 0
+        if any(author_lower == a for a in d_authors):
+            author_score = 3
+        elif any(author_lower in a or a in author_lower for a in d_authors):
+            author_score = 2
+
+        score = title_score + author_score
+        if score > best_score:
+            best_score = score
+            best_doc = doc
+
+    if best_score == 0:
+        return None
+    return best_doc
+
+
+def _ol_normalize_description(raw: Any) -> Optional[str]:
+    """Open Library descriptions come as a plain string or {"type", "value"}."""
+    if isinstance(raw, dict):
+        raw = raw.get("value")
+    if isinstance(raw, str):
+        text = raw.strip()
+        return text or None
+    return None
+
+
+def _fetch_openlibrary_work_description(work_key: Optional[str]) -> Optional[str]:
+    """Fetch a work's description from Open Library (work_key like '/works/OL...W')."""
+    if not work_key:
+        return None
+    try:
+        resp = requests.get(
+            f"https://openlibrary.org{work_key}.json",
+            headers={"User-Agent": OPENLIBRARY_USER_AGENT},
+            timeout=10,
+        )
+        resp.raise_for_status()
+    except Exception as e:
+        logger.warning("Open Library work request failed for '%s': %s", work_key, e)
+        return None
+    return _ol_normalize_description(resp.json().get("description"))
+
+
+def _fetch_openlibrary_metadata(title: str, author: str) -> Optional[dict]:
+    """
+    Search Open Library for a book and return a normalized dict of the fields we
+    care about (cover_url, thumbnail_url, description, published_year, isbns,
+    language), or None if nothing reasonable is found.
+    """
+    params = {
+        "title": title,
+        "author": author,
+        "limit": 5,
+        "fields": "key,title,author_name,cover_i,first_publish_year,isbn,language",
+    }
+    try:
+        resp = requests.get(
+            OPENLIBRARY_SEARCH_URL,
+            params=params,
+            headers={"User-Agent": OPENLIBRARY_USER_AGENT},
+            timeout=10,
+        )
+        resp.raise_for_status()
+    except Exception as e:
+        logger.warning("Open Library search failed for '%s' by '%s': %s", title, author, e)
+        return None
+
+    docs = resp.json().get("docs") or []
+    if not docs:
+        logger.info("No Open Library results for '%s' by '%s'", title, author)
+        return None
+
+    best = _ol_pick_best_match(title, author, docs)
+    if not best:
+        logger.info("No suitable Open Library match for '%s' by '%s'", title, author)
+        return None
+
+    cover_url = thumb_url = None
+    cover_id = best.get("cover_i")
+    if cover_id:
+        cover_url = OPENLIBRARY_COVER_URL.format(cover_id=cover_id, size="L")
+        thumb_url = OPENLIBRARY_COVER_URL.format(cover_id=cover_id, size="M")
+
+    isbn_10 = isbn_13 = None
+    for raw_isbn in best.get("isbn") or []:
+        digits = str(raw_isbn).replace("-", "").strip()
+        if len(digits) == 13 and not isbn_13:
+            isbn_13 = digits
+        elif len(digits) == 10 and not isbn_10:
+            isbn_10 = digits
+
+    languages = best.get("language") or []
+
+    return {
+        "description": _fetch_openlibrary_work_description(best.get("key")),
+        "cover_url": cover_url,
+        "thumb_url": thumb_url,
+        "published_year": best.get("first_publish_year"),
+        "isbn_10": isbn_10,
+        "isbn_13": isbn_13,
+        "language": languages[0] if languages else None,
+    }
+
+
+def apply_openlibrary_metadata(book: "models.Book", only_missing: bool = True) -> bool:
+    """
+    Fetch Open Library metadata for a single book and apply it in place. Returns
+    True if any field changed. The caller commits. Needs no API key, so it works
+    as a fallback for titles Google Books can't match (and even with no Google key).
+    """
+    data = _fetch_openlibrary_metadata(book.title, book.author_name)
+    if not data:
+        return False
+
+    changed = False
+
+    description = data.get("description")
+    if description and (not only_missing or _is_placeholder_description(book)):
+        book.description = description
+        changed = True
+    if (not only_missing or not book.cover_image_url) and data.get("cover_url"):
+        book.cover_image_url = data["cover_url"]
+        changed = True
+    if (not only_missing or not book.thumbnail_url) and data.get("thumb_url"):
+        book.thumbnail_url = data["thumb_url"]
+        changed = True
+    published_year = data.get("published_year")
+    if (not only_missing or book.published_year is None) and published_year:
+        try:
+            year = int(published_year)
+            if year > 0:
+                book.published_year = year
+                changed = True
+        except (ValueError, TypeError):
+            pass
+    if (not only_missing or not book.isbn_10) and data.get("isbn_10"):
+        book.isbn_10 = data["isbn_10"]
+        changed = True
+    if (not only_missing or not book.isbn_13) and data.get("isbn_13"):
+        book.isbn_13 = data["isbn_13"]
+        changed = True
+    if (not only_missing or not book.language) and data.get("language"):
+        book.language = data["language"]
+        changed = True
+
+    return changed
+
+
+def apply_book_metadata(
+    book: "models.Book",
+    only_missing: bool = True,
+    use_openlibrary_fallback: bool = True,
+) -> bool:
+    """
+    Enrich a book from Google Books, then fall back to Open Library for anything
+    still missing (cover / real description). Returns True if any field changed.
+    """
+    changed = apply_google_metadata(book, only_missing=only_missing)
+
+    if use_openlibrary_fallback and _book_needs_enrichment(book):
+        if apply_openlibrary_metadata(book, only_missing=only_missing):
+            changed = True
+
+    return changed
+
+
 def enrich_books(
     limit: Optional[int] = None,
     only_missing: bool = True,
     descriptions_only: bool = False,
     sleep: float = 0.0,
+    use_openlibrary_fallback: bool = True,
 ) -> None:
     """
     Enrich books in the database with metadata from Google Books.
@@ -237,9 +436,15 @@ def enrich_books(
     :param only_missing: If True, only update fields that are currently null / placeholder.
     :param descriptions_only: If True, only process books with placeholder descriptions.
     :param sleep: Seconds to pause between Google Books requests (rate-limit friendly).
+    :param use_openlibrary_fallback: If True, fall back to Open Library (no key needed)
+        for books Google can't fully resolve.
     """
     if not GOOGLE_BOOKS_API_KEY:
-        raise RuntimeError("Missing GOOGLE_BOOKS_API_KEY. Add it to backend/.env")
+        if not use_openlibrary_fallback:
+            raise RuntimeError("Missing GOOGLE_BOOKS_API_KEY. Add it to backend/.env")
+        logger.warning(
+            "GOOGLE_BOOKS_API_KEY not set — running with Open Library fallback only."
+        )
 
     db: Session = SessionLocal()
     try:
@@ -270,7 +475,11 @@ def enrich_books(
         for book in books:
             logger.info("Enriching '%s' by %s", book.title, book.author_name)
 
-            if apply_google_metadata(book, only_missing=only_missing):
+            if apply_book_metadata(
+                book,
+                only_missing=only_missing,
+                use_openlibrary_fallback=use_openlibrary_fallback,
+            ):
                 updated_count += 1
                 logger.info(
                     "  Updated: cover=%s desc=%s external_id=%s",
@@ -315,6 +524,11 @@ if __name__ == "__main__":
         default=0.2,
         help="Seconds to pause between Google Books requests (default 0.2).",
     )
+    parser.add_argument(
+        "--no-openlibrary",
+        action="store_true",
+        help="Disable the Open Library fallback (Google Books only).",
+    )
     args = parser.parse_args()
 
     only_missing = not args.all
@@ -323,4 +537,5 @@ if __name__ == "__main__":
         only_missing=only_missing,
         descriptions_only=args.descriptions_only,
         sleep=args.sleep,
+        use_openlibrary_fallback=not args.no_openlibrary,
     )

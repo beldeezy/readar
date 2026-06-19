@@ -309,9 +309,9 @@ def _enrich_books_and_profile(user_id: UUID, new_book_ids: List[UUID]) -> None:
     """
     # Lazy import to avoid a hard dependency on GOOGLE_BOOKS_API_KEY at import.
     try:
-        from app.scripts.enrich_books_with_google import apply_google_metadata
+        from app.scripts.enrich_books_with_google import apply_book_metadata
     except Exception:
-        apply_google_metadata = None
+        apply_book_metadata = None
 
     db: Session = SessionLocal()
     try:
@@ -327,13 +327,13 @@ def _enrich_books_and_profile(user_id: UUID, new_book_ids: List[UUID]) -> None:
             if data:
                 _apply_tags_to_book(book, data)
 
-            # Fetch a real description + cover from Google Books (best-effort)
-            # so imported books don't keep the placeholder/no-cover state.
-            if apply_google_metadata is not None:
+            # Fetch a real description + cover from Google Books, falling back to
+            # Open Library, so imported books don't keep the placeholder/no-cover state.
+            if apply_book_metadata is not None:
                 try:
-                    apply_google_metadata(book, only_missing=True)
+                    apply_book_metadata(book, only_missing=True)
                 except Exception as e:
-                    logger.warning("Google enrichment failed for '%s': %s", book.title, e)
+                    logger.warning("Metadata enrichment failed for '%s': %s", book.title, e)
 
             try:
                 db.commit()
