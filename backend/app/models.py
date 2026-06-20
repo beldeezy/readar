@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Text, Boolean, DateTime, ForeignKey, Enum as SQLEnum, JSON, ARRAY, Float, UniqueConstraint, event
+from sqlalchemy import Column, String, Integer, Text, Boolean, DateTime, Date, ForeignKey, Enum as SQLEnum, JSON, ARRAY, Float, UniqueConstraint, event
 from sqlalchemy.dialects.postgresql import UUID, JSONB, ENUM as PostgresEnum
 from sqlalchemy.orm import relationship
 import uuid
@@ -75,6 +75,9 @@ class User(Base):
     last_recommendations_email_at = Column(DateTime(timezone=True), nullable=True)
     # Frequency cap for the learning-tips email
     last_learning_tip_email_at = Column(DateTime(timezone=True), nullable=True)
+    # Server-side daily recommendation-refresh ("spin") metering for free users.
+    daily_refresh_count = Column(Integer, nullable=False, server_default="0", default=0)
+    daily_refresh_date = Column(Date, nullable=True)
 
     # Relationships
     onboarding_profile = relationship("OnboardingProfile", back_populates="user", uselist=False)

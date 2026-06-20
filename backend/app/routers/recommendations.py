@@ -3,7 +3,7 @@ from typing import List, Optional, Dict, Any
 import uuid as uuid_lib
 import os
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 import logging
 
@@ -12,6 +12,7 @@ from app import models
 from app.services import recommendation_engine
 from app.services.recommendation_engine import NotEnoughSignalError
 from app.services.recommendation_events import log_recommendation_event
+from app.services.refresh_paywall import consume_refresh, refresh_status, RefreshLimitReached
 from app.schemas.recommendation import RecommendationItem, RecommendationRequest, RecommendationsResponse
 from app.schemas.onboarding import OnboardingPayload
 from app.core.auth import get_current_user
@@ -28,18 +29,35 @@ router = APIRouter(tags=["recommendations"])
 async def get_recommendations(
     limit: int = Query(5, ge=1, le=5),
     debug: bool = Query(False, description="Include debug fields in response"),
+    spin: bool = Query(False, description="Explicit 'get new recommendations' refresh; metered for free users."),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     # Timing: start of request
     t0 = now_ms()
-    
+
     # Hard clamp to avoid any weirdness if this endpoint is reused elsewhere
     if limit > 5:
         limit = 5
-    
+
     user_id = user.id
     request_id = str(uuid_lib.uuid4())
+
+    # Server-side paywall: only an explicit "spin" is metered (initial load and
+    # deck-advance are not). Free users get a daily allowance; premium is unlimited.
+    if spin:
+        try:
+            consume_refresh(db, user)
+        except RefreshLimitReached as exc:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "code": "daily_refresh_limit_reached",
+                    "limit": exc.limit,
+                    "used": exc.used,
+                },
+            )
+    allowance = refresh_status(user)
     DEBUG = os.getenv("DEBUG", "false").lower() == "true"
     RECS_DEBUG = os.getenv("READAR_RECS_DEBUG", "false").lower() == "true"
     
@@ -287,6 +305,9 @@ async def get_recommendations(
         request_id=request_id,
         items=items,
         debug=final_debug,
+        is_premium=allowance["is_premium"],
+        refresh_limit=allowance["limit"],
+        refreshes_remaining=allowance["remaining"],
     )
 
 

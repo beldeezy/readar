@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { apiClient, fetchRecommendations, logEvent } from '../api/client';
-import type { RecommendationItem, BookPreferenceStatus } from '../api/types';
+import { apiClient, fetchRecommendations, logEvent, RefreshLimitError } from '../api/client';
+import type { RecommendationItem, BookPreferenceStatus, RecommendationsResponse } from '../api/types';
 import RecommendationCard from '../components/RecommendationCard';
 import Card from '../components/Card';
 import Button from '../components/Button';
@@ -25,26 +25,10 @@ interface PresentationPitch {
 const PREVIEW_RECS_KEY = 'readar_preview_recs';
 const PITCHES_CACHE_KEY = 'readar_pitches_cache';
 
-// Free users get a soft daily refresh allowance; hitting it prompts an upgrade.
-// (Client-side metering — fine for validating willingness-to-pay; would move
-// server-side before treating it as a hard paywall.)
+// Free users get a daily refresh allowance, enforced server-side (the response
+// carries the authoritative remaining count). This default is only used for
+// display before the first response arrives.
 const FREE_DAILY_REFRESHES = 3;
-
-function refreshCountKey(): string {
-  return `readar_refreshes_${new Date().toISOString().slice(0, 10)}`;
-}
-function getRefreshesUsed(): number {
-  try {
-    return parseInt(localStorage.getItem(refreshCountKey()) || '0', 10) || 0;
-  } catch {
-    return 0;
-  }
-}
-function bumpRefreshesUsed(): number {
-  const n = getRefreshesUsed() + 1;
-  try { localStorage.setItem(refreshCountKey(), String(n)); } catch { /* ignore */ }
-  return n;
-}
 
 export default function RecommendationsPage() {
   const [recommendations, setRecommendations] = useState<RecommendationItem[]>([]);
@@ -54,8 +38,16 @@ export default function RecommendationsPage() {
   const [pitches, setPitches] = useState<Record<string, BookPitch>>({});
   const [pitchesLoading, setPitchesLoading] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
-  const [refreshesUsed, setRefreshesUsed] = useState(getRefreshesUsed());
+  // Authoritative refresh allowance from the server (null = not yet known).
+  const [refreshesRemaining, setRefreshesRemaining] = useState<number | null>(null);
+  const [isPremiumServer, setIsPremiumServer] = useState<boolean | null>(null);
   const [showUpgrade, setShowUpgrade] = useState(false);
+
+  // Apply the server-reported refresh allowance from any recommendations response.
+  const applyAllowance = (r: RecommendationsResponse) => {
+    if (r.is_premium != null) setIsPremiumServer(r.is_premium);
+    if (typeof r.refreshes_remaining === 'number') setRefreshesRemaining(r.refreshes_remaining);
+  };
   const navigate = useNavigate();
   const location = useLocation();
   const { user: authUser } = useAuth();
@@ -144,6 +136,7 @@ export default function RecommendationsPage() {
         if (!cancelled) {
           setRecommendations(response.items);
           setRequestId(response.request_id);
+          applyAllowance(response);
           // Clear preview recs if we successfully fetched from backend
           localStorage.removeItem(PREVIEW_RECS_KEY);
         }
@@ -268,40 +261,46 @@ export default function RecommendationsPage() {
     return () => { cancelled = true; };
   }, [recommendations]);
 
-  const refreshRecommendations = async () => {
+  const refreshRecommendations = async (opts?: { spin?: boolean }) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetchRecommendations({ limit: 5 });
+      const response = await fetchRecommendations({ limit: 5, spin: opts?.spin });
       setRecommendations(response.items);
       setRequestId(response.request_id);
       setCarouselIndex(0);
       setPitches({});
+      applyAllowance(response);
     } catch (err: any) {
-      setError(err?.message || 'Failed to fetch recommendations');
+      // Free user hit the server-side daily limit → show the upgrade prompt.
+      if (err instanceof RefreshLimitError || err?.code === 'daily_refresh_limit_reached') {
+        setRefreshesRemaining(0);
+        setShowUpgrade(true);
+        logEvent('refresh_limit_hit', { limit: FREE_DAILY_REFRESHES });
+      } else {
+        setError(err?.message || 'Failed to fetch recommendations');
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const isPremium = authUser?.subscription_status === 'active';
-  const freeRefreshesLeft = Math.max(0, FREE_DAILY_REFRESHES - refreshesUsed);
+  // Server is authoritative; fall back to the auth user / default before the
+  // first response arrives.
+  const isPremium = isPremiumServer ?? (authUser?.subscription_status === 'active');
+  const freeRefreshesLeft = refreshesRemaining ?? FREE_DAILY_REFRESHES;
 
-  // Explicit "Get new recommendations" spin — metered for free users.
+  // Explicit "Get new recommendations" spin — metered server-side for free users.
   const handleRefreshClick = () => {
-    if (isPremium) {
-      refreshRecommendations();
-      return;
-    }
-    if (refreshesUsed >= FREE_DAILY_REFRESHES) {
+    // Short-circuit when we already know the allowance is spent (saves a round
+    // trip); the server still enforces via 429 if our local view is stale.
+    if (!isPremium && refreshesRemaining !== null && refreshesRemaining <= 0) {
       setShowUpgrade(true);
-      logEvent('refresh_limit_hit', { used: refreshesUsed, limit: FREE_DAILY_REFRESHES });
+      logEvent('refresh_limit_hit', { limit: FREE_DAILY_REFRESHES });
       return;
     }
-    const n = bumpRefreshesUsed();
-    setRefreshesUsed(n);
-    logEvent('refresh_used', { used: n, limit: FREE_DAILY_REFRESHES });
-    refreshRecommendations();
+    logEvent('refresh_used', { remaining_before: refreshesRemaining, limit: FREE_DAILY_REFRESHES });
+    refreshRecommendations({ spin: true });
   };
 
   const handleUpgradeClick = () => {
@@ -396,7 +395,7 @@ export default function RecommendationsPage() {
           }}>
             We couldn't load your recommendations right now. Please try again in a moment.
           </p>
-          <Button variant="primary" onClick={refreshRecommendations} delayMs={0}>
+          <Button variant="primary" onClick={() => refreshRecommendations()} delayMs={0}>
             Try again
           </Button>
         </div>

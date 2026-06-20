@@ -179,6 +179,10 @@ export interface RecommendationItem {
 export interface RecommendationsResponse {
   request_id: string;
   items: RecommendationItem[];
+  // Server-side refresh allowance (authoritative). null/undefined for premium.
+  is_premium?: boolean | null;
+  refresh_limit?: number | null;
+  refreshes_remaining?: number | null;
 }
 
 export interface UserBookInteraction {

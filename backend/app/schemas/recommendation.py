@@ -60,4 +60,8 @@ class RecommendationsResponse(BaseModel):
     request_id: str
     items: List[RecommendationItem]
     debug: Optional[Dict[str, Any]] = None  # Only included when DEBUG=true
+    # Server-side refresh allowance (authoritative; drives the UI's spin counter).
+    is_premium: Optional[bool] = None
+    refresh_limit: Optional[int] = None        # None for premium (unlimited)
+    refreshes_remaining: Optional[int] = None  # None for premium (unlimited)
 

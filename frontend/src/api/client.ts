@@ -803,12 +803,24 @@ class ApiClient {
 
 export const apiClient = new ApiClient();
 
+/** Error thrown when a free user hits the server-side daily refresh limit. */
+export class RefreshLimitError extends Error {
+  code = 'daily_refresh_limit_reached' as const;
+  status = 429 as const;
+  constructor(message = 'Daily refresh limit reached') {
+    super(message);
+    this.name = 'RefreshLimitError';
+  }
+}
+
 export async function fetchRecommendations(params: {
   limit?: number;
+  /** Explicit "get new recommendations" spin — metered server-side for free users. */
+  spin?: boolean;
 }): Promise<RecommendationsResponse> {
-  const { limit = 5 } = params;
+  const { limit = 5, spin = false } = params;
   const safeLimit = Math.min(Math.max(limit, 1), 5);
-  const url = `${API_BASE_URL}/recommendations?limit=${safeLimit}`;
+  const url = `${API_BASE_URL}/recommendations?limit=${safeLimit}${spin ? '&spin=true' : ''}`;
 
   console.log(`[fetchRecommendations] Requesting ${safeLimit} recommendations from ${url}`);
 
@@ -830,6 +842,11 @@ export async function fetchRecommendations(params: {
     console.log(`[fetchRecommendations] Response status: ${res.status}`);
 
     if (!res.ok) {
+      // Free user hit the daily refresh allowance — surface a typed error so the
+      // caller can show the upgrade prompt instead of a generic failure.
+      if (res.status === 429) {
+        throw new RefreshLimitError();
+      }
       let message = `Failed to fetch recommendations (status ${res.status}).`;
       try {
         const data = await res.json();
