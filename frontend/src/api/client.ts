@@ -280,7 +280,11 @@ class ApiClient {
     }
 
     const attempt = async () => {
-      const response = await this.client.post<OnboardingProfile>("/onboarding", payload);
+      // Send the persistent anon session_id so the backend can stamp the
+      // onboarding_completed event with it (session-consistent funnel).
+      const response = await this.client.post<OnboardingProfile>("/onboarding", payload, {
+        headers: { 'X-Anon-Session-Id': getAnonSessionId() },
+      });
 
       if (DEBUG) {
         console.log('[DEBUG saveOnboarding response]', {

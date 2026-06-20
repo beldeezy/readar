@@ -167,10 +167,14 @@ def get_analytics(
     event_totals = {name: c for name, c in event_rows}
 
     # ── Onboarding funnel (sessions, stitched by anon session_id) ─────────
-    # NOTE: pre-auth steps count distinct sessions; "Completed" counts users,
-    # and completions can predate the onboarding_started instrumentation —
-    # so ratios are clamped to <=100% to avoid a misleading >100% bar.
+    # Every stage is counted by distinct anon session_id — including "Completed",
+    # which now carries the session_id from POST /onboarding (X-Anon-Session-Id).
+    # This makes the signin_prompted -> completed conversion apples-to-apples.
+    # Completions can predate the instrumentation, so ratios are clamped to <=100%.
+    # (completed_users is kept alongside as the authoritative user-based count.)
     started = ev_sessions("onboarding_started")
+    completed_sessions = ev_sessions("onboarding_completed")
+    completed_users = ev_users("onboarding_completed")
 
     def _pct(n: int):
         r = _rate(n, started)
@@ -181,7 +185,7 @@ def get_analytics(
         {"stage": "Finished chat", "count": ev_sessions("onboarding_chat_completed"), "pct_of_top": _pct(ev_sessions("onboarding_chat_completed"))},
         {"stage": "Clicked finish", "count": ev_sessions("onboarding_finish_clicked"), "pct_of_top": _pct(ev_sessions("onboarding_finish_clicked"))},
         {"stage": "Prompted to sign in", "count": ev_sessions("onboarding_signin_prompted"), "pct_of_top": _pct(ev_sessions("onboarding_signin_prompted"))},
-        {"stage": "Completed (saved)", "count": ev_users("onboarding_completed"), "pct_of_top": _pct(ev_users("onboarding_completed"))},
+        {"stage": "Completed (saved)", "count": completed_sessions, "pct_of_top": _pct(completed_sessions), "users": completed_users},
         {"stage": "Imported history", "count": ev_sessions("onboarding_import_completed"), "pct_of_top": _pct(ev_sessions("onboarding_import_completed"))},
     ]
 

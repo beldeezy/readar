@@ -10,11 +10,11 @@ from sqlalchemy.orm import Session
 from uuid import uuid4
 from pydantic import ValidationError
 
-from app.models import BusinessStage, User, OnboardingProfile
+from app.models import BusinessStage, User, OnboardingProfile, EventLog
 from app.schemas.onboarding import OnboardingPayload
 from app.core.user_helpers import get_or_create_user_by_auth_id
 from app.main import app
-from app.core.auth import get_current_user
+from app.core.auth import get_current_user, require_admin_user
 from app.database import get_db
 
 
@@ -86,6 +86,35 @@ def test_post_onboarding_normalizes_enum_name(db: Session, test_user: User):
         ).first()
         assert profile is not None
         assert profile.business_stage == BusinessStage.PRE_REVENUE
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_onboarding_funnel_counts_completed_by_session(db: Session, test_user: User):
+    """The auth-wall funnel must measure signin_prompted -> completed by the same
+    unit (anon session), so 'Completed (saved)' is counted by session_id while the
+    authoritative user count is retained alongside.
+    """
+    sid = f"sess-{uuid4()}"
+    db.add_all([
+        EventLog(event_name="onboarding_started", session_id=sid),
+        EventLog(event_name="onboarding_signin_prompted", session_id=sid),
+        EventLog(event_name="onboarding_completed", session_id=sid, user_id=test_user.id),
+    ])
+    db.flush()
+
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[require_admin_user] = lambda: test_user
+    try:
+        client = TestClient(app)
+        resp = client.get("/api/admin/analytics?days=30")
+        assert resp.status_code == 200, resp.text
+        funnel = {s["stage"]: s for s in resp.json()["onboarding_funnel"]}
+
+        assert funnel["Prompted to sign in"]["count"] == 1
+        completed = funnel["Completed (saved)"]
+        assert completed["count"] == 1   # counted by session (apples-to-apples)
+        assert completed["users"] == 1   # authoritative user count retained
     finally:
         app.dependency_overrides.clear()
 

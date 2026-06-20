@@ -160,9 +160,14 @@ async def create_or_update_onboarding(
         # Log onboarding completion event ONLY on first creation (not updates)
         # This prevents duplicate event logs when the same onboarding is saved multiple times
         if is_new_profile:
+            # Carry the persistent anon session_id (sent by the frontend, stable
+            # across the OAuth redirect) so the onboarding funnel can measure the
+            # signin_prompted -> completed conversion apples-to-apples by session.
+            anon_session_id = request.headers.get("X-Anon-Session-Id") or None
             log_event_best_effort(
                 event_name="onboarding_completed",
                 user_id=user_id,
+                session_id=anon_session_id,
                 properties={
                     "business_model": existing_profile.business_model,
                     "business_stage": existing_profile.business_stage.value if hasattr(existing_profile.business_stage, 'value') else str(existing_profile.business_stage),
