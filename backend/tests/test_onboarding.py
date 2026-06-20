@@ -95,6 +95,11 @@ def test_onboarding_funnel_counts_completed_by_session(db: Session, test_user: U
     unit (anon session), so 'Completed (saved)' is counted by session_id while the
     authoritative user count is retained alongside.
     """
+    # Start from a clean slate within this rolled-back transaction. log_event_best_effort
+    # commits on a separate connection, so other tests can leak event_logs rows into the
+    # DB when DATABASE_URL == TEST_DATABASE_URL (as in CI); deleting here keeps the
+    # analytics aggregation (which shares this session) deterministic.
+    db.query(EventLog).delete()
     sid = f"sess-{uuid4()}"
     db.add_all([
         EventLog(event_name="onboarding_started", session_id=sid),
