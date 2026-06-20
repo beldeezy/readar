@@ -4,6 +4,7 @@ import { Search } from 'lucide-react';
 import { apiClient } from '../api/client';
 import type { Book } from '../api/types';
 import EmptyState from '../components/EmptyState';
+import ScrollTopButton from '../components/ScrollTopButton';
 import { BookSignalArt } from '../components/illustrations';
 import './ReadingPage.css';
 
@@ -138,6 +139,7 @@ export default function ReadingPage() {
           </ul>
         )}
       </div>
+      <ScrollTopButton />
     </div>
   );
 }

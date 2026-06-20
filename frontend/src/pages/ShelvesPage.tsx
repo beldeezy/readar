@@ -5,11 +5,13 @@ import type { BookPreferenceStatus } from '../api/types';
 import Card from '../components/Card';
 import Badge from '../components/Badge';
 import EmptyState from '../components/EmptyState';
+import ScrollTopButton from '../components/ScrollTopButton';
 import { EmptyShelfArt } from '../components/illustrations';
 import './ShelvesPage.css';
 
+// "Currently reading" lives in the Reading hub (/reading); Shelves covers the
+// saved + read shelves only.
 const SHELF_SECTIONS: { status: BookPreferenceStatus | 'not_for_me'; label: string; description: string }[] = [
-  { status: 'currently_reading', label: 'Currently reading', description: 'Books you\'re actively reading.' },
   { status: 'interested', label: 'Want to read', description: 'Books saved for later.' },
   { status: 'read_liked', label: 'Read · liked', description: 'Books you\'ve read and enjoyed.' },
   { status: 'read_disliked', label: 'Read · disliked', description: 'Books you\'ve read but didn\'t enjoy.' },
@@ -34,7 +36,7 @@ export default function ShelvesPage() {
   const loadShelves = async () => {
     try {
       const statuses: (BookPreferenceStatus | 'not_for_me')[] = [
-        'currently_reading', 'interested', 'read_liked', 'read_disliked',
+        'interested', 'read_liked', 'read_disliked',
       ];
       const lists = await Promise.all(statuses.map((s) => apiClient.getBookStatusList(s)));
       const map: Record<string, BookPreferenceStatus> = {};
@@ -148,6 +150,7 @@ export default function ShelvesPage() {
           </div>
         )}
       </div>
+      <ScrollTopButton />
     </div>
   );
 }

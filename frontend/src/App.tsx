@@ -133,7 +133,7 @@ function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route path="/env" element={<EnvCheckPage />} />
-      <Route path="/testing" element={<TestingPage />} />
+      <Route path="/testing" element={<AdminRoute><TestingPage /></AdminRoute>} />
       <Route
         path="/onboarding"
         element={<ChatOnboardingPage />}
