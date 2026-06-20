@@ -28,7 +28,9 @@ def sample_book(db: Session) -> Book:
         description="A test book",
         promise="Helps you overcome sales challenges by providing proven strategies",
         core_frameworks=["Service Business Model", "Client Acquisition Framework"],
-        outcomes=["Increased client acquisition", "Better sales conversion"],
+        # score_outcome_match checks whole-outcome substring containment in the
+        # profile vision, so these must appear verbatim in vision_6_12_months below.
+        outcomes=["client acquisition", "sales conversion"],
     )
     db.add(book)
     db.commit()

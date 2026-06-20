@@ -32,11 +32,25 @@ jobs:
         continue-on-error: true
 
   backend:
-    name: Backend (compile + import smoke)
+    name: Backend (compile + import smoke + tests)
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: test_readar
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -53,3 +67,9 @@ jobs:
         env:
           # Non-placeholder dummy (config rejects the default); engine is lazy so no connection is made.
           DATABASE_URL: postgresql://ci:ci@localhost:5432/readar_ci
+      # Run the pytest suite against the Postgres service. conftest builds the
+      # schema via create_all and isolates each test in a rolled-back transaction.
+      - run: python -m pytest -q
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/test_readar
+          TEST_DATABASE_URL: postgresql://ci:ci@localhost:5432/test_readar

@@ -3,7 +3,7 @@ import sys
 import os
 from pathlib import Path
 import pytest
-from sqlalchemy import create_engine, text as sa_text
+from sqlalchemy import create_engine, event, text as sa_text
 from sqlalchemy.orm import sessionmaker, Session
 import sqlalchemy as sa
 
@@ -157,10 +157,10 @@ def db(engine) -> Session:
     This ensures tests don't affect each other.
     """
     connection = engine.connect()
-    
+
     # Start a transaction
     transaction = connection.begin()
-    
+
     # Create session bound to this connection
     # Use autocommit=False, autoflush=False to match production
     SessionLocal = sessionmaker(
@@ -169,10 +169,23 @@ def db(engine) -> Session:
         autoflush=False,
     )
     session = SessionLocal()
-    
+
+    # Keep tests isolated even when the code under test calls db.commit():
+    # run everything inside a SAVEPOINT and re-open it after each commit, then
+    # roll back the outer transaction at teardown. (Canonical SQLAlchemy recipe
+    # for "join a session into an external transaction".)
+    nested = connection.begin_nested()
+
+    @event.listens_for(session, "after_transaction_end")
+    def _restart_savepoint(sess, trans):
+        nonlocal nested
+        if not nested.is_active:
+            nested = connection.begin_nested()
+
     yield session
-    
-    # Cleanup: rollback transaction and close
+
+    # Cleanup: detach listener, rollback the outer transaction, close.
+    event.remove(session, "after_transaction_end", _restart_savepoint)
     session.close()
     transaction.rollback()
     connection.close()

@@ -27,11 +27,14 @@ DB (`dropdb test_readar && createdb test_readar`) so the schema is current.
 - `test_recommendations_integration.py`, `test_recommendation_stability.py`,
   `test_user_helpers*.py`, `test_health.py` — older suites.
 
-## Known pre-existing failures (not from the test layer above)
+## CI
 
-A handful of older tests fail due to behaviour drift (recommendation scoring,
-email-relink semantics) and a TestClient design issue (those tests don't override
-`get_db`, so the endpoint uses a different connection than the test transaction).
-These predate this test layer and should be triaged separately before wiring the
-full suite into CI. `test_onboarding.py` is skipped (it imports a function that
-moved into the Pydantic schema validator and needs a rewrite).
+The full suite runs in GitHub Actions (`.github/workflows/ci.yml`, backend job)
+against a Postgres service container. The whole suite is green — keep it that way.
+
+Notes for endpoint tests: override **both** `get_current_user` and `get_db`
+(`app.dependency_overrides[get_db] = lambda: db`) so the endpoint shares the
+test's transaction. The `db` fixture uses a SAVEPOINT-restart pattern, so code
+under test may call `db.commit()` and the changes are still rolled back after the
+test. Onboarding's `business_stage` normalization now lives in the
+`OnboardingPayload` Pydantic validator (test by constructing the model).

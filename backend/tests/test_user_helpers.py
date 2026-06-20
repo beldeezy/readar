@@ -124,108 +124,78 @@ def test_email_relink_when_flag_enabled(db: Session, monkeypatch):
     assert user2.auth_user_id == auth_user_id_2
 
 
-def test_email_relink_raises_409_when_flag_disabled(db: Session, monkeypatch):
-    """Test that email relink raises 409 when ALLOW_EMAIL_RELINK is disabled."""
-    # Disable email relink (default)
-    monkeypatch.setenv("ALLOW_EMAIL_RELINK", "false")
-    
-    email = "norelink@example.com"
+def test_same_email_different_auth_id_relinks(db: Session):
+    """Same email + a new auth_user_id safely relinks the existing user.
+
+    The linking logic was reworked from a hard 409 to 'safe automatic relinking':
+    when only the auth_user_id changes (Supabase 'sub' rotation) but the email
+    matches, the existing row is updated to the new auth_user_id.
+    """
+    email = "relink@example.com"
     auth_user_id_1 = str(uuid4())
     auth_user_id_2 = str(uuid4())
-    
-    # Create user with first auth_user_id
-    user1 = get_or_create_user_by_auth_id(
-        db=db,
-        auth_user_id=auth_user_id_1,
-        email=email,
-    )
-    
+
+    user1 = get_or_create_user_by_auth_id(db=db, auth_user_id=auth_user_id_1, email=email)
     assert user1.auth_user_id == auth_user_id_1
-    
-    # Try to get/create with different auth_user_id but same email
-    # Should raise 409
+
+    relinked = get_or_create_user_by_auth_id(db=db, auth_user_id=auth_user_id_2, email=email)
+
+    # Same underlying row, now pointing at the new auth_user_id (no 409, no new row).
+    assert relinked.id == user1.id
+    assert relinked.auth_user_id == auth_user_id_2
+    assert relinked.email == email.lower()
+
+
+def test_change_email_for_same_auth_id_raises_409(db: Session):
+    """Changing the email on an existing auth_user_id is unsafe -> 409.
+
+    Email is treated as stable per user; only the auth_user_id is allowed to drift.
+    The frontend handles this 'email_mismatch_cannot_link' code explicitly.
+    """
+    auth_user_id = str(uuid4())
+
+    user1 = get_or_create_user_by_auth_id(db=db, auth_user_id=auth_user_id, email="old@example.com")
+    assert user1.email == "old@example.com"
+
     with pytest.raises(HTTPException) as exc_info:
-        get_or_create_user_by_auth_id(
-            db=db,
-            auth_user_id=auth_user_id_2,
-            email=email,
-        )
-    
+        get_or_create_user_by_auth_id(db=db, auth_user_id=auth_user_id, email="new@example.com")
+
     assert exc_info.value.status_code == 409
-    assert exc_info.value.detail == "email_already_linked_to_different_account"
-    
-    # Verify original user is unchanged
+    assert exc_info.value.detail == "email_mismatch_cannot_link"
+
+    # Original row unchanged.
     db.refresh(user1)
-    assert user1.auth_user_id == auth_user_id_1
-
-
-def test_email_relink_default_behavior_is_disabled(db: Session):
-    """Test that email relink is disabled by default (no env var set)."""
-    email = "default@example.com"
-    auth_user_id_1 = str(uuid4())
-    auth_user_id_2 = str(uuid4())
-    
-    # Create user with first auth_user_id
-    user1 = get_or_create_user_by_auth_id(
-        db=db,
-        auth_user_id=auth_user_id_1,
-        email=email,
-    )
-    
-    assert user1.auth_user_id == auth_user_id_1
-    
-    # Try to get/create with different auth_user_id but same email
-    # Should raise 409 (default behavior, no env var)
-    with pytest.raises(HTTPException) as exc_info:
-        get_or_create_user_by_auth_id(
-            db=db,
-            auth_user_id=auth_user_id_2,
-            email=email,
-        )
-    
-    assert exc_info.value.status_code == 409
-    assert exc_info.value.detail == "email_already_linked_to_different_account"
+    assert user1.email == "old@example.com"
 
 
 def test_email_conflict_orphans_other_row(db: Session):
-    """Test that when updating email on existing user, conflicting email is orphaned."""
+    """When a user with no email claims an email already held by another active
+    user, the other row's email is orphaned (set NULL) so the unique constraint holds.
+    """
     auth_user_id_1 = str(uuid4())
     auth_user_id_2 = str(uuid4())
-    email_1 = "user1@example.com"
-    email_2 = "user2@example.com"
-    
-    # Create user1 with email_1
-    user1 = get_or_create_user_by_auth_id(
-        db=db,
-        auth_user_id=auth_user_id_1,
-        email=email_1,
-    )
-    
-    # Create user2 with email_2
-    user2 = get_or_create_user_by_auth_id(
-        db=db,
-        auth_user_id=auth_user_id_2,
-        email=email_2,
-    )
-    
-    assert user1.email == email_1.lower()
-    assert user2.email == email_2.lower()
-    
-    # Update user1's email to email_2 (which is already taken by user2)
-    # This should orphan user2's email (set to NULL) and assign email_2 to user1
-    updated_user1 = get_or_create_user_by_auth_id(
-        db=db,
-        auth_user_id=auth_user_id_1,
-        email=email_2,
-    )
-    
+    contested_email = "contested@example.com"
+
+    # user1: has an auth_user_id but no email yet.
+    user1 = User(auth_user_id=auth_user_id_1, email=None, subscription_status=SubscriptionStatus.FREE)
+    db.add(user1)
+    db.commit()
+    db.refresh(user1)
+
+    # user2: an active user that currently owns the contested email.
+    user2 = get_or_create_user_by_auth_id(db=db, auth_user_id=auth_user_id_2, email=contested_email)
+    assert user2.email == contested_email.lower()
+
+    # user1 (looked up by auth_user_id) now claims the contested email.
+    updated_user1 = get_or_create_user_by_auth_id(db=db, auth_user_id=auth_user_id_1, email=contested_email)
+
     assert updated_user1.id == user1.id
-    assert updated_user1.email == email_2.lower()
-    
-    # Verify user2's email was orphaned (set to NULL)
+    assert updated_user1.email == contested_email.lower()
+
+    # user2's email was orphaned; its auth_user_id is untouched.
     db.refresh(user2)
     assert user2.email is None
-    assert user2.auth_user_id == auth_user_id_2  # auth_user_id should remain unchanged
+    assert user2.auth_user_id == auth_user_id_2
 
 
 def test_legacy_user_linking(db: Session):
@@ -256,30 +226,18 @@ def test_legacy_user_linking(db: Session):
     assert linked_user.email == email.lower()
 
 
-def test_email_update_on_existing_user(db: Session):
-    """Test that email updates when user exists by auth_user_id."""
+def test_same_email_recall_is_idempotent(db: Session):
+    """Re-calling with the same auth_user_id and email returns the same row, no error."""
     auth_user_id = str(uuid4())
-    email_1 = "old@example.com"
-    email_2 = "new@example.com"
-    
-    # Create user with email_1
-    user1 = get_or_create_user_by_auth_id(
-        db=db,
-        auth_user_id=auth_user_id,
-        email=email_1,
-    )
-    
-    assert user1.email == email_1.lower()
-    
-    # Update email to email_2
-    user2 = get_or_create_user_by_auth_id(
-        db=db,
-        auth_user_id=auth_user_id,
-        email=email_2,
-    )
-    
+    email = "stable@example.com"
+
+    user1 = get_or_create_user_by_auth_id(db=db, auth_user_id=auth_user_id, email=email)
+    assert user1.email == email.lower()
+
+    user2 = get_or_create_user_by_auth_id(db=db, auth_user_id=auth_user_id, email=email)
+
     assert user2.id == user1.id
-    assert user2.email == email_2.lower()
+    assert user2.email == email.lower()
     assert user2.auth_user_id == auth_user_id
 
 

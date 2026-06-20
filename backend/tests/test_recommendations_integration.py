@@ -14,6 +14,7 @@ from app.models import (
 from app.core.user_helpers import get_or_create_user_by_auth_id
 from app.main import app
 from app.core.auth import get_current_user
+from app.database import get_db
 
 
 @pytest.fixture
@@ -107,12 +108,14 @@ def test_recommendations_with_user_onboarding_and_ratings(
     test_ratings: list[UserBookInteraction],
 ):
     """Test that recommendations endpoint returns >=1 item when user has onboarding + 4 ratings."""
-    # Override get_current_user dependency
+    # Override auth + DB so the endpoint sees the data created in this test's
+    # transaction (otherwise it opens a separate connection and finds nothing).
     app.dependency_overrides[get_current_user] = lambda: test_user
-    
+    app.dependency_overrides[get_db] = lambda: db
+
     try:
         client = TestClient(app)
-        
+
         # Call recommendations endpoint
         response = client.get("/api/recommendations?limit=5")
         
@@ -151,9 +154,10 @@ def test_recommendations_empty_with_debug_info(
     """Test that recommendations endpoint returns debug info when empty (with READAR_RECS_DEBUG)."""
     import os
     
-    # Override get_current_user dependency
+    # Override auth + DB so the endpoint shares this test's transaction/session.
     app.dependency_overrides[get_current_user] = lambda: test_user
-    
+    app.dependency_overrides[get_db] = lambda: db
+
     # Set READAR_RECS_DEBUG env var
     original_value = os.environ.get("READAR_RECS_DEBUG")
     os.environ["READAR_RECS_DEBUG"] = "true"
