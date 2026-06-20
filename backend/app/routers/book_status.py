@@ -27,11 +27,9 @@ def _lookup_book(db: Session, book_id: str) -> Optional[Book]:
     try:
         return db.query(Book).filter(Book.id == UUID(book_id)).first()
     except (ValueError, TypeError):
-        return (
-            db.query(Book)
-            .filter((Book.external_id == book_id) | (Book.id == book_id))
-            .first()
-        )
+        # Not a UUID, so it can only be an external id. Comparing the UUID
+        # Book.id column against a non-UUID string errors on Postgres.
+        return db.query(Book).filter(Book.external_id == book_id).first()
 
 
 def _record_read_in_history(db: Session, user_id, book: Book, status_value: str) -> None:
@@ -340,11 +338,9 @@ async def get_book_status_list(
                 book_uuid = UUID(status_obj.book_id)
                 book = db.query(Book).filter(Book.id == book_uuid).first()
             except (ValueError, TypeError):
-                # If not a UUID, try external_id or other fields
-                book = db.query(Book).filter(
-                    (Book.external_id == status_obj.book_id) | 
-                    (Book.id == status_obj.book_id)
-                ).first()
+                # Not a UUID -> can only be an external id. (Comparing the UUID
+                # Book.id column to a non-UUID string errors on Postgres.)
+                book = db.query(Book).filter(Book.external_id == status_obj.book_id).first()
         except Exception as e:
             logger.debug("Could not find book for book_id=%s: %s", status_obj.book_id, str(e))
         
