@@ -1,32 +1,35 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth/AuthProvider';
-import LandingPage from './pages/LandingPage';
-import LoginPage from './pages/LoginPage';
-import AuthCallbackPage from './pages/AuthCallbackPage';
-import ChatOnboardingPage from './pages/ChatOnboardingPage';
-import RecommendationsPage from './pages/RecommendationsPage';
-import RecommendationsLoadingPage from './pages/RecommendationsLoadingPage';
-import ImportReadingHistoryPage from './pages/ImportReadingHistoryPage';
-import BookDetailPage from './pages/BookDetailPage';
-import UpgradePage from './pages/UpgradePage';
-import ProfilePage from './pages/ProfilePage';
-import LibraryPage from './pages/LibraryPage';
-import ShelvesPage from './pages/ShelvesPage';
-import ReadingPage from './pages/ReadingPage';
-import AdminLayout from './pages/admin/AdminLayout';
-import Books from './pages/admin/Books';
-import Users from './pages/admin/Users';
-import Engine from './pages/admin/Engine';
-import InsightReview from './pages/admin/InsightReview';
-import RecommendationsDebug from './pages/admin/RecommendationsDebug';
-import Analytics from './pages/admin/Analytics';
-import TestingPage from './pages/TestingPage';
-import EnvCheckPage from './pages/EnvCheckPage';
 import Header from './components/Header';
 import BottomNav from './components/BottomNav';
 import ScrollToTop from './components/ScrollToTop';
 import BackendHealthGate from './components/BackendHealthGate';
+
+// Route components are code-split so each page (and the admin bundle, which used
+// to load for every visitor) ships as its own chunk loaded on demand.
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const AuthCallbackPage = lazy(() => import('./pages/AuthCallbackPage'));
+const ChatOnboardingPage = lazy(() => import('./pages/ChatOnboardingPage'));
+const RecommendationsPage = lazy(() => import('./pages/RecommendationsPage'));
+const RecommendationsLoadingPage = lazy(() => import('./pages/RecommendationsLoadingPage'));
+const ImportReadingHistoryPage = lazy(() => import('./pages/ImportReadingHistoryPage'));
+const BookDetailPage = lazy(() => import('./pages/BookDetailPage'));
+const UpgradePage = lazy(() => import('./pages/UpgradePage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const LibraryPage = lazy(() => import('./pages/LibraryPage'));
+const ShelvesPage = lazy(() => import('./pages/ShelvesPage'));
+const ReadingPage = lazy(() => import('./pages/ReadingPage'));
+const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'));
+const Books = lazy(() => import('./pages/admin/Books'));
+const Users = lazy(() => import('./pages/admin/Users'));
+const Engine = lazy(() => import('./pages/admin/Engine'));
+const InsightReview = lazy(() => import('./pages/admin/InsightReview'));
+const RecommendationsDebug = lazy(() => import('./pages/admin/RecommendationsDebug'));
+const Analytics = lazy(() => import('./pages/admin/Analytics'));
+const TestingPage = lazy(() => import('./pages/TestingPage'));
+const EnvCheckPage = lazy(() => import('./pages/EnvCheckPage'));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading, onboardingComplete, onboardingChecked } = useAuth();
@@ -109,8 +112,22 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function PageFallback() {
+  return (
+    <div style={{
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      minHeight: '50vh',
+    }}>
+      Loading...
+    </div>
+  );
+}
+
 function AppRoutes() {
   return (
+    <Suspense fallback={<PageFallback />}>
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
@@ -196,6 +213,7 @@ function AppRoutes() {
         <Route index element={<Navigate to="/admin/analytics" replace />} />
       </Route>
     </Routes>
+    </Suspense>
   );
 }
 
