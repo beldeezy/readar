@@ -31,6 +31,14 @@ const Analytics = lazy(() => import('./pages/admin/Analytics'));
 const TestingPage = lazy(() => import('./pages/TestingPage'));
 const EnvCheckPage = lazy(() => import('./pages/EnvCheckPage'));
 
+// Temporary "prop store" (throwaway, removed once Amazon PA API is granted).
+const StorePage = lazy(() => import('./store/StorePage'));
+const StoreAboutPage = lazy(() => import('./store/StoreAboutPage'));
+const StorePrivacyPage = lazy(() => import('./store/StorePrivacyPage'));
+
+// When on, the store takes over the homepage (for Amazon Associates review).
+const SHOW_PROP_STORE = import.meta.env.VITE_PROP_STORE === 'true';
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading, onboardingComplete, onboardingChecked } = useAuth();
   const location = useLocation();
@@ -129,7 +137,10 @@ function AppRoutes() {
   return (
     <Suspense fallback={<PageFallback />}>
     <Routes>
-      <Route path="/" element={<LandingPage />} />
+      <Route path="/" element={SHOW_PROP_STORE ? <StorePage /> : <LandingPage />} />
+      <Route path="/store" element={<StorePage />} />
+      <Route path="/about" element={<StoreAboutPage />} />
+      <Route path="/privacy" element={<StorePrivacyPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route path="/env" element={<EnvCheckPage />} />

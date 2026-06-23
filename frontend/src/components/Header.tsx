@@ -6,7 +6,10 @@ import readarLogo from '../assets/readar-logo.png';
 import './Header.css';
 
 // Immersive full-screen flows that own the whole viewport — hide the marketing header.
-const IMMERSIVE_PATHS = ['/onboarding', '/onboarding/import', '/recommendations/loading'];
+// Store routes are self-contained (own chrome), so the app header is hidden there too.
+const IMMERSIVE_PATHS = ['/onboarding', '/onboarding/import', '/recommendations/loading', '/store', '/about', '/privacy'];
+
+const SHOW_PROP_STORE = import.meta.env.VITE_PROP_STORE === 'true';
 
 export default function Header() {
   const { user, logout } = useAuth();
@@ -19,6 +22,10 @@ export default function Header() {
   };
 
   if (IMMERSIVE_PATHS.includes(location.pathname)) {
+    return null;
+  }
+  // When the prop store owns the homepage, it brings its own chrome.
+  if (SHOW_PROP_STORE && location.pathname === '/') {
     return null;
   }
 

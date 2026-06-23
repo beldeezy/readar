@@ -5,7 +5,7 @@ import { useAuth } from '../auth/AuthProvider';
 import './BottomNav.css';
 
 // Routes where the bottom nav should NOT appear
-const EXCLUDED_PATHS = ['/', '/login', '/auth/callback', '/onboarding', '/onboarding/import', '/recommendations/loading'];
+const EXCLUDED_PATHS = ['/', '/login', '/auth/callback', '/onboarding', '/onboarding/import', '/recommendations/loading', '/store', '/about', '/privacy'];
 
 export default function BottomNav() {
   const { user, isAuthenticated, logout } = useAuth();
