@@ -19,6 +19,7 @@ from app.models import (
     BookDifficulty,
     UserBookStatusModel,
     UserReadingProfile,
+    TOPIC_FIT_OFF,
 )
 from app.schemas.recommendation import RecommendationItem
 from app.services import founder_knowledge as fk
@@ -28,20 +29,36 @@ logger = logging.getLogger(__name__)
 
 def candidate_books_query(db: Session):
     """
-    Base query for recommendable books.
+    Base query for recommendable books. Single chokepoint — every entrypoint
+    (personalized, payload/preview, generic) funnels through here.
 
-    Excludes un-enriched stub records — off-topic titles auto-created from a
-    Goodreads import that never received tags ("Tags pending enrichment"). They
-    carry no functional_tags or business_stage_tags, can't be meaningfully
-    matched, and should never surface as recommendations. Filtering here also
-    future-proofs against any newly-imported, not-yet-tagged stubs.
+    Two filters:
+
+    1. Un-enriched stub records — off-topic titles auto-created from a Goodreads
+       import that never received tags ("Tags pending enrichment"). They carry no
+       functional_tags or business_stage_tags, can't be meaningfully matched, and
+       should never surface as recommendations. Filtering here also future-proofs
+       against any newly-imported, not-yet-tagged stubs.
+
+    2. Topic gate (RD-23) — books screened as TOPIC_FIT_OFF. A tagged stub is not
+       the same problem as a *well*-tagged off-topic book: user imports share this
+       table globally, and the tagger confidently tags anything (a calculus
+       textbook came back as operations/finance/metrics), so tag presence alone
+       does not mean a book belongs in an entrepreneur's recommendations.
+
+    The topic gate FAILS OPEN: NULL means "not yet screened" and stays eligible,
+    so this filter is inert until screen_book_topics.py has actually run.
     """
     return db.query(Book).filter(
         or_(
             sa_func.array_length(Book.functional_tags, 1) > 0,
             sa_func.array_length(Book.business_stage_tags, 1) > 0,
             sa_func.array_length(Book.theme_tags, 1) > 0,
-        )
+        ),
+        or_(
+            Book.topic_fit.is_(None),
+            Book.topic_fit != TOPIC_FIT_OFF,
+        ),
     )
 
 

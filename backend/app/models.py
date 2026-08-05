@@ -143,6 +143,16 @@ class OnboardingProfile(Base):
     user = relationship("User", back_populates="onboarding_profile")
 
 
+# ── Topic-gate verdicts (RD-23) ──────────────────────────────────────────────
+# Plain strings rather than a Postgres enum: this catalog has a history of
+# painful enum-casing migrations, and a screening vocabulary is likely to gain
+# values before it stabilises.
+TOPIC_FIT_CORE = "core"
+TOPIC_FIT_ADJACENT = "adjacent"
+TOPIC_FIT_OFF = "off_topic"
+TOPIC_FIT_VALUES = {TOPIC_FIT_CORE, TOPIC_FIT_ADJACENT, TOPIC_FIT_OFF}
+
+
 class Book(Base):
     __tablename__ = "books"
     
@@ -171,6 +181,19 @@ class Book(Base):
     # 1=Awareness, 2=Mental models, 3=Principles, 4=Disciplines, 5=Processes.
     # Powers the "depth" indicator on the Founder Knowledge Map.
     knowledge_level = Column(Integer, nullable=True)
+    # Topic gate (RD-23). User Goodreads imports land in this SHARED table and
+    # become recommendable to everyone, and the tagger will assign confident,
+    # plausible tags to genuinely off-topic books (a calculus textbook came back
+    # as operations/finance/metrics). topic_fit records a screening verdict:
+    #   TOPIC_FIT_CORE     — squarely about building/running a business
+    #   TOPIC_FIT_ADJACENT — not a business book, but real founder value
+    #                        (Atomic Habits, Deep Work, Mindset are all canon)
+    #   TOPIC_FIT_OFF      — no entrepreneurial value; never recommend
+    #   NULL               — not yet screened
+    # Only TOPIC_FIT_OFF is filtered out, so the gate FAILS OPEN: an unscreened
+    # catalog behaves exactly as it did before this column existed.
+    topic_fit = Column(String, nullable=True)
+    topic_fit_reason = Column(Text, nullable=True)
     difficulty = Column(
         SQLEnum(
             BookDifficulty,
