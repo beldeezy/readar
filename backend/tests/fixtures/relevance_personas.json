@@ -1,0 +1,230 @@
+{
+  "_readme": [
+    "Golden-set relevance fixtures (RD-10).",
+    "",
+    "Each persona is a realistic founder as they would actually fill in onboarding —",
+    "biggest_challenge is written the way a person types it (a sentence or two), NOT",
+    "reverse-engineered to match CHALLENGE_KEYWORDS. That is deliberate: the harness",
+    "must measure whether the engine understands real user language. Rewriting these",
+    "to make the scores go up would defeat the entire purpose of the fixture set.",
+    "",
+    "expected_any_of = titles a thoughtful advisor would consider a correct top pick.",
+    "A hit means AT LEAST ONE expected title appears in the top N. Titles are matched",
+    "via canonical_title_key, so subtitle/edition variants collapse.",
+    "",
+    "Every expected title must exist in the tagged canon (app/data/readar_canon_v1,",
+    "_services_v1, _saas_v1) — test_every_expected_title_exists_in_catalog enforces this."
+  ],
+  "personas": [
+    {
+      "id": "P01",
+      "label": "Solo consultant undercharging on hourly work",
+      "probes": "finance/pricing domain via services canon",
+      "payload": {
+        "business_model": "service",
+        "business_stage": "early-revenue",
+        "biggest_challenge": "I keep undercharging. Every project turns into scope creep and I end up working nights for a flat fee I quoted months ago. I have no idea how to charge for value instead of hours.",
+        "areas_of_business": ["pricing", "sales"],
+        "current_gross_revenue": "100k_300k",
+        "vision_6_12_months": "Double my effective hourly rate without working more hours."
+      },
+      "expected_any_of": ["Value-Based Fees", "Pricing Creativity", "The Win Without Pitching Manifesto", "Million Dollar Consulting"]
+    },
+    {
+      "id": "P02",
+      "label": "Agency owner, business depends entirely on them",
+      "probes": "operations domain; services canon; owner-dependence",
+      "payload": {
+        "business_model": "agency",
+        "business_stage": "scaling",
+        "biggest_challenge": "The whole business depends on me. If I take a week off, everything stops. Nothing is documented and every decision routes through my inbox.",
+        "areas_of_business": ["operations"],
+        "current_gross_revenue": "1m_3m",
+        "vision_6_12_months": "Take a month off without the business falling apart."
+      },
+      "expected_any_of": ["Clockwork", "Work the System", "The E-Myth Revisited", "Built to Sell"]
+    },
+    {
+      "id": "P03",
+      "label": "Idea stage, has not validated demand",
+      "probes": "product/customer-discovery; idea stage",
+      "payload": {
+        "business_model": "product",
+        "business_stage": "idea",
+        "biggest_challenge": "I have an idea I am excited about but no evidence anyone actually wants it. I am scared of spending a year building something nobody needs.",
+        "areas_of_business": ["product"],
+        "current_gross_revenue": "pre_revenue",
+        "vision_6_12_months": "Know for certain whether this is worth building."
+      },
+      "expected_any_of": ["The Mom Test", "The Lean Startup", "Running Lean", "The Four Steps to the Epiphany", "Value Proposition Design"]
+    },
+    {
+      "id": "P04",
+      "label": "SaaS with a churn problem",
+      "probes": "saas canon; retention/engagement",
+      "payload": {
+        "business_model": "saas",
+        "business_stage": "early-revenue",
+        "biggest_challenge": "People sign up and then vanish. Most never come back after the first week and I cannot work out what is going wrong in those first few days.",
+        "areas_of_business": ["product", "growth"],
+        "current_gross_revenue": "300k_500k",
+        "vision_6_12_months": "Get retention to a point where growth compounds instead of leaking."
+      },
+      "expected_any_of": ["Hooked", "Product-Led Growth", "Never Lose a Customer Again", "Continuous Discovery Habits"]
+    },
+    {
+      "id": "P05",
+      "label": "SaaS that never revisited pricing",
+      "probes": "pricing within saas canon",
+      "payload": {
+        "business_model": "saas",
+        "business_stage": "early-revenue",
+        "biggest_challenge": "We picked our price out of thin air two years ago and never touched it since. I suspect we are leaving a lot of money on the table but I have no framework for changing it.",
+        "areas_of_business": ["pricing"],
+        "current_gross_revenue": "500k_1m",
+        "vision_6_12_months": "Re-price the product with actual confidence."
+      },
+      "expected_any_of": ["Monetizing Innovation", "Subscribed"]
+    },
+    {
+      "id": "P06",
+      "label": "B2B SaaS with founder-led, unrepeatable sales",
+      "probes": "sales domain; saas canon; repeatability",
+      "payload": {
+        "business_model": "b2b saas",
+        "business_stage": "early-revenue",
+        "biggest_challenge": "Every deal closes because I personally charmed someone. It is not a process, it is me. I tried hiring a rep and they sold nothing in four months.",
+        "areas_of_business": ["sales"],
+        "current_gross_revenue": "1m_3m",
+        "vision_6_12_months": "A sales motion that works when I am not in the room."
+      },
+      "expected_any_of": ["Predictable Revenue", "From Impossible to Inevitable", "The Challenger Sale", "SPIN Selling"]
+    },
+    {
+      "id": "P07",
+      "label": "Pre-revenue services, no lead flow",
+      "probes": "client acquisition; services canon; pre-revenue",
+      "payload": {
+        "business_model": "service",
+        "business_stage": "pre-revenue",
+        "biggest_challenge": "I have no reliable way to find clients. Everything so far has come from one friend who keeps referring me, and when he goes quiet I have nothing.",
+        "areas_of_business": ["marketing", "client_acquisition"],
+        "current_gross_revenue": "lt_100k",
+        "vision_6_12_months": "A predictable pipeline that does not depend on one person."
+      },
+      "expected_any_of": ["Book Yourself Solid", "The 1-Page Marketing Plan", "Duct Tape Marketing", "The Referral Engine", "Traction"]
+    },
+    {
+      "id": "P08",
+      "label": "Scaling founder now managing managers",
+      "probes": "leadership domain; scaling stage",
+      "payload": {
+        "business_model": "saas",
+        "business_stage": "scaling",
+        "biggest_challenge": "We went from 8 to 25 people in a year and I am now managing managers. I have never been taught how to lead at this size and I can feel things slipping.",
+        "areas_of_business": ["leadership", "hiring"],
+        "current_gross_revenue": "5m_10m",
+        "vision_6_12_months": "Build a leadership layer I actually trust."
+      },
+      "expected_any_of": ["High Output Management", "The Hard Thing About Hard Things", "Empowered", "High Growth Handbook", "Turn the Ship Around!"]
+    },
+    {
+      "id": "P09",
+      "label": "Profitable on paper but no cash in the bank",
+      "probes": "finance domain; cash flow",
+      "payload": {
+        "business_model": "service",
+        "business_stage": "early-revenue",
+        "biggest_challenge": "My accountant says we are profitable but there is never any money in the account. I genuinely do not understand where it all goes each month.",
+        "areas_of_business": ["finance"],
+        "current_gross_revenue": "300k_500k",
+        "vision_6_12_months": "Actually pay myself consistently."
+      },
+      "expected_any_of": ["Profit First", "Simple Numbers, Straight Talk, Big Profits", "Financial Intelligence for Entrepreneurs"]
+    },
+    {
+      "id": "P10",
+      "label": "Burned out, doing everything at once",
+      "probes": "mindset/focus domain",
+      "payload": {
+        "business_model": "service",
+        "business_stage": "early-revenue",
+        "biggest_challenge": "I am completely burned out. Seventy hour weeks, twenty things half-finished, and I cannot tell what actually matters anymore. I am close to walking away.",
+        "areas_of_business": ["productivity"],
+        "current_gross_revenue": "100k_300k",
+        "vision_6_12_months": "Work less and get more of the right things done."
+      },
+      "expected_any_of": ["Essentialism", "The ONE Thing", "Deep Work", "It Doesn't Have to Be Crazy at Work", "Clockwork"]
+    },
+    {
+      "id": "P11",
+      "label": "Undifferentiated, losing to price",
+      "probes": "strategy/positioning domain",
+      "payload": {
+        "business_model": "saas",
+        "business_stage": "early-revenue",
+        "biggest_challenge": "We look identical to four competitors. Prospects cannot tell why we are different, so every deal collapses into a price argument we lose.",
+        "areas_of_business": ["marketing", "strategy"],
+        "current_gross_revenue": "500k_1m",
+        "vision_6_12_months": "Be the obvious choice for a specific kind of buyer."
+      },
+      "expected_any_of": ["Obviously Awesome", "Blue Ocean Strategy", "Zero to One", "Crossing the Chasm"]
+    },
+    {
+      "id": "P12",
+      "label": "Marketplace chicken-and-egg",
+      "probes": "RD-12: marketplace model gets no canon boost",
+      "payload": {
+        "business_model": "marketplace",
+        "business_stage": "pre-revenue",
+        "biggest_challenge": "Classic chicken and egg. I cannot attract sellers without buyers and I cannot attract buyers without sellers, so both sides stay empty.",
+        "areas_of_business": ["growth"],
+        "current_gross_revenue": "pre_revenue",
+        "vision_6_12_months": "Get one side of the marketplace to critical mass."
+      },
+      "expected_any_of": ["The Cold Start Problem", "Zero to One"]
+    },
+    {
+      "id": "P13",
+      "label": "Ecommerce burning money on ad channels",
+      "probes": "RD-12: product model; growth-channel domain",
+      "payload": {
+        "business_model": "product",
+        "business_stage": "early-revenue",
+        "biggest_challenge": "We have thrown money at Facebook, TikTok and influencers and none of it stuck. I am just guessing at channels and watching the budget drain.",
+        "areas_of_business": ["marketing", "growth"],
+        "current_gross_revenue": "300k_500k",
+        "vision_6_12_months": "Find one channel that reliably works and go deep."
+      },
+      "expected_any_of": ["Traction", "Hacking Growth", "Contagious"]
+    },
+    {
+      "id": "P14",
+      "label": "Idea stage, the blocker is the founder",
+      "probes": "mindset domain; self-doubt language",
+      "payload": {
+        "business_model": "service",
+        "business_stage": "idea",
+        "biggest_challenge": "Honestly the thing holding me back is me. I keep procrastinating, I second-guess every decision, and some part of me is convinced I am not good enough to pull this off.",
+        "areas_of_business": ["productivity"],
+        "current_gross_revenue": "pre_revenue",
+        "vision_6_12_months": "Actually start instead of researching forever."
+      },
+      "expected_any_of": ["Mindset: The New Psychology of Success", "Atomic Habits", "So Good They Can't Ignore You", "The ONE Thing", "Think and Grow Rich"]
+    },
+    {
+      "id": "P15",
+      "label": "Scaling product co. with a delivery bottleneck",
+      "probes": "operations domain; constraints",
+      "payload": {
+        "business_model": "product",
+        "business_stage": "scaling",
+        "biggest_challenge": "Orders come in faster than we can fulfil them. Delivery is the bottleneck, quality is slipping, and customers are starting to notice the delays.",
+        "areas_of_business": ["operations"],
+        "current_gross_revenue": "5m_10m",
+        "vision_6_12_months": "Fulfilment that keeps up with demand without quality dropping."
+      },
+      "expected_any_of": ["The Goal", "Thinking in Systems", "Work the System"]
+    }
+  ]
+}
