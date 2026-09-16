@@ -31,6 +31,9 @@ and restart/redeploy. Keep the Resend API key in place.
    to restart successfully. An existing `false` override resumes delivery.
 2. As an authenticated admin, GET `/api/admin/email-status`. Expect
    `{"user_emails_paused": true}`. This read-only endpoint does not send mail.
+   Alternatively, inspect the new instance's startup log for
+   `User email delivery paused=True`; this records the effective runtime setting
+   without needing an admin session or triggering a send.
 3. Confirm `/health` is healthy and ordinary sign-in still works. Do not trigger
    login emails or the internal report solely to test this pause.
 4. Observe the next scheduled user-email job logs: expect `status: paused` and

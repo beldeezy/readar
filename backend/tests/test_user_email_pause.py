@@ -201,3 +201,19 @@ def test_email_status_requires_authentication(admin_client):
     del app.dependency_overrides[require_admin_user]
     response = client.get("/api/admin/email-status")
     assert response.status_code in (401, 403)
+
+
+@pytest.mark.parametrize("paused", [True, False])
+def test_scheduler_reports_runtime_pause_without_sending(monkeypatch, resend_send, caplog, paused):
+    from app import scheduler
+
+    monkeypatch.setattr(settings, "USER_EMAILS_PAUSED", paused)
+    monkeypatch.setattr(scheduler, "scheduler", None)
+    fake_scheduler = Mock()
+    monkeypatch.setattr(scheduler, "BackgroundScheduler", lambda: fake_scheduler)
+    with caplog.at_level("INFO", logger="app.scheduler"):
+        scheduler.start_scheduler()
+    assert f"User email delivery paused={paused}" in caplog.text
+    assert fake_scheduler.add_job.call_count == 3
+    fake_scheduler.start.assert_called_once()
+    resend_send.assert_not_called()
