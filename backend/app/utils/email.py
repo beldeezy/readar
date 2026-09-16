@@ -2,7 +2,8 @@
 Email utility for sending notifications using Resend.
 
 Resend integration for sending weekly pending books reports.
-Set RESEND_API_KEY in your .env file to enable email sending.
+Set RESEND_API_KEY for delivery. User notifications also require
+USER_EMAILS_PAUSED=false; the internal weekly report is independent.
 """
 import logging
 import os
@@ -36,8 +37,11 @@ def _app_url() -> str:
 
 
 def _send_email(recipient: str, subject: str, html: str) -> dict:
-    """Low-level Resend send with graceful no-op when not configured."""
+    """User-notification send; never call Resend while user emails are paused."""
     from app.core.config import settings
+    if settings.USER_EMAILS_PAUSED:
+        logger.info("[EMAIL] User email sending is temporarily paused")
+        return {"status": "paused", "message": "User emails are temporarily paused", "recipient": recipient}
     api_key = settings.RESEND_API_KEY
     if not RESEND_AVAILABLE or not api_key:
         logger.info("[EMAIL] (not sent — Resend unconfigured) to=%s subject=%s", recipient, subject)

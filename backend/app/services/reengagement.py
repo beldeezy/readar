@@ -11,6 +11,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models import User, OnboardingProfile
 from app.services.recommendation_engine import get_recommendations_for_user
 from app.utils.email import send_recommendations_email
@@ -36,6 +37,10 @@ def send_recommendation_emails(
     :param max_users: cap how many users to process this run.
     :param only_user_id: restrict to a single user (admin testing).
     """
+    if settings.USER_EMAILS_PAUSED:
+        logger.info("Re-engagement email run paused")
+        return {"status": "paused", "eligible": 0, "sent": 0, "skipped": 0, "errors": 0}
+
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(days=MIN_DAYS_BETWEEN_EMAILS)
 
@@ -78,6 +83,9 @@ def send_recommendation_emails(
 
             if result.get("status") == "success":
                 sent += 1
+            elif result.get("status") == "paused":
+                skipped += 1
+                continue  # a pause must not consume the cap or log a sent event
             elif result.get("status") == "skipped":
                 skipped += 1
             else:

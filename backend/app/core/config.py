@@ -42,6 +42,8 @@ class Settings(BaseSettings):
 
     # Email configuration (Resend)
     RESEND_API_KEY: Optional[str] = None
+    # Temporary pause for user notifications; set false and restart to resume.
+    USER_EMAILS_PAUSED: bool = True
 
     # Anthropic (Claude) - used for transition summary + book presentation pitches
     ANTHROPIC_API_KEY: Optional[str] = None
