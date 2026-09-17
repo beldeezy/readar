@@ -11,19 +11,7 @@ import RadarIcon from '../components/RadarIcon';
 import { useAuth } from '../auth/AuthProvider';
 import './RecommendationsPage.css';
 
-interface BookPitch {
-  challenge: string;
-  solution: string;
-  outcome: string;
-}
-
-interface PresentationPitch {
-  book_id: string;
-  pitch: BookPitch;
-}
-
 const PREVIEW_RECS_KEY = 'readar_preview_recs';
-const PITCHES_CACHE_KEY = 'readar_pitches_cache';
 
 // Free users get a daily refresh allowance, enforced server-side (the response
 // carries the authoritative remaining count). This default is only used for
@@ -35,8 +23,6 @@ export default function RecommendationsPage() {
   const [requestId, setRequestId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [pitches, setPitches] = useState<Record<string, BookPitch>>({});
-  const [pitchesLoading, setPitchesLoading] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
   // Authoritative refresh allowance from the server (null = not yet known).
   const [refreshesRemaining, setRefreshesRemaining] = useState<number | null>(null);
@@ -175,92 +161,6 @@ export default function RecommendationsPage() {
     };
   }, [location.state]);
 
-  // Fetch personalized pitches once recommendations are loaded
-  useEffect(() => {
-    if (!recommendations.length) return;
-
-    // Check sessionStorage cache first — avoids re-fetching on back-navigation
-    const cacheKey = `${PITCHES_CACHE_KEY}_${recommendations.map(r => r.book_id).join(',')}`;
-    try {
-      const cached = sessionStorage.getItem(cacheKey);
-      if (cached) {
-        setPitches(JSON.parse(cached));
-        return;
-      }
-    } catch { /* ignore */ }
-
-    let cancelled = false;
-
-    // Resolve pitch context: navigation state → localStorage → stored backend
-    // profile. The last fallback is essential for returning users who land here
-    // directly (no nav state / local answers) — without it, cards show no pitch.
-    const resolveAnswers = async (): Promise<Record<string, any> | null> => {
-      const fromState = (location.state as any)?.onboardingAnswers;
-      if (fromState) return fromState;
-      try {
-        const saved = localStorage.getItem('readar_onboarding_answers');
-        if (saved) return JSON.parse(saved);
-      } catch { /* ignore */ }
-      try {
-        return await apiClient.getOnboarding();
-      } catch {
-        return null;
-      }
-    };
-
-    const fetchPitches = async () => {
-      const onboardingAnswers = await resolveAnswers();
-      if (cancelled || !onboardingAnswers) return;
-
-      setPitchesLoading(true);
-      const pitchMap: Record<string, BookPitch> = {};
-
-      const toBook = (rec: typeof recommendations[0]) => ({
-        book_id: rec.book_id,
-        title: rec.title,
-        author_name: rec.author_name || '',
-        promise: rec.promise ?? null,
-        best_for: rec.best_for ?? null,
-        outcomes: rec.outcomes ?? null,
-        description: rec.description ?? null,
-      });
-
-      try {
-        // Fetch first book immediately so the carousel shows a pitch right away
-        const firstResults = await apiClient.getPresentationPitches(
-          onboardingAnswers,
-          [toBook(recommendations[0])]
-        );
-        if (cancelled) return;
-        for (const item of firstResults) pitchMap[item.book_id] = item.pitch;
-        setPitches({ ...pitchMap });
-        setPitchesLoading(false);
-
-        // Fetch remaining books in the background
-        if (recommendations.length > 1) {
-          const restResults = await apiClient.getPresentationPitches(
-            onboardingAnswers,
-            recommendations.slice(1).map(toBook)
-          );
-          if (cancelled) return;
-          for (const item of restResults) pitchMap[item.book_id] = item.pitch;
-          setPitches({ ...pitchMap });
-        }
-
-        // Cache complete set for back-navigation
-        try {
-          sessionStorage.setItem(cacheKey, JSON.stringify(pitchMap));
-        } catch { /* ignore quota errors */ }
-      } catch (err) {
-        console.error('[RecommendationsPage] Failed to fetch pitches:', err);
-        if (!cancelled) setPitchesLoading(false);
-      }
-    };
-
-    fetchPitches();
-    return () => { cancelled = true; };
-  }, [recommendations]);
-
   const refreshRecommendations = async (opts?: { spin?: boolean }) => {
     setLoading(true);
     setError(null);
@@ -269,7 +169,6 @@ export default function RecommendationsPage() {
       setRecommendations(response.items);
       setRequestId(response.request_id);
       setCarouselIndex(0);
-      setPitches({});
       applyAllowance(response);
     } catch (err: any) {
       // Free user hit the server-side daily limit → show the upgrade prompt.
@@ -427,9 +326,7 @@ export default function RecommendationsPage() {
     );
   }
 
-  const hasPitches = Object.keys(pitches).length > 0;
   const currentBook = recommendations[carouselIndex];
-  const currentPitch = currentBook ? pitches[currentBook.book_id] : undefined;
 
   return (
     <div className="readar-recommendations-page rd-scan-bg">
@@ -437,15 +334,8 @@ export default function RecommendationsPage() {
         <div className="readar-recommendations-header">
           <h1 className="readar-recommendations-title">Your recommendations</h1>
           <p className="readar-recommendations-subtitle">
-            {hasPitches
-              ? "Here's why each of these books is a strong fit for you."
-              : "Based on your stage, focus areas, and reading history."}
+            See how each book connects to your priorities, and what to look for as you read.
           </p>
-          {pitchesLoading && (
-            <p style={{ fontSize: 'var(--rd-font-size-sm)', color: 'var(--rd-muted)', marginTop: '0.25rem' }}>
-              Personalizing your book pitches…
-            </p>
-          )}
         </div>
 
         {/* Carousel — one book at a time */}
@@ -459,8 +349,6 @@ export default function RecommendationsPage() {
                 isTopMatch={carouselIndex === 0}
                 requestId={requestId || undefined}
                 position={carouselIndex}
-                pitch={currentPitch}
-                pitchLoading={pitchesLoading}
               />
             )}
           </div>

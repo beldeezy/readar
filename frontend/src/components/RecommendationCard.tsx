@@ -10,20 +10,12 @@ import Button from './Button';
 import GetBookCTA from './GetBookCTA';
 import './BookCard.css';
 
-interface BookPitch {
-  challenge: string;
-  solution: string;
-  outcome: string;
-}
-
 interface RecommendationCardProps {
   book: RecommendationItem;
   onAction: (bookId: string, status: BookPreferenceStatus) => void;
   isTopMatch?: boolean;
   requestId?: string;
   position?: number;
-  pitch?: BookPitch;
-  pitchLoading?: boolean;
 }
 
 /**
@@ -42,8 +34,6 @@ export default function RecommendationCard({
   isTopMatch = false,
   requestId,
   position = 0,
-  pitch,
-  pitchLoading = false,
 }: RecommendationCardProps) {
   const navigate = useNavigate();
   const [savingStatus, setSavingStatus] = useState<string | null>(null);
@@ -153,7 +143,7 @@ export default function RecommendationCard({
           <div className="readar-book-header">
             {isTopMatch && (
               <Badge variant="signal" size="sm">
-                High fit
+                First suggestion
               </Badge>
             )}
           </div>
@@ -176,18 +166,6 @@ export default function RecommendationCard({
             {book.subtitle && <p className="readar-book-subtitle">{book.subtitle}</p>}
             {book.author_name && <p className="readar-book-author">by {book.author_name}</p>}
 
-            {/* Radar-forward technical labels */}
-            {(book.functional_tags?.length || book.business_stage_tags?.length) ? (
-              <div className="readar-book-tech-row">
-                {book.functional_tags?.[0] && (
-                  <span className="rd-tech">SECTOR: {book.functional_tags[0].replace(/_/g, ' ')}</span>
-                )}
-                {book.business_stage_tags?.[0] && (
-                  <span className="rd-tech">STAGE: {book.business_stage_tags[0].replace(/-/g, ' ')}</span>
-                )}
-              </div>
-            ) : null}
-
             {/* Metadata line */}
             {meta && (
               <p className="mt-1 text-sm text-muted-foreground" style={{
@@ -199,44 +177,36 @@ export default function RecommendationCard({
               </p>
             )}
 
-            {/* Tailored pitch sentences — skeleton while loading, never show generic blurb */}
-            {pitch ? (
-              <div style={{ marginTop: '1rem' }}>
-                {pitch.challenge && (
-                  <p style={{ color: 'var(--rd-muted)', fontSize: '0.875rem', lineHeight: '1.5', margin: 0, marginBottom: '1.25rem' }}>
-                    {pitch.challenge}
-                  </p>
-                )}
-                {pitch.solution && (
-                  <p style={{ color: 'var(--rd-muted)', fontSize: '0.875rem', lineHeight: '1.5', margin: 0, marginBottom: '1.25rem' }}>
-                    {pitch.solution}
-                  </p>
-                )}
-                {pitch.outcome && (
-                  <p style={{ color: 'var(--rd-muted)', fontSize: '0.875rem', lineHeight: '1.5', margin: 0 }}>
-                    {pitch.outcome}
-                  </p>
-                )}
-              </div>
-            ) : pitchLoading ? (
-              <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                {[100, 85, 90].map((w, i) => (
-                  <div key={i} style={{
-                    height: '0.8rem',
-                    width: `${w}%`,
-                    borderRadius: '4px',
-                    backgroundColor: 'rgba(255,255,255,0.07)',
-                    animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                  }} />
-                ))}
-              </div>
-            ) : (book.promise || book.best_for) ? (
-              // Fallback when no tailored pitch is available (e.g. returning user
-              // with no onboarding context) — show the book's generic value prop.
-              <p style={{ color: 'var(--rd-muted)', fontSize: '0.875rem', lineHeight: '1.5', marginTop: '1rem' }}>
-                {book.promise || book.best_for}
-              </p>
-            ) : null}
+            <section className="readar-book-fit" aria-label="Why this book">
+              {book.fit ? (
+                <>
+                  {book.fit.priority && (
+                    <div className="readar-book-fit__priority">
+                      <h4>{book.fit.priority_label}</h4>
+                      <p>“{book.fit.priority}”</p>
+                    </div>
+                  )}
+                  <div>
+                    <h4>Why this book</h4>
+                    <p>{book.fit.reason}</p>
+                    {book.fit.evidence && (
+                      <p className="readar-book-fit__evidence">
+                        <span>From the book details: </span>“{book.fit.evidence}”
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <h4>As you read</h4>
+                    <p>{book.fit.reading_focus}</p>
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <h4>Why this book</h4>
+                  <p>A personal explanation isn't available for this suggestion yet. Check the book details to see whether it speaks to your priority.</p>
+                </div>
+              )}
+            </section>
           </div>
 
           <div className="readar-book-actions">

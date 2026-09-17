@@ -130,6 +130,15 @@ export interface Book {
   updated_at?: string;
 }
 
+export interface RecommendationFit {
+  priority?: string | null;
+  priority_label: string;
+  reason: string;
+  evidence?: string | null;
+  reading_focus: string;
+  match_type: 'challenge' | 'goal' | 'stage' | 'general';
+}
+
 export interface RecommendationItem {
   book_id: string;
   title: string;
@@ -156,6 +165,7 @@ export interface RecommendationItem {
   best_for?: string;
   outcomes?: string[];
   why_this_book: string; // Always present, single compelling paragraph explaining why recommended
+  fit?: RecommendationFit | null;
   why_recommended?: string[]; // Deprecated: use why_this_book instead
   why_signals?: Array<{ type: string; label: string }>;
   explanation?: {
@@ -215,4 +225,3 @@ export interface InsightReviewItem {
   outcome_match: number;
   total_score: number;
 }
-
