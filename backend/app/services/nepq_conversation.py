@@ -22,6 +22,11 @@ from app.config.nepq import NEPQ_STAGES, STAGE_KEYS
 
 logger = logging.getLogger(__name__)
 
+
+class OnboardingUnavailableError(RuntimeError):
+    """The current onboarding operation can be retried with the same answers."""
+
+
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 MODEL = "claude-haiku-4-5-20251001"
 
@@ -184,7 +189,9 @@ def next_turn(
             message = cleaned or "Tell me a little more about that?"
     except Exception as e:
         logger.warning("NEPQ next_turn failed: %s", e)
-        message = "Sorry — could you say a bit more about that?"
+        # A provider failure is not a new conversation turn. Keep the reader at
+        # the same stage and let the client retry their already-submitted answer.
+        raise OnboardingUnavailableError("Could not continue onboarding") from e
 
     # Advance if the model says so OR we've hit the stage's soft cap (anti-stuck).
     cap = STAGE_SOFT_CAPS.get(STAGE_KEYS[stage_index], 4)
@@ -254,13 +261,25 @@ def extract_profile(history: List[Dict[str, str]]) -> Dict[str, Any]:
             messages=[{"role": "user", "content": f"Conversation:\n\n{transcript}\n\nReturn the JSON profile."}],
         )
         data = json.loads(_strip_json(resp.content[0].text))
+        if not isinstance(data, dict):
+            raise ValueError("Profile must be an object")
+        valid_stages = {"idea", "pre-revenue", "early-revenue", "scaling"}
+        if data.get("business_stage") not in valid_stages:
+            raise ValueError("Profile is missing a valid business stage")
+        for key in ("business_model", "biggest_challenge"):
+            if not isinstance(data.get(key), str) or not data[key].strip():
+                raise ValueError(f"Profile is missing {key}")
+        # The conversation captures future_vision; both saved and preview
+        # recommendation scoring consume vision_6_12_months. Preserve the
+        # reader's words in both fields without inventing an outcome.
+        if not data.get("vision_6_12_months"):
+            data["vision_6_12_months"] = data.get("future_vision")
     except Exception as e:
         logger.warning("NEPQ extract_profile failed: %s", e)
-        return {}
+        # Returning an empty profile would clear the saved conversation and
+        # send the reader into a recommendation flow that cannot succeed.
+        raise OnboardingUnavailableError("Could not prepare onboarding profile") from e
 
-    valid_stages = {"idea", "pre-revenue", "early-revenue", "scaling"}
-    if data.get("business_stage") not in valid_stages:
-        data["business_stage"] = "early-revenue"  # safe default
     if not isinstance(data.get("areas_of_business"), list):
         data["areas_of_business"] = []
     return data

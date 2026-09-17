@@ -191,7 +191,7 @@ const ChatOnboardingPage: React.FC = () => {
         void logEvent('onboarding_chat_completed', { stage: res.stage_index });
       }
     } catch (e: any) {
-      setError(e?.message || 'Something went wrong. Please try again.');
+      setError('We couldn’t continue just now. Your answers are still here. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -199,7 +199,7 @@ const ChatOnboardingPage: React.FC = () => {
 
   const send = (text: string) => {
     const value = text.trim();
-    if (!value || loading || completing) return;
+    if (!value || loading || completing || error) return;
     addUser(value);
     setInput('');
     resetTextareaHeight();
@@ -209,9 +209,19 @@ const ChatOnboardingPage: React.FC = () => {
   };
 
   async function completeOnboarding(finalHistory: ChatTurn[]) {
+    if (loading || completing) return;
     setCompleting(true);
+    setError(null);
     try {
       const profile = await apiClient.nepqExtract(finalHistory);
+      // Keep the conversation if an older backend returns an empty/incomplete
+      // profile instead of an error during a rolling deployment.
+      if (!profile || !['idea', 'pre-revenue', 'early-revenue', 'scaling'].includes(profile.business_stage)
+        || !['business_model', 'biggest_challenge'].every(
+          (key) => typeof profile[key] === 'string' && profile[key].trim(),
+        )) {
+        throw new Error('Incomplete onboarding profile');
+      }
       // The scribe returns the structured fields the engine needs. Store it where
       // the existing /recommendations/loading handoff (auth → save → recs) reads.
       const payload = { full_name: '', ...profile };
@@ -221,12 +231,12 @@ const ChatOnboardingPage: React.FC = () => {
       navigate('/recommendations/loading');
     } catch (e: any) {
       setCompleting(false);
-      setError(e?.message || 'Could not finalize. Please try again.');
+      setError('We couldn’t prepare your recommendations just now. Your answers are still here. Please try again.');
     }
   }
 
   const progress = completing ? 100 : Math.min(100, Math.round((stageIndex / TOTAL_STAGES) * 100));
-  const disabled = loading || completing;
+  const disabled = loading || completing || !!error;
 
   return (
     <div className="chat-onboarding-page">
@@ -252,9 +262,15 @@ const ChatOnboardingPage: React.FC = () => {
         )}
 
         {error && (
-          <div className="chat-error">
+          <div className="chat-error" role="alert">
             <p>⚠️ {error}</p>
-            <button className="nepq-retry" onClick={() => runTurn(history, stageIndex, turnsInStage)}>
+            <button
+              className="nepq-retry"
+              disabled={loading || completing}
+              onClick={() => done
+                ? completeOnboarding(history)
+                : runTurn(history, stageIndex, turnsInStage)}
+            >
               Try again
             </button>
           </div>

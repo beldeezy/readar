@@ -2899,6 +2899,7 @@ def get_recommendations_from_payload(
             self.areas_of_business = payload.areas_of_business
             self.current_gross_revenue = payload.current_gross_revenue
             self.vision_6_12_months = payload.vision_6_12_months
+            self.ideal_book_description = payload.ideal_book_description
             self.blockers = payload.blockers
     
     # Create mock onboarding profile from payload
