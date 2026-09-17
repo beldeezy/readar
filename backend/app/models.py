@@ -396,6 +396,42 @@ class UserBookStatusModel(Base):
     )
 
 
+class ReadingProgress(Base):
+    __tablename__ = "reading_progress"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    book_id = Column(UUID(as_uuid=True), ForeignKey("books.id", ondelete="CASCADE"), nullable=False)
+    unit = Column(String, nullable=False, default="pages", server_default="pages")
+    starting_position = Column(Integer, nullable=False, default=0, server_default="0")
+    total_units = Column(Integer, nullable=True)
+    daily_goal = Column(Integer, nullable=False, default=10, server_default="10")
+    revision = Column(Integer, nullable=False, default=0, server_default="0")
+    __table_args__ = (
+        UniqueConstraint("user_id", "book_id", name="uq_reading_progress_user_book"),
+        sa.CheckConstraint("unit IN ('pages', 'chapters')", name="ck_reading_progress_unit"),
+        sa.CheckConstraint("starting_position >= 0 AND starting_position <= 100000", name="ck_reading_progress_start"),
+        sa.CheckConstraint("daily_goal >= 1 AND daily_goal <= 1000", name="ck_reading_progress_goal"),
+        sa.CheckConstraint("total_units IS NULL OR (total_units >= 1 AND total_units <= 100000 AND total_units >= starting_position)", name="ck_reading_progress_total"),
+    )
+
+
+class ReadingLog(Base):
+    __tablename__ = "reading_logs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    book_id = Column(UUID(as_uuid=True), ForeignKey("books.id", ondelete="CASCADE"), nullable=False)
+    reading_date = Column(Date, nullable=False)
+    position = Column(Integer, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=sa.func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now(), nullable=False)
+    __table_args__ = (
+        UniqueConstraint("user_id", "book_id", "reading_date", name="uq_reading_log_user_book_date"),
+        sa.CheckConstraint("position >= 0 AND position <= 100000", name="ck_reading_log_position"),
+    )
+
+
 class FeedbackSentiment(str, enum.Enum):
     POSITIVE = "positive"
     NEGATIVE = "negative"

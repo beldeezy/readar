@@ -4,6 +4,7 @@ import { Search } from 'lucide-react';
 import { apiClient } from '../api/client';
 import type { Book, BookStatusItem, ReadingStatus } from '../api/types';
 import Button from '../components/Button';
+import BookReadingProgress from '../components/BookReadingProgress';
 import EmptyState from '../components/EmptyState';
 import ScrollTopButton from '../components/ScrollTopButton';
 import { BookSignalArt } from '../components/illustrations';
@@ -137,11 +138,13 @@ export default function ReadingPage() {
             {waiting && <p className="reading-waiting">Waiting for my copy</p>}
           </div>
         </div>
-        <p className="reading-muted">
-          {started ? 'Pick a small stopping point for your next reading session.'
-            : waiting ? 'Your choice is saved. Come back when your copy is ready.'
+        {started ? <BookReadingProgress bookId={item.catalog_book_id || item.book_id} disabled={disabled} onBusyChange={(isBusy) => {
+          saving.current = isBusy;
+          setPending(isBusy ? { id: item.book_id, action: 'progress' } : null);
+        }} /> : <p className="reading-muted">
+          {waiting ? 'Your choice is saved. Come back when your copy is ready.'
             : 'Have a copy? Start when you’re ready. Still getting it? Keep your choice here.'}
-        </p>
+        </p>}
         <div className="reading-book-actions">
           {!started && (
             <Button onClick={() => changeStatus(item, 'currently_reading')} disabled={disabled}>

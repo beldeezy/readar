@@ -102,6 +102,7 @@ class SelectBookRequest(BaseModel):
 class BookStatusResponse(BaseModel):
     """Response for book status."""
     book_id: str
+    catalog_book_id: Optional[str] = None
     status: str
     updated_at: str
     title: Optional[str] = None
@@ -367,6 +368,7 @@ async def get_book_status_list(
         
         result = BookStatusResponse(
             book_id=status_obj.book_id,
+            catalog_book_id=str(book.id) if book else None,
             status=status_obj.status,
             updated_at=status_obj.updated_at.isoformat() if status_obj.updated_at else "",
             title=book.title if book else None,

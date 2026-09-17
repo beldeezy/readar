@@ -17,12 +17,43 @@ export type ReadingStatus = 'reading_next' | 'waiting_for_book' | 'currently_rea
 
 export interface BookStatusItem {
   book_id: string;
+  catalog_book_id?: string | null;
   status: string;
   updated_at: string;
   title?: string | null;
   author_name?: string | null;
   cover_image_url?: string | null;
   purchase_url?: string | null;
+}
+
+export interface ReadingLog {
+  reading_date: string;
+  position: number;
+  units_read: number;
+  updated_at: string;
+}
+
+export interface ReadingSettings {
+  unit: 'pages' | 'chapters';
+  starting_position: number;
+  total_units: number | null;
+  daily_goal: number;
+  expected_revision: number;
+}
+
+export interface ReadingProgress {
+  book_id: string;
+  unit: 'pages' | 'chapters';
+  starting_position: number;
+  total_units: number | null;
+  daily_goal: number;
+  revision: number;
+  current_position: number;
+  percent_complete: number | null;
+  today: string;
+  today_units: number;
+  goal_met: boolean;
+  logs: ReadingLog[];
 }
 
 export type BookPreference = {

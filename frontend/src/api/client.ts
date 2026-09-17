@@ -11,6 +11,8 @@ import type {
   BookPreferenceStatus,
   BookStatusItem,
   ReadingStatus,
+  ReadingProgress,
+  ReadingSettings,
   CheckoutSessionRequest,
   CheckoutSessionResponse,
   KnowledgeMap,
@@ -663,6 +665,26 @@ class ApiClient {
     position?: number;
   }): Promise<{ ok: boolean; status: ReadingStatus }> {
     const response = await this.client.post<{ ok: boolean; status: ReadingStatus }>('/reading/selection', payload);
+    return response.data;
+  }
+
+  async getReadingProgress(bookId: string, tz: string): Promise<ReadingProgress> {
+    const response = await this.client.get<ReadingProgress>(`/reading/books/${bookId}/progress`, { params: { tz } });
+    return response.data;
+  }
+
+  async saveReadingSettings(bookId: string, settings: ReadingSettings, tz: string): Promise<ReadingProgress> {
+    const response = await this.client.put<ReadingProgress>(`/reading/books/${bookId}/settings`, settings, { params: { tz } });
+    return response.data;
+  }
+
+  async saveReadingLog(bookId: string, date: string, position: number, revision: number, tz: string): Promise<ReadingProgress> {
+    const response = await this.client.put<ReadingProgress>(`/reading/books/${bookId}/logs/${date}`, { position, expected_revision: revision }, { params: { tz } });
+    return response.data;
+  }
+
+  async deleteReadingLog(bookId: string, date: string, revision: number, tz: string): Promise<ReadingProgress> {
+    const response = await this.client.delete<ReadingProgress>(`/reading/books/${bookId}/logs/${date}`, { params: { expected_revision: revision, tz } });
     return response.data;
   }
 
