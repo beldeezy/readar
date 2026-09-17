@@ -13,6 +13,9 @@ import type {
   ReadingStatus,
   ReadingProgress,
   ReadingRewards,
+  ReadingTakeaway,
+  ReadingTakeawayText,
+  ReadingTakeawayList,
   ReadingSettings,
   CheckoutSessionRequest,
   CheckoutSessionResponse,
@@ -666,6 +669,26 @@ class ApiClient {
     position?: number;
   }): Promise<{ ok: boolean; status: ReadingStatus }> {
     const response = await this.client.post<{ ok: boolean; status: ReadingStatus }>('/reading/selection', payload);
+    return response.data;
+  }
+
+  async getReadingTakeaways(before?: string): Promise<ReadingTakeawayList> {
+    const response = await this.client.get<ReadingTakeawayList>('/reading/takeaways', { params: { before } });
+    return response.data;
+  }
+
+  async getReadingTakeaway(id: string): Promise<ReadingTakeaway> {
+    const response = await this.client.get<ReadingTakeaway>(`/reading/takeaways/${id}`);
+    return response.data;
+  }
+
+  async createReadingTakeaway(payload: ReadingTakeawayText & { book_id: string; client_id: string }): Promise<ReadingTakeaway> {
+    const response = await this.client.post<ReadingTakeaway>('/reading/takeaways', payload);
+    return response.data;
+  }
+
+  async updateReadingTakeaway(id: string, payload: ReadingTakeawayText & { expected_revision: number }): Promise<ReadingTakeaway> {
+    const response = await this.client.put<ReadingTakeaway>(`/reading/takeaways/${id}`, payload);
     return response.data;
   }
 

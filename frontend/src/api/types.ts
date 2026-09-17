@@ -73,6 +73,28 @@ export interface ReadingRewards {
   recent_days: { reading_date: string; qualified: boolean }[];
 }
 
+export interface ReadingTakeawayText {
+  takeaway: string;
+  action_text: string;
+  goal_context: string;
+}
+
+export interface ReadingTakeaway extends ReadingTakeawayText {
+  id: string;
+  book_id: string;
+  book_title: string;
+  book_author: string;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReadingTakeawayList {
+  items: ReadingTakeaway[];
+  suggested_goal: string;
+  next_cursor: string | null;
+}
+
 export type BookPreference = {
   book_id: string;
   status: BookPreferenceStatus;

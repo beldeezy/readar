@@ -6,6 +6,7 @@ import type { Book, BookStatusItem, ReadingStatus } from '../api/types';
 import Button from '../components/Button';
 import BookReadingProgress from '../components/BookReadingProgress';
 import ReadingRewards from '../components/ReadingRewards';
+import ReadingTakeaways, { type TakeawayBookRequest } from '../components/ReadingTakeaways';
 import EmptyState from '../components/EmptyState';
 import ScrollTopButton from '../components/ScrollTopButton';
 import { BookSignalArt } from '../components/illustrations';
@@ -30,6 +31,8 @@ export default function ReadingPage() {
   const [actionError, setActionError] = useState('');
   const [notice, setNotice] = useState('');
   const [rewardsRefresh, setRewardsRefresh] = useState(0);
+  const [takeawayBook, setTakeawayBook] = useState<TakeawayBookRequest | null>(null);
+  const [takeawayEditing, setTakeawayEditing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -148,6 +151,7 @@ export default function ReadingPage() {
             : 'Have a copy? Start when you’re ready. Still getting it? Keep your choice here.'}
         </p>}
         <div className="reading-book-actions">
+          {started && <Button variant="secondary" disabled={disabled || takeawayEditing} title={takeawayEditing ? 'Save or cancel your open takeaway first.' : undefined} onClick={() => setTakeawayBook((current) => ({ id: item.catalog_book_id || item.book_id, title: item.title || 'Selected book', request: (current?.request ?? 0) + 1 }))}>Capture a takeaway</Button>}
           {!started && (
             <Button onClick={() => changeStatus(item, 'currently_reading')} disabled={disabled}>
               {busy && pending?.action === 'currently_reading' ? 'Starting…' : 'Start reading'}
@@ -178,6 +182,7 @@ export default function ReadingPage() {
         <h1 className="reading-title">Reading</h1>
         <p className="reading-sub reading-muted">Your next book, and the ones you’ve started.</p>
         <ReadingRewards refreshKey={rewardsRefresh} />
+        <p className="reading-takeaways-shortcut"><a href="#reading-takeaways">My takeaways & actions ↓</a></p>
         <div className="reading-add">
           <label htmlFor="reading-search" className="reading-search-label">Choose a book</label>
           <div className="reading-search">
@@ -215,6 +220,10 @@ export default function ReadingPage() {
               <ul className="reading-list">{upcoming.map(renderBook)}</ul>
             </section>}
           </>}
+        <ReadingTakeaways books={items} requestedBook={takeawayBook} disabled={pending !== null} onEditingChange={setTakeawayEditing} onBusyChange={(isBusy) => {
+          saving.current = isBusy;
+          setPending(isBusy ? { id: 'takeaways', action: 'takeaway' } : null);
+        }} />
       </div>
       <ScrollTopButton />
     </div>

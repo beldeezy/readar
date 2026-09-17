@@ -434,6 +434,31 @@ class ReadingLog(Base):
     )
 
 
+class ReadingTakeaway(Base):
+    __tablename__ = "reading_takeaways"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    book_id = Column(UUID(as_uuid=True), ForeignKey("books.id", ondelete="RESTRICT"), nullable=False)
+    client_id = Column(UUID(as_uuid=True), nullable=False)
+    book_title = Column(Text, nullable=False)
+    book_author = Column(Text, nullable=False)
+    takeaway = Column(Text, nullable=False)
+    action_text = Column(Text, nullable=False, default="", server_default="")
+    goal_context = Column(Text, nullable=False)
+    revision = Column(Integer, nullable=False, default=1, server_default="1")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=sa.func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=sa.func.now())
+    __table_args__ = (
+        UniqueConstraint("user_id", "client_id", name="uq_reading_takeaway_user_client"),
+        sa.Index("ix_reading_takeaway_user_created", "user_id", "created_at", "id"),
+        sa.CheckConstraint("char_length(trim(takeaway)) BETWEEN 1 AND 4000", name="ck_reading_takeaway_text"),
+        sa.CheckConstraint("char_length(trim(goal_context)) BETWEEN 1 AND 2000", name="ck_reading_takeaway_goal"),
+        sa.CheckConstraint("char_length(action_text) <= 2000", name="ck_reading_takeaway_action"),
+        sa.CheckConstraint("revision >= 1", name="ck_reading_takeaway_revision"),
+    )
+
+
 class FeedbackSentiment(str, enum.Enum):
     POSITIVE = "positive"
     NEGATIVE = "negative"
