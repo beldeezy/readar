@@ -19,6 +19,7 @@ from app.routers import (
     billing,
     reading_history,
     reading_progress,
+    reading_rewards,
     debug,
     admin_debug,
     admin_analytics,
@@ -138,6 +139,7 @@ app.include_router(user_books.router, prefix="/api")
 app.include_router(billing.router, prefix="/api")
 app.include_router(reading_history.router, prefix="/api")
 app.include_router(reading_progress.router, prefix="/api")
+app.include_router(reading_rewards.router, prefix="/api")
 app.include_router(events.router, prefix="/api")
 app.include_router(book_status.router, prefix="/api")
 app.include_router(feedback.router, prefix="/api")

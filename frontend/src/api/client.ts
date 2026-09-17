@@ -12,6 +12,7 @@ import type {
   BookStatusItem,
   ReadingStatus,
   ReadingProgress,
+  ReadingRewards,
   ReadingSettings,
   CheckoutSessionRequest,
   CheckoutSessionResponse,
@@ -665,6 +666,11 @@ class ApiClient {
     position?: number;
   }): Promise<{ ok: boolean; status: ReadingStatus }> {
     const response = await this.client.post<{ ok: boolean; status: ReadingStatus }>('/reading/selection', payload);
+    return response.data;
+  }
+
+  async getReadingRewards(tz: string): Promise<ReadingRewards> {
+    const response = await this.client.get<ReadingRewards>('/reading/rewards', { params: { tz } });
     return response.data;
   }
 

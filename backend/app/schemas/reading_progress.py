@@ -20,6 +20,8 @@ class ReadingLogResponse(BaseModel):
     reading_date: date
     position: int
     units_read: int
+    goal_target: int
+    goal_met: bool
     updated_at: datetime
 
 
@@ -34,5 +36,6 @@ class ReadingProgressResponse(BaseModel):
     percent_complete: Optional[float]
     today: date
     today_units: int
+    today_goal: int
     goal_met: bool
     logs: list[ReadingLogResponse]

@@ -424,11 +424,13 @@ class ReadingLog(Base):
     book_id = Column(UUID(as_uuid=True), ForeignKey("books.id", ondelete="CASCADE"), nullable=False)
     reading_date = Column(Date, nullable=False)
     position = Column(Integer, nullable=False)
+    goal_target = Column(Integer, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=sa.func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now(), nullable=False)
     __table_args__ = (
         UniqueConstraint("user_id", "book_id", "reading_date", name="uq_reading_log_user_book_date"),
         sa.CheckConstraint("position >= 0 AND position <= 100000", name="ck_reading_log_position"),
+        sa.CheckConstraint("goal_target >= 1 AND goal_target <= 1000", name="ck_reading_log_goal_target"),
     )
 
 

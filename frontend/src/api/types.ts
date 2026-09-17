@@ -30,6 +30,8 @@ export interface ReadingLog {
   reading_date: string;
   position: number;
   units_read: number;
+  goal_target: number;
+  goal_met: boolean;
   updated_at: string;
 }
 
@@ -52,8 +54,23 @@ export interface ReadingProgress {
   percent_complete: number | null;
   today: string;
   today_units: number;
+  today_goal: number;
   goal_met: boolean;
   logs: ReadingLog[];
+}
+
+export interface ReadingRewards {
+  today: string;
+  timezone: string;
+  points_per_day: number;
+  total_points: number;
+  qualifying_days: number;
+  current_streak: number;
+  best_streak: number;
+  today_qualified: boolean;
+  last_qualified_date: string | null;
+  state: 'new' | 'active' | 'continue' | 'restart';
+  recent_days: { reading_date: string; qualified: boolean }[];
 }
 
 export type BookPreference = {

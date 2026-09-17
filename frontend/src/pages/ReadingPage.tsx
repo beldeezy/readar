@@ -5,6 +5,7 @@ import { apiClient } from '../api/client';
 import type { Book, BookStatusItem, ReadingStatus } from '../api/types';
 import Button from '../components/Button';
 import BookReadingProgress from '../components/BookReadingProgress';
+import ReadingRewards from '../components/ReadingRewards';
 import EmptyState from '../components/EmptyState';
 import ScrollTopButton from '../components/ScrollTopButton';
 import { BookSignalArt } from '../components/illustrations';
@@ -28,6 +29,7 @@ export default function ReadingPage() {
   const saving = useRef(false);
   const [actionError, setActionError] = useState('');
   const [notice, setNotice] = useState('');
+  const [rewardsRefresh, setRewardsRefresh] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -138,7 +140,7 @@ export default function ReadingPage() {
             {waiting && <p className="reading-waiting">Waiting for my copy</p>}
           </div>
         </div>
-        {started ? <BookReadingProgress bookId={item.catalog_book_id || item.book_id} disabled={disabled} onBusyChange={(isBusy) => {
+        {started ? <BookReadingProgress bookId={item.catalog_book_id || item.book_id} disabled={disabled} onSaved={() => setRewardsRefresh((n) => n + 1)} onBusyChange={(isBusy) => {
           saving.current = isBusy;
           setPending(isBusy ? { id: item.book_id, action: 'progress' } : null);
         }} /> : <p className="reading-muted">
@@ -175,6 +177,7 @@ export default function ReadingPage() {
       <div className="container">
         <h1 className="reading-title">Reading</h1>
         <p className="reading-sub reading-muted">Your next book, and the ones you’ve started.</p>
+        <ReadingRewards refreshKey={rewardsRefresh} />
         <div className="reading-add">
           <label htmlFor="reading-search" className="reading-search-label">Choose a book</label>
           <div className="reading-search">

@@ -1,14 +1,19 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { apiClient } from '../api/client';
 import type { ReadingProgress } from '../api/types';
+import { useReadingCalendar } from '../hooks/useReadingCalendar';
 import Button from './Button';
 import './BookReadingProgress.css';
 
-interface Props { bookId: string; disabled?: boolean; onBusyChange: (busy: boolean) => void; }
+interface Props { bookId: string; disabled?: boolean; onBusyChange: (busy: boolean) => void; onSaved: () => void; }
 
-export default function BookReadingProgress({ bookId, disabled, onBusyChange }: Props) {
+export default function BookReadingProgress({ bookId, disabled, onBusyChange, onSaved }: Props) {
   const id = useId();
-  const [tz] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
+  const { tz, day } = useReadingCalendar();
+  const dirty = useRef(false);
+  const loadedKey = useRef('');
+  const refreshingRef = useRef(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [data, setData] = useState<ReadingProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -33,23 +38,44 @@ export default function BookReadingProgress({ bookId, disabled, onBusyChange }: 
   };
 
   useEffect(() => {
+    const key = `${bookId}|${tz}|${day}|${reload}`;
+    if (busy || disabled || loadedKey.current === key) return;
     let cancelled = false;
-    setLoading(true); setLoadError(false); setError(''); setConflict(false); setNotice('');
+    refreshingRef.current = true; setRefreshing(true);
+    if (!data) setLoading(true);
+    setLoadError(false);
     apiClient.getReadingProgress(bookId, tz).then((saved) => {
       if (cancelled) return;
-      setData(saved); fillSettings(saved);
-      setDate(saved.today); setPosition(String(saved.current_position));
-    }).catch(() => { if (!cancelled) setLoadError(true); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [bookId, tz, reload]);
+      loadedKey.current = key;
+      const changedElsewhere = dirty.current && data !== null && saved.revision !== data.revision;
+      setData(saved);
+      setError(changedElsewhere ? 'Your saved progress changed while you were editing. Reload before saving again.' : '');
+      setConflict(changedElsewhere);
+      if (!dirty.current) {
+        fillSettings(saved); setDate(saved.today); setPosition(String(saved.current_position));
+      } else {
+        setNotice('The reading day changed. Your entry is still here; check its reading date before saving.');
+      }
+    }).catch(() => {
+      if (cancelled) return;
+      if (!data) setLoadError(true);
+      else { setError('We couldn’t refresh your progress for today. Reload before saving.'); setConflict(true); }
+    })
+      .finally(() => {
+        if (!cancelled) { refreshingRef.current = false; setRefreshing(false); setLoading(false); }
+      });
+    return () => { cancelled = true; refreshingRef.current = false; setRefreshing(false); };
+  }, [bookId, tz, day, reload, busy, disabled]);
 
   const save = async (action: string, operation: () => Promise<ReadingProgress>, message: string) => {
-    if (saving.current || disabled || conflict) return;
+    if (saving.current || refreshingRef.current || disabled || conflict) return;
     saving.current = true; setBusy(action); onBusyChange(true); setError(''); setNotice('');
     try {
       const saved = await operation();
-      setData(saved); fillSettings(saved); setNotice(message);
+      setData(saved); fillSettings(saved); dirty.current = false;
+      const earnedGoal = action === 'log' && date === saved.today && saved.goal_met && !data?.logs.find((log) => log.reading_date === date)?.goal_met;
+      setNotice(earnedGoal ? 'Daily goal reached. Progress saved.' : message);
+      onSaved();
       if (action === 'settings') {
         setDate(saved.today); setPosition(String(saved.current_position));
       }
@@ -65,20 +91,22 @@ export default function BookReadingProgress({ bookId, disabled, onBusyChange }: 
   if (loading) return <p role="status" className="reading-muted">Loading progress…</p>;
   if (loadError || !data) return <div role="alert" className="reading-progress"><p>We couldn’t load your saved progress.</p><Button variant="secondary" disabled={disabled} onClick={() => setReload((n) => n + 1)}>Try again</Button></div>;
 
-  const locked = !!disabled || !!busy || conflict;
+  const locked = !!disabled || !!busy || refreshing || conflict;
   const singular = data.unit === 'pages' ? 'page' : 'chapter';
   const savedOnDate = data.logs.find((log) => log.reading_date === date);
   const displayDate = (value: string) => new Date(`${value}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 
-  return <section className="reading-progress" aria-label="Book progress" aria-busy={!!busy}>
+  return <section className="reading-progress" aria-label="Book progress" aria-busy={!!busy || refreshing}>
     <div className="reading-progress-summary">
       <strong>{data.unit === 'pages' ? 'Page' : 'Chapter'} {data.current_position}{data.total_units != null ? ` of ${data.total_units}` : ''}</strong>
       {data.percent_complete != null && <span>{data.percent_complete}%</span>}
     </div>
     {data.total_units != null && <progress className="reading-progress-bar" max={data.total_units} value={data.current_position} aria-label="Book progress" />}
-    <p className="reading-progress-goal">{data.today_units} / {data.daily_goal} {data.unit} logged today{data.goal_met ? ' · Daily goal reached' : ''}</p>
+    <p className="reading-progress-goal">{data.today_units} / {data.today_goal} {data.unit} logged today{data.goal_met ? ' · Daily goal reached' : ''}</p>
+    {data.today_goal !== data.daily_goal && <p className="reading-progress-hint">Today’s saved goal stays at {data.today_goal} {data.unit}. New entries use {data.daily_goal}.</p>}
+    {refreshing && <p role="status" className="reading-muted">Refreshing today’s progress…</p>}
 
-    <form onSubmit={(event) => {
+    <form onChange={() => { dirty.current = true; }} onSubmit={(event) => {
       event.preventDefault();
       if (position === '' || !Number.isInteger(Number(position))) return;
       void save('log', () => apiClient.saveReadingLog(bookId, date, Number(position), data.revision, tz), 'Progress saved.');
@@ -98,16 +126,17 @@ export default function BookReadingProgress({ bookId, disabled, onBusyChange }: 
       </div>
       <Button type="submit" disabled={locked}>{busy === 'log' ? 'Saving…' : savedOnDate ? 'Update progress' : 'Save progress'}</Button>
       <p className="reading-progress-hint">Enter your stopping point, not the amount you read. Saving again updates that day’s entry.</p>
+      {savedOnDate && <p className="reading-progress-hint">Goal saved for this date: {savedOnDate.goal_target} {data.unit}.</p>}
     </form>
 
     {notice && <p role="status" className="reading-notice">{notice}</p>}
     {error && <p role="alert" className="readar-action-error">{error}</p>}
-    {conflict && <Button variant="secondary" disabled={!!busy || disabled} onClick={() => setReload((n) => n + 1)}>Reload saved progress</Button>}
+    {conflict && <Button variant="secondary" disabled={!!busy || disabled} onClick={() => { dirty.current = false; setReload((n) => n + 1); }}>Reload saved progress</Button>}
 
     <details className="reading-progress-settings">
       <summary>Book settings · {data.daily_goal} {data.unit}/day</summary>
-      <p className="reading-progress-hint">Already partway through? Set your starting position. Earlier pages won’t count as newly logged reading. You can also adjust the goal and your edition’s length.</p>
-      <form onSubmit={(event) => {
+      <p className="reading-progress-hint">Already partway through? Set your starting position. Earlier pages won’t count as newly logged reading. Goal changes apply to new entries; existing dates keep their saved goals.</p>
+      <form onChange={() => { dirty.current = true; }} onSubmit={(event) => {
         event.preventDefault();
         if (start === '' || goal === '') return;
         void save('settings', () => apiClient.saveReadingSettings(bookId, {
@@ -134,12 +163,12 @@ export default function BookReadingProgress({ bookId, disabled, onBusyChange }: 
     <details className="reading-progress-history">
       <summary>Reading history ({data.logs.length})</summary>
       {data.logs.length === 0 ? <p className="reading-muted">No reading logged yet. Your first entry will appear here.</p> : <>
-        <p className="reading-progress-hint">Amounts are the change since the previous entry, or your starting position. Correcting an entry recalculates later amounts.</p>
+        <p className="reading-progress-hint">Amounts are the change since the previous entry, or your starting position. Correcting or removing an entry recalculates later amounts, streaks and points.</p>
         <ul>{data.logs.map((log) => <li key={log.reading_date}>
-          <span>{displayDate(log.reading_date)} · {singular} {log.position}<small>+{log.units_read} {data.unit}</small></span>
+          <span>{displayDate(log.reading_date)} · {singular} {log.position}<small>+{log.units_read} {data.unit} · Goal: {log.goal_target}{log.goal_met ? ' · Goal met' : ''}</small></span>
           <div>
             <Button size="sm" variant="ghost" disabled={locked} aria-label={`Edit reading on ${displayDate(log.reading_date)}`} onClick={() => {
-              setDate(log.reading_date); setPosition(String(log.position)); positionInput.current?.focus();
+              dirty.current = true; setDate(log.reading_date); setPosition(String(log.position)); positionInput.current?.focus();
             }}>Edit</Button>
             <Button size="sm" variant="ghost" disabled={locked} aria-label={`Remove reading on ${displayDate(log.reading_date)}`} onClick={() => {
               void save(`delete-${log.reading_date}`, () => apiClient.deleteReadingLog(bookId, log.reading_date, data.revision, tz), 'Entry removed. You can add it again if needed.');

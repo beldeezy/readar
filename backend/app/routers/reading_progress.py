@@ -47,18 +47,21 @@ def _response(book, progress, logs, today):
     previous = progress.starting_position
     entries = []
     today_units = 0
+    today_goal = progress.daily_goal
     for log in logs:
         units = log.position - previous
-        entries.append(dict(reading_date=log.reading_date, position=log.position, units_read=units, updated_at=log.updated_at))
+        entries.append(dict(reading_date=log.reading_date, position=log.position, units_read=units,
+                            goal_target=log.goal_target, goal_met=units >= log.goal_target, updated_at=log.updated_at))
         if log.reading_date == today:
             today_units = units
+            today_goal = log.goal_target
         previous = log.position
     return ReadingProgressResponse(
         book_id=str(book.id), unit=progress.unit, starting_position=progress.starting_position,
         total_units=progress.total_units, daily_goal=progress.daily_goal, revision=progress.revision,
         current_position=previous,
         percent_complete=round(previous * 100 / progress.total_units, 1) if progress.total_units else None,
-        today=today, today_units=today_units, goal_met=today_units >= progress.daily_goal,
+        today=today, today_units=today_units, today_goal=today_goal, goal_met=today_units >= today_goal,
         logs=list(reversed(entries)),
     )
 
@@ -163,7 +166,8 @@ def save_log(book_id: UUID, reading_date: date, payload: ReadingLogRequest, tz: 
             existing.position = payload.position
             existing.updated_at = datetime.now(timezone.utc)
         else:
-            db.add(ReadingLog(user_id=user.id, book_id=book.id, reading_date=reading_date, position=payload.position))
+            db.add(ReadingLog(user_id=user.id, book_id=book.id, reading_date=reading_date,
+                              position=payload.position, goal_target=progress.daily_goal))
         return True
 
     return _mutate(db, user, book, today, change)
