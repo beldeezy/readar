@@ -1,5 +1,6 @@
 from datetime import datetime
 from uuid import UUID
+from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -30,6 +31,9 @@ class TakeawayResponse(BaseModel):
     takeaway: str
     action_text: str
     goal_context: str
+    action_status: Literal["idea", "pending", "completed"]
+    next_step: str
+    reflection_count: int
     revision: int
     created_at: datetime
     updated_at: datetime

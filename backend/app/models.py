@@ -446,6 +446,10 @@ class ReadingTakeaway(Base):
     takeaway = Column(Text, nullable=False)
     action_text = Column(Text, nullable=False, default="", server_default="")
     goal_context = Column(Text, nullable=False)
+    action_completed = Column(Boolean, nullable=False, default=False, server_default=sa.false())
+    next_step = Column(Text, nullable=False, default="", server_default="")
+    action_generation = Column(Integer, nullable=False, default=1, server_default="1")
+    reflection_count = Column(Integer, nullable=False, default=0, server_default="0")
     revision = Column(Integer, nullable=False, default=1, server_default="1")
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=sa.func.now())
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=sa.func.now())
@@ -456,6 +460,41 @@ class ReadingTakeaway(Base):
         sa.CheckConstraint("char_length(trim(goal_context)) BETWEEN 1 AND 2000", name="ck_reading_takeaway_goal"),
         sa.CheckConstraint("char_length(action_text) <= 2000", name="ck_reading_takeaway_action"),
         sa.CheckConstraint("revision >= 1", name="ck_reading_takeaway_revision"),
+        sa.CheckConstraint("char_length(next_step) <= 2000", name="ck_reading_takeaway_next_step"),
+        sa.CheckConstraint("action_generation >= 1 AND reflection_count >= 0", name="ck_reading_takeaway_reflection_counters"),
+        sa.CheckConstraint("action_text <> '' OR (NOT action_completed AND next_step = '')", name="ck_reading_takeaway_action_state"),
+    )
+
+    @property
+    def action_status(self):
+        return "idea" if not self.action_text else "completed" if self.action_completed else "pending"
+
+
+class ReadingReflection(Base):
+    __tablename__ = "reading_reflections"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    takeaway_id = Column(UUID(as_uuid=True), ForeignKey("reading_takeaways.id", ondelete="CASCADE"), nullable=False)
+    client_id = Column(UUID(as_uuid=True), nullable=False)
+    sequence = Column(Integer, nullable=False)
+    action_generation = Column(Integer, nullable=False)
+    attempted_on = Column(Date, nullable=False)
+    outcome = Column(String, nullable=False)
+    result = Column(Text, nullable=False)
+    next_step = Column(Text, nullable=False, default="", server_default="")
+    completed = Column(Boolean, nullable=False, default=False, server_default=sa.false())
+    action_snapshot = Column(Text, nullable=False)
+    goal_snapshot = Column(Text, nullable=False)
+    takeaway_snapshot = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=sa.func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=sa.func.now())
+    __table_args__ = (
+        UniqueConstraint("takeaway_id", "client_id", name="uq_reading_reflection_client"),
+        UniqueConstraint("takeaway_id", "sequence", name="uq_reading_reflection_sequence"),
+        sa.CheckConstraint("sequence >= 1 AND action_generation >= 1", name="ck_reading_reflection_counters"),
+        sa.CheckConstraint("outcome IN ('helped', 'mixed', 'did_not_help', 'too_soon')", name="ck_reading_reflection_outcome"),
+        sa.CheckConstraint("char_length(trim(result)) BETWEEN 1 AND 4000", name="ck_reading_reflection_result"),
+        sa.CheckConstraint("char_length(next_step) <= 2000 AND (completed OR char_length(trim(next_step)) >= 1)", name="ck_reading_reflection_next_step"),
     )
 
 

@@ -84,6 +84,9 @@ export interface ReadingTakeaway extends ReadingTakeawayText {
   book_id: string;
   book_title: string;
   book_author: string;
+  action_status: 'idea' | 'pending' | 'completed';
+  next_step: string;
+  reflection_count: number;
   revision: number;
   created_at: string;
   updated_at: string;
@@ -93,6 +96,37 @@ export interface ReadingTakeawayList {
   items: ReadingTakeaway[];
   suggested_goal: string;
   next_cursor: string | null;
+}
+
+export type TakeawayFilter = 'all' | 'idea' | 'pending' | 'completed';
+export type ReflectionOutcome = 'helped' | 'mixed' | 'did_not_help' | 'too_soon';
+
+export interface ReflectionText {
+  attempted_on: string;
+  outcome: ReflectionOutcome;
+  result: string;
+  next_step: string;
+  completed: boolean;
+}
+
+export interface ReadingReflection extends ReflectionText {
+  id: string;
+  sequence: number;
+  action_snapshot: string;
+  goal_snapshot: string;
+  takeaway_snapshot: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReflectionList {
+  items: ReadingReflection[];
+  next_before: number | null;
+}
+
+export interface ReflectionSaved {
+  takeaway: ReadingTakeaway;
+  reflection: ReadingReflection;
 }
 
 export type BookPreference = {

@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 import logging
 from uuid import UUID
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_, or_
@@ -21,7 +22,7 @@ TEXT_FIELDS = ("takeaway", "action_text", "goal_context")
 def _owned(db, user_id, takeaway_id, lock=False):
     query = db.query(ReadingTakeaway).filter_by(id=takeaway_id, user_id=user_id)
     if lock:
-        query = query.populate_existing().with_for_update()
+        query = query.populate_existing().with_for_update(read=lock == "read")
     entry = query.first()
     if entry is None:
         raise HTTPException(status_code=404, detail="Takeaway not found.")
@@ -39,11 +40,11 @@ def _suggested_goal(profile):
     return ""
 
 
-def _save(db, operation):
+def _save(db, operation, response_model=TakeawayResponse):
     try:
         entry = operation()
         db.flush()
-        response = TakeawayResponse.model_validate(entry)
+        response = response_model.model_validate(entry)
         db.commit()
         return response
     except HTTPException:
@@ -58,8 +59,13 @@ def _save(db, operation):
 
 @router.get("", response_model=TakeawayList)
 def list_takeaways(before: UUID | None = None, limit: int = Query(default=50, ge=1, le=100),
+                   state: Literal["all", "pending", "completed", "idea"] = "all",
                    user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     query = db.query(ReadingTakeaway).filter_by(user_id=user.id)
+    if state == "idea":
+        query = query.filter(ReadingTakeaway.action_text == "")
+    elif state != "all":
+        query = query.filter(ReadingTakeaway.action_text != "", ReadingTakeaway.action_completed == (state == "completed"))
     if before:
         anchor = _owned(db, user.id, before)
         query = query.filter(or_(ReadingTakeaway.created_at < anchor.created_at,
@@ -102,6 +108,13 @@ def update_takeaway(takeaway_id: UUID, payload: TakeawayUpdate, user: User = Dep
             return entry  # Safe retry after a committed response was lost.
         if entry.revision != payload.expected_revision:
             raise HTTPException(status_code=409, detail="This takeaway changed in another session. Load the latest version before saving again.")
+        if entry.action_text != payload.action_text:
+            entry.action_completed = False
+            entry.next_step = ""
+            entry.action_generation += 1
+        elif entry.goal_context != payload.goal_context or entry.takeaway != payload.takeaway:
+            # Correcting past results must not silently alter this revised context.
+            entry.action_generation += 1
         for field in TEXT_FIELDS:
             setattr(entry, field, getattr(payload, field))
         entry.revision += 1

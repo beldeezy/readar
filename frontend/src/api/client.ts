@@ -16,6 +16,10 @@ import type {
   ReadingTakeaway,
   ReadingTakeawayText,
   ReadingTakeawayList,
+  TakeawayFilter,
+  ReflectionText,
+  ReflectionList,
+  ReflectionSaved,
   ReadingSettings,
   CheckoutSessionRequest,
   CheckoutSessionResponse,
@@ -672,8 +676,8 @@ class ApiClient {
     return response.data;
   }
 
-  async getReadingTakeaways(before?: string): Promise<ReadingTakeawayList> {
-    const response = await this.client.get<ReadingTakeawayList>('/reading/takeaways', { params: { before } });
+  async getReadingTakeaways(before?: string, state: TakeawayFilter = 'all'): Promise<ReadingTakeawayList> {
+    const response = await this.client.get<ReadingTakeawayList>('/reading/takeaways', { params: { before, state } });
     return response.data;
   }
 
@@ -689,6 +693,31 @@ class ApiClient {
 
   async updateReadingTakeaway(id: string, payload: ReadingTakeawayText & { expected_revision: number }): Promise<ReadingTakeaway> {
     const response = await this.client.put<ReadingTakeaway>(`/reading/takeaways/${id}`, payload);
+    return response.data;
+  }
+
+  async getReadingReflections(id: string, before?: number): Promise<ReflectionList> {
+    const response = await this.client.get<ReflectionList>(`/reading/takeaways/${id}/reflections`, { params: { before } });
+    return response.data;
+  }
+
+  async getReadingReflection(id: string, reflectionId: string): Promise<ReflectionSaved> {
+    const response = await this.client.get<ReflectionSaved>(`/reading/takeaways/${id}/reflections/${reflectionId}`);
+    return response.data;
+  }
+
+  async createReadingReflection(id: string, payload: ReflectionText & { client_id: string; expected_revision: number }, tz: string): Promise<ReflectionSaved> {
+    const response = await this.client.post<ReflectionSaved>(`/reading/takeaways/${id}/reflections`, payload, { params: { tz } });
+    return response.data;
+  }
+
+  async updateReadingReflection(id: string, reflectionId: string, payload: ReflectionText & { expected_revision: number }, tz: string): Promise<ReflectionSaved> {
+    const response = await this.client.put<ReflectionSaved>(`/reading/takeaways/${id}/reflections/${reflectionId}`, payload, { params: { tz } });
+    return response.data;
+  }
+
+  async reopenReadingAction(id: string, revision: number): Promise<ReadingTakeaway> {
+    const response = await this.client.put<ReadingTakeaway>(`/reading/takeaways/${id}/reopen`, { expected_revision: revision });
     return response.data;
   }
 
