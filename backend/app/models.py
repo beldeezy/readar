@@ -379,7 +379,7 @@ class RecommendationEvent(Base):
 class UserBookStatusModel(Base):
     """
     Latest book status for each user-book pair.
-    This table stores the current status (interested, read_liked, read_disliked, not_for_me)
+    This table stores shelf status plus reading_next, waiting_for_book and currently_reading.
     and powers the Profile dashboard lists.
     """
     __tablename__ = "user_book_status"
@@ -387,7 +387,7 @@ class UserBookStatusModel(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
     book_id = Column(String, nullable=False, index=True)  # Using String to match book IDs (may be UUID or string)
-    status = Column(String, nullable=False)  # one of: interested | read_liked | read_disliked | not_for_me
+    status = Column(String, nullable=False)  # Shelf and reading journey states; validated by API.
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     
@@ -538,4 +538,3 @@ def normalize_subscription_status_before_db(mapper, connection, target):
                 f"Force-setting to FREE."
             )
             target.subscription_status = SubscriptionStatus.FREE
-

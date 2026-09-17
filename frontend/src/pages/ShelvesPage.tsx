@@ -19,8 +19,8 @@ const SHELF_SECTIONS: { status: BookPreferenceStatus | 'not_for_me'; label: stri
 
 interface ShelfItem {
   book_id: string;
-  title?: string;
-  author_name?: string;
+  title?: string | null;
+  author_name?: string | null;
 }
 
 export default function ShelvesPage() {

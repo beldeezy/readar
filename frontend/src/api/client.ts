@@ -9,6 +9,8 @@ import type {
   RecommendationsResponse,
   UserBookInteraction,
   BookPreferenceStatus,
+  BookStatusItem,
+  ReadingStatus,
   CheckoutSessionRequest,
   CheckoutSessionResponse,
   KnowledgeMap,
@@ -655,28 +657,23 @@ class ApiClient {
     return response.data;
   }
 
+  async selectBookForReading(payload: {
+    book_id: string;
+    request_id?: string;
+    position?: number;
+  }): Promise<{ ok: boolean; status: ReadingStatus }> {
+    const response = await this.client.post<{ ok: boolean; status: ReadingStatus }>('/reading/selection', payload);
+    return response.data;
+  }
+
   async deleteBookStatus(bookId: string): Promise<{ ok: boolean }> {
     const response = await this.client.delete<{ ok: boolean }>(`/book-status/${bookId}`);
     return response.data;
   }
 
-  async getBookStatusList(status?: string): Promise<Array<{
-    book_id: string;
-    status: string;
-    updated_at: string;
-    title?: string;
-    author_name?: string;
-  }>> {
+  async getBookStatusList(status?: string): Promise<BookStatusItem[]> {
     const params = status ? { status } : {};
-    const response = await this.client.get<
-      Array<{
-        book_id: string;
-        status: string;
-        updated_at: string;
-        title?: string;
-        author_name?: string;
-      }>
-    >('/profile/book-status', { params });
+    const response = await this.client.get<BookStatusItem[]>('/profile/book-status', { params });
     return response.data;
   }
 

@@ -13,6 +13,18 @@ export interface Token {
 
 export type BookPreferenceStatus = "read_liked" | "read_disliked" | "interested" | "currently_reading" | "not_interested";
 
+export type ReadingStatus = 'reading_next' | 'waiting_for_book' | 'currently_reading';
+
+export interface BookStatusItem {
+  book_id: string;
+  status: string;
+  updated_at: string;
+  title?: string | null;
+  author_name?: string | null;
+  cover_image_url?: string | null;
+  purchase_url?: string | null;
+}
+
 export type BookPreference = {
   book_id: string;
   status: BookPreferenceStatus;

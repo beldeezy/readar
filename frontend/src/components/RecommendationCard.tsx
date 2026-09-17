@@ -8,6 +8,7 @@ import Card from './Card';
 import Badge from './Badge';
 import Button from './Button';
 import GetBookCTA from './GetBookCTA';
+import ChooseBookButton from './ChooseBookButton';
 import './BookCard.css';
 
 interface RecommendationCardProps {
@@ -38,6 +39,7 @@ export default function RecommendationCard({
   const navigate = useNavigate();
   const [savingStatus, setSavingStatus] = useState<string | null>(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [actionError, setActionError] = useState('');
 
   const handleClick = (e: React.MouseEvent) => {
     // Log click event (best-effort, non-blocking)
@@ -69,6 +71,7 @@ export default function RecommendationCard({
     if (savingStatus) return;
     
     setSavingStatus(status);
+    setActionError('');
     
     // Map status to feedback action
     const actionMap: Record<BookPreferenceStatus, string> = {
@@ -81,22 +84,17 @@ export default function RecommendationCard({
     const feedbackAction = actionMap[status];
     
     try {
-      // Submit feedback (best-effort, non-blocking)
-      await submitFeedback(book.book_id, feedbackAction, requestId);
-      
-      // Also call the existing setBookStatus API for backward compatibility
-      try {
-        await apiClient.setBookStatus({
+      // Shelf persistence is required before confirmation or advancing the deck.
+      await apiClient.setBookStatus({
           book_id: book.book_id,
           status: status,
           request_id: requestId || undefined,
           position: position,
           source: 'recommendations',
-        });
-      } catch (err: any) {
-        // Non-fatal - feedback was already submitted
-        console.warn('Failed to save book status:', err);
-      }
+      });
+      void submitFeedback(book.book_id, feedbackAction, requestId).catch((err) => {
+        console.warn('Optional recommendation feedback failed:', err);
+      });
       
       // Also call the existing onAction callback for backward compatibility
       if (onAction) {
@@ -115,6 +113,7 @@ export default function RecommendationCard({
       console.warn('Failed to submit feedback:', err);
       // Re-enable buttons on error
       setSavingStatus(null);
+      setActionError("We couldn't save that change. Please try again.");
     }
   };
 
@@ -210,6 +209,14 @@ export default function RecommendationCard({
           </div>
 
           <div className="readar-book-actions">
+            <ChooseBookButton
+              bookId={book.book_id}
+              requestId={requestId}
+              position={position}
+              disabled={savingStatus !== null}
+              onBusyChange={(busy) => setSavingStatus(busy ? 'reading_next' : null)}
+            />
+            {actionError && <p role="alert" className="readar-action-error">{actionError}</p>}
             <Button
               variant="ghost"
               size="sm"
@@ -268,5 +275,4 @@ export default function RecommendationCard({
     </div>
   );
 }
-
 
