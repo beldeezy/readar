@@ -13,6 +13,7 @@ from app.core.auth import get_current_user
 from app.database import get_db
 from app.models import Book, FriendlyPair, FriendlyParticipation, User, UserBookStatusModel
 from app.schemas.friendly_pairing import JoinPairing, PairingCommand, PairingResponse, SharedReader
+from app.services import weekly_competition as weekly
 
 router = APIRouter(prefix='/reading/competition', tags=['friendly-competition'])
 logger = logging.getLogger(__name__)
@@ -40,7 +41,8 @@ def _response(db, user_id):
     if row is None:
         return PairingResponse(status='inactive', revision=0)
     result = PairingResponse(status=row.status, revision=row.revision,
-        you=_shared(row) if row.reading_name else None, selected_book_id=row.book_id, queued_at=row.queued_at)
+        you=_shared(row) if row.reading_name else None, selected_book_id=row.book_id, queued_at=row.queued_at,
+        progress_sharing=row.status == 'paired' and row.competition_consented_at is not None)
     if row.status in ('paired', 'ended'):
         pair = db.query(FriendlyPair).filter_by(id=row.pairing_id).populate_existing().one()
         if user_id not in (pair.first_user_id, pair.second_user_id):
@@ -63,7 +65,7 @@ def _fingerprint(action, payload):
     return hashlib.sha256(json.dumps({'action': action, **payload.model_dump(mode='json')}, sort_keys=True).encode()).hexdigest()
 
 
-def _mutate(db, user_id, payload, action, change):
+def _mutate(db, user_id, payload, action, change, response_builder=_response):
     try:
         _lock(db)
         row = _participation(db, user_id)
@@ -73,7 +75,7 @@ def _mutate(db, user_id, payload, action, change):
                 raise HTTPException(status_code=409, detail='This request was already saved with different choices. Check status before trying again.')
             # Return current state: a lost-response retry after departure must not
             # resurrect consent, expose a former partner, or create another pair.
-            result = _response(db, user_id)
+            result = response_builder(db, user_id)
             db.commit()
             return result
         if (row.revision if row else 0) != payload.expected_revision:
@@ -86,7 +88,7 @@ def _mutate(db, user_id, payload, action, change):
         row.last_request_hash = fingerprint
         row.revision += 1
         db.flush()
-        result = _response(db, user_id)
+        result = response_builder(db, user_id)
         db.commit()
         return result
     except HTTPException:
@@ -122,6 +124,8 @@ def join_pairing(payload: JoinPairing, response: Response, user: User = Depends(
             raise HTTPException(status_code=409, detail='Start this book in Reading before choosing it for Friendly Competition.')
         now = datetime.now(timezone.utc)
         row.status = 'waiting'
+        for field in ('competition_consented_at', 'competition_unit', 'competition_total', 'competition_starting_position', 'competition_goal', 'competition_baseline_position'):
+            setattr(row, field, None)
         row.reading_name = payload.reading_name
         row.book_id, row.book_title, row.book_author = book.id, book.title, book.author_name or ''
         row.consented_at, row.queued_at, row.pairing_id = now, now, None
@@ -153,6 +157,7 @@ def leave_pairing(payload: PairingCommand, response: Response, user: User = Depe
             partner = _participation(db, partner_id)
             if not partner or partner.pairing_id != pair.id or partner.status != 'paired' or pair.ended_at is not None:
                 raise RuntimeError('Invalid active pairing')
+            weekly.end_rounds(db, pair)
             pair.ended_at, pair.ended_by = datetime.now(timezone.utc), user.id
             row.status = partner.status = 'ended'
             partner.revision += 1

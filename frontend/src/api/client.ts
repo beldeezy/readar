@@ -1,4 +1,4 @@
-import type { FriendlyPairing, PairingCommand, JoinPairing } from './types';
+import type { FriendlyPairing, PairingCommand, JoinPairing, WeeklyCompetitionSummary, CompetitionConsent } from './types';
 import axios, { AxiosInstance } from 'axios';
 import type {
   User,
@@ -674,6 +674,16 @@ class ApiClient {
     position?: number;
   }): Promise<{ ok: boolean; status: ReadingStatus }> {
     const response = await this.client.post<{ ok: boolean; status: ReadingStatus }>('/reading/selection', payload);
+    return response.data;
+  }
+
+  async syncWeeklyCompetition(): Promise<WeeklyCompetitionSummary> {
+    const response = await this.client.post<WeeklyCompetitionSummary>('/reading/competition/rounds/sync');
+    return response.data;
+  }
+
+  async joinWeeklyCompetition(payload: CompetitionConsent): Promise<WeeklyCompetitionSummary> {
+    const response = await this.client.post<WeeklyCompetitionSummary>('/reading/competition/rounds/join', payload);
     return response.data;
   }
 

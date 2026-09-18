@@ -350,6 +350,7 @@ export interface SharedReader {
 
 export interface FriendlyPairing {
   status: 'inactive' | 'waiting' | 'paired' | 'ended';
+  progress_sharing: boolean;
   revision: number;
   you: SharedReader | null;
   selected_book_id: string | null;
@@ -370,4 +371,35 @@ export interface JoinPairing extends PairingCommand {
   reading_name: string;
   book_id: string;
   share_with_partner: boolean;
+}
+
+
+export interface CompetitionScore { days: number; progress_percent: number; points: number; }
+export interface CompetitionRound {
+  starts_on: string;
+  ends_on: string;
+  status: 'scheduled' | 'active' | 'finished' | 'ended';
+  you: CompetitionScore;
+  partner: CompetitionScore | null;
+  result: 'pending' | 'ahead' | 'behind' | 'even' | 'win' | 'loss' | 'shared_win' | 'quiet' | 'ended';
+}
+export interface WeeklyCompetitionSummary {
+  state: 'unavailable' | 'not_joined' | 'waiting' | 'scheduled' | 'active';
+  revision: number;
+  timezone: string | null;
+  reading_revision: number | null;
+  consented: boolean;
+  partner_consented: boolean;
+  eligibility_error: string | null;
+  rule: { unit: 'pages' | 'chapters'; daily_target: number; total_units: number } | null;
+  current: CompetitionRound | null;
+  history: CompetitionRound[];
+  all_time_points: number;
+  wins: number;
+  shared_wins: number;
+}
+export interface CompetitionConsent extends PairingCommand {
+  timezone: string;
+  share_progress: boolean;
+  expected_reading_revision: number;
 }

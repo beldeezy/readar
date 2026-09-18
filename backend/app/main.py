@@ -23,6 +23,7 @@ from app.routers import (
     reading_takeaways,
     reading_reflections,
     friendly_pairing,
+    weekly_competition,
     debug,
     admin_debug,
     admin_analytics,
@@ -146,6 +147,7 @@ app.include_router(reading_rewards.router, prefix="/api")
 app.include_router(reading_takeaways.router, prefix="/api")
 app.include_router(reading_reflections.router, prefix="/api")
 app.include_router(friendly_pairing.router, prefix="/api")
+app.include_router(weekly_competition.router, prefix="/api")
 app.include_router(events.router, prefix="/api")
 app.include_router(book_status.router, prefix="/api")
 app.include_router(feedback.router, prefix="/api")

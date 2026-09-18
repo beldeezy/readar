@@ -12,6 +12,8 @@ from sqlalchemy.orm import Session
 from app.core.auth import get_current_user
 from app.database import get_db
 from app.models import Book, ReadingLog, ReadingProgress, User, UserBookStatusModel
+from app.routers.friendly_pairing import _lock as pairing_lock
+from app.services import weekly_competition as weekly
 from app.schemas.reading_progress import ReadingLogRequest, ReadingProgressResponse, ReadingSettingsRequest
 
 router = APIRouter(prefix="/reading/books", tags=["reading-progress"])
@@ -86,6 +88,10 @@ def _validate_positions(progress, positions):
 def _mutate(db, user, book, today, change):
     book_id = book.id
     try:
+        # Pairing/round lock always precedes progress locks. Close elapsed rounds
+        # before a backdated correction can change their source positions.
+        pairing_lock(db)
+        weekly.sync_for_reader(db, user.id)
         # One lock per reader/book serializes settings and all daily log writes.
         db.execute(insert(ReadingProgress).values(user_id=user.id, book_id=book.id, **_defaults(book))
                    .on_conflict_do_nothing(constraint="uq_reading_progress_user_book"))
@@ -103,6 +109,7 @@ def _mutate(db, user, book, today, change):
         if changed:
             progress.revision += 1
         db.flush()
+        weekly.sync_for_reader(db, user.id)
         response = _response(book, progress, _logs(db, user.id, book.id), today)
         db.commit()
         return response
@@ -137,6 +144,7 @@ def save_settings(book_id: UUID, payload: ReadingSettingsRequest, tz: str = Quer
         _check_revision(progress, payload.expected_revision)
         if logs and progress.unit != payload.unit:
             raise HTTPException(status_code=422, detail="Remove the existing logs before switching between pages and chapters.")
+        weekly.guard_settings(db, user.id, book.id, values)
         candidate = SimpleNamespace(**values)
         _validate_positions(candidate, {log.reading_date: log.position for log in logs})
         for key, value in values.items():

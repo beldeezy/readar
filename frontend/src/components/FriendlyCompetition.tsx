@@ -2,18 +2,20 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { apiClient } from '../api/client';
 import type { BookStatusItem, FriendlyPairing, JoinPairing, PairingCommand } from '../api/types';
 import Button from './Button';
+import WeeklyCompetition from './WeeklyCompetition';
 import './FriendlyCompetition.css';
 
 interface Props {
   books: BookStatusItem[];
   booksReady: boolean;
+  refreshKey: number;
   disabled: boolean;
   onBusyChange: (busy: boolean) => void;
 }
 
 const labels = { inactive: 'Optional', waiting: 'Finding a reader', paired: 'Paired', ended: 'Pairing ended' };
 
-export default function FriendlyCompetition({ books, booksReady, disabled, onBusyChange }: Props) {
+export default function FriendlyCompetition({ books, booksReady, refreshKey, disabled, onBusyChange }: Props) {
   const id = useId();
   const [data, setData] = useState<FriendlyPairing | null>(null);
   const [loading, setLoading] = useState(true);
@@ -141,7 +143,7 @@ export default function FriendlyCompetition({ books, booksReady, disabled, onBus
         <p>Different books, shared momentum. Keep showing up for your own next page.</p><a href="#now-reading-heading">Log my reading ↓</a>
       </div>}
       {data.status === 'ended' && <div className="friendly-state"><h3>{data.ended_by_you ? 'You’ve left this pairing.' : 'Your reading partner has left.'}</h3><p>Sharing has ended for both readers. Your reading progress, streaks and points stay with you. You haven’t been put into another search.</p></div>}
-      {(data.status === 'waiting' || data.status === 'paired') && data.you && <div className="friendly-sharing"><h3>{data.status === 'paired' ? 'What your partner can see' : 'What you’ve chosen to share'}</h3><p><strong>{data.you.reading_name}</strong> · {data.you.book_title}{data.you.book_author && <> by {data.you.book_author}</>}</p><p className="reading-muted">This book stays selected for the pairing. To change these details, leave and choose again.</p></div>}
+      {(data.status === 'waiting' || data.status === 'paired') && data.you && <div className="friendly-sharing"><h3>{data.status === 'paired' ? 'What your partner can see' : 'What you’ve chosen to share'}</h3><p><strong>{data.you.reading_name}</strong> · {data.you.book_title}{data.you.book_author && <> by {data.you.book_author}</>}</p><p className="reading-muted">This book stays selected for the pairing. To change these details, leave and choose again.</p>{data.progress_sharing && <p className="reading-muted">You also opted into sharing weekly reading summaries once both readers join the rounds.</p>}</div>}
       {(data.status === 'inactive' || data.status === 'ended') && <div className="friendly-actions">
         {booksReady && choices.size > 0 ? <Button disabled={locked || !!loadError || conflict} onClick={open}>Find a reading partner</Button>
           : <p className="reading-muted">{booksReady ? 'Start a book in Now reading, then come back to find a partner.' : 'Your reading list needs to finish loading before you choose a book to share.'}</p>}
@@ -170,6 +172,7 @@ export default function FriendlyCompetition({ books, booksReady, disabled, onBus
     </form>}
     {error && <p role="alert" className="readar-action-error">{error}</p>}
     {(!draft || conflict || error) && <div className="friendly-actions"><Button variant="secondary" size="sm" disabled={locked} onClick={() => void refresh(true)}>{checking ? 'Checking…' : 'Check status'}</Button></div>}
-    {!draft && <p className="friendly-privacy">Only your chosen reading name and selected book title/author are shared with your current partner. Your email, notes, takeaways, reflections and onboarding answers stay private.</p>}
+    {!draft && <p className="friendly-privacy">{data?.progress_sharing ? 'Your partner can also see weekly reading summaries once both of you join rounds.' : 'Your chosen reading name and selected book title/author are shared with your current partner. Weekly progress needs a separate opt-in below.'} Your email, notes, takeaways, reflections and onboarding answers stay private.</p>}
+    {data && !draft && <WeeklyCompetition pairing={data} refreshKey={refreshKey} disabled={locked} onBusyChange={onBusyChange} onConsentSaved={() => void refresh(true)} />}
   </section>;
 }

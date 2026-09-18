@@ -1,0 +1,29 @@
+.weekly-competition { border-top: 1px solid var(--rd-border); margin-top: 1.25rem; padding-top: 0.5rem; }
+.weekly-competition h4 { margin: 0.75rem 0 0.4rem; font-size: 0.95rem; }
+.weekly-competition a { color: var(--rd-accent); }
+.weekly-consent { display: flex; align-items: flex-start; gap: 0.6rem; font-size: 0.85rem; line-height: 1.6; margin: 1rem 0; }
+.weekly-round-label { display: flex; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; font-size: 0.82rem; margin-top: 1rem; }
+.weekly-round-label > span { color: var(--rd-muted); }
+.weekly-scoreboard { padding: 0.3rem 0; }
+.weekly-scoreboard .weekly-recognition { font-size: 1.15rem; color: var(--rd-accent); font-weight: 600; }
+.weekly-players { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
+.weekly-players > div { display: flex; flex-direction: column; gap: 0.3rem; }
+.weekly-players > div:last-child { text-align: right; }
+.weekly-players span { color: var(--rd-muted); font-size: 0.78rem; line-height: 1.5; }
+.weekly-players strong { font-size: 1.7rem; }
+.weekly-players small { font-size: 0.75rem; font-weight: 400; }
+.weekly-tug { position: relative; height: 0.6rem; border-radius: 999px; background: #8d82b9; margin: 1.2rem 0; }
+.weekly-tug > div { height: 100%; border-radius: inherit; background: var(--rd-accent); }
+.weekly-tug > span { position: absolute; top: 50%; transform: translate(-50%, -50%); color: var(--rd-text); font-size: 1.1rem; }
+.weekly-total { border-top: 1px solid var(--rd-border); padding-top: 1rem; }
+.weekly-history summary, .weekly-rules summary { cursor: pointer; padding: 0.65rem 0; font-size: 0.85rem; }
+.weekly-history ol { list-style: none; padding: 0; }
+.weekly-history li { display: flex; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; padding: 0.75rem 0; border-bottom: 1px solid var(--rd-border); font-size: 0.85rem; }
+.weekly-history li > div { display: flex; flex-direction: column; gap: 0.3rem; }
+.weekly-history li > div:nth-child(2) { text-align: right; }
+.weekly-history li span { color: var(--rd-muted); font-size: 0.75rem; }
+.weekly-history li p { width: 100%; margin-bottom: 0; font-size: 0.78rem; }
+.weekly-rules { margin: 0.75rem 0; }
+.weekly-rules ul { padding-left: 1.3rem; font-size: 0.85rem; line-height: 1.7; }
+.weekly-competition summary:focus-visible { outline: var(--rd-focus-ring); outline-offset: 3px; }
+@media (prefers-reduced-motion: no-preference) { .weekly-tug > div { transition: width 300ms ease; } .weekly-tug > span { transition: left 300ms ease; } }

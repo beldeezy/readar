@@ -221,7 +221,7 @@ export default function ReadingPage() {
               <ul className="reading-list">{upcoming.map(renderBook)}</ul>
             </section>}
           </>}
-        <FriendlyCompetition books={items} booksReady={!loading && !loadError} disabled={pending !== null} onBusyChange={(isBusy) => {
+        <FriendlyCompetition books={items} refreshKey={rewardsRefresh} booksReady={!loading && !loadError} disabled={pending !== null} onBusyChange={(isBusy) => {
           saving.current = isBusy;
           setPending(isBusy ? { id: 'competition', action: 'pairing' } : null);
         }} />

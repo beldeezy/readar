@@ -652,6 +652,8 @@ class FriendlyPair(Base):
     started_at = Column(DateTime(timezone=True), nullable=False, server_default=sa.func.now())
     ended_at = Column(DateTime(timezone=True), nullable=True)
     ended_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    competition_timezone = Column(String(64), nullable=True)
+    competition_starts_on = Column(Date, nullable=True)
     __table_args__ = (
         sa.CheckConstraint("first_user_id <> second_user_id", name="ck_friendly_pair_distinct"),
         sa.CheckConstraint("(ended_at IS NULL AND ended_by IS NULL) OR (ended_at IS NOT NULL AND ended_by IS NOT NULL AND ended_by IN (first_user_id, second_user_id))", name="ck_friendly_pair_ended"),
@@ -672,6 +674,12 @@ class FriendlyParticipation(Base):
     queued_at = Column(DateTime(timezone=True), nullable=True)
     pairing_id = Column(UUID(as_uuid=True), ForeignKey("friendly_pairs.id"), nullable=True)
     consented_at = Column(DateTime(timezone=True), nullable=True)
+    competition_consented_at = Column(DateTime(timezone=True), nullable=True)
+    competition_unit = Column(String, nullable=True)
+    competition_total = Column(Integer, nullable=True)
+    competition_starting_position = Column(Integer, nullable=True)
+    competition_goal = Column(Integer, nullable=True)
+    competition_baseline_position = Column(Integer, nullable=True)
     last_request_id = Column(UUID(as_uuid=True), nullable=True)
     last_request_hash = Column(String(64), nullable=True)
     __table_args__ = (
@@ -680,4 +688,28 @@ class FriendlyParticipation(Base):
         sa.CheckConstraint("status NOT IN ('waiting', 'paired') OR (char_length(trim(reading_name)) BETWEEN 1 AND 32 AND book_id IS NOT NULL AND consented_at IS NOT NULL)", name="ck_friendly_participation_consent"),
         sa.CheckConstraint("(status = 'waiting' AND queued_at IS NOT NULL AND pairing_id IS NULL) OR (status IN ('paired', 'ended') AND queued_at IS NULL AND pairing_id IS NOT NULL) OR (status = 'inactive' AND queued_at IS NULL AND pairing_id IS NULL)", name="ck_friendly_participation_state"),
         sa.Index("ix_friendly_waiting", "queued_at", "user_id", postgresql_where=sa.text("status = 'waiting'")),
+    )
+
+
+class FriendlyRound(Base):
+    __tablename__ = "friendly_rounds"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    pairing_id = Column(UUID(as_uuid=True), ForeignKey("friendly_pairs.id"), nullable=False)
+    starts_on = Column(Date, nullable=False)
+    ends_before = Column(Date, nullable=False)
+    status = Column(String, nullable=False, default="active", server_default="active")
+    first_days = Column(Integer, nullable=False, default=0, server_default="0")
+    second_days = Column(Integer, nullable=False, default=0, server_default="0")
+    first_progress_bps = Column(Integer, nullable=False, default=0, server_default="0")
+    second_progress_bps = Column(Integer, nullable=False, default=0, server_default="0")
+    first_score = Column(Integer, nullable=False, default=0, server_default="0")
+    second_score = Column(Integer, nullable=False, default=0, server_default="0")
+    closed_at = Column(DateTime(timezone=True), nullable=True)
+    __table_args__ = (
+        UniqueConstraint("pairing_id", "starts_on", name="uq_friendly_round_pair_start"),
+        sa.CheckConstraint("ends_before = starts_on + 7", name="ck_friendly_round_week"),
+        sa.CheckConstraint("status IN ('active', 'finished', 'ended') AND ((status = 'active' AND closed_at IS NULL) OR (status <> 'active' AND closed_at IS NOT NULL))", name="ck_friendly_round_status"),
+        sa.CheckConstraint("first_days BETWEEN 0 AND 7 AND second_days BETWEEN 0 AND 7 AND first_progress_bps BETWEEN 0 AND 10000 AND second_progress_bps BETWEEN 0 AND 10000", name="ck_friendly_round_progress"),
+        sa.CheckConstraint("first_score = first_days * 1000 + first_progress_bps / 20 AND second_score = second_days * 1000 + second_progress_bps / 20", name="ck_friendly_round_score"),
     )

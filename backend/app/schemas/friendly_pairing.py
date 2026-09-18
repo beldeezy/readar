@@ -41,6 +41,7 @@ class SharedReader(BaseModel):
 class PairingResponse(BaseModel):
     status: Literal['inactive', 'waiting', 'paired', 'ended']
     revision: int
+    progress_sharing: bool = False
     you: SharedReader | None = None
     selected_book_id: UUID | None = None
     queued_at: datetime | None = None
