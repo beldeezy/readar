@@ -6,6 +6,7 @@ import type { Book, BookStatusItem, ReadingStatus } from '../api/types';
 import Button from '../components/Button';
 import BookReadingProgress from '../components/BookReadingProgress';
 import ReadingRewards from '../components/ReadingRewards';
+import FriendlyCompetition from '../components/FriendlyCompetition';
 import ReadingTakeaways, { type TakeawayBookRequest } from '../components/ReadingTakeaways';
 import EmptyState from '../components/EmptyState';
 import ScrollTopButton from '../components/ScrollTopButton';
@@ -182,7 +183,7 @@ export default function ReadingPage() {
         <h1 className="reading-title">Reading</h1>
         <p className="reading-sub reading-muted">Your next book, and the ones you’ve started.</p>
         <ReadingRewards refreshKey={rewardsRefresh} />
-        <p className="reading-takeaways-shortcut"><a href="#reading-takeaways">My takeaways & actions ↓</a></p>
+        <p className="reading-takeaways-shortcut"><a href="#reading-takeaways">My takeaways & actions ↓</a> · <a href="#friendly-competition">Friendly Competition ↓</a></p>
         <div className="reading-add">
           <label htmlFor="reading-search" className="reading-search-label">Choose a book</label>
           <div className="reading-search">
@@ -220,6 +221,10 @@ export default function ReadingPage() {
               <ul className="reading-list">{upcoming.map(renderBook)}</ul>
             </section>}
           </>}
+        <FriendlyCompetition books={items} booksReady={!loading && !loadError} disabled={pending !== null} onBusyChange={(isBusy) => {
+          saving.current = isBusy;
+          setPending(isBusy ? { id: 'competition', action: 'pairing' } : null);
+        }} />
         <ReadingTakeaways books={items} requestedBook={takeawayBook} disabled={pending !== null} onEditingChange={setTakeawayEditing} onBusyChange={(isBusy) => {
           saving.current = isBusy;
           setPending(isBusy ? { id: 'takeaways', action: 'takeaway' } : null);

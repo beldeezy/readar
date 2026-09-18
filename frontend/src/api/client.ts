@@ -1,3 +1,4 @@
+import type { FriendlyPairing, PairingCommand, JoinPairing } from './types';
 import axios, { AxiosInstance } from 'axios';
 import type {
   User,
@@ -673,6 +674,21 @@ class ApiClient {
     position?: number;
   }): Promise<{ ok: boolean; status: ReadingStatus }> {
     const response = await this.client.post<{ ok: boolean; status: ReadingStatus }>('/reading/selection', payload);
+    return response.data;
+  }
+
+  async getFriendlyPairing(): Promise<FriendlyPairing> {
+    const response = await this.client.get<FriendlyPairing>('/reading/competition');
+    return response.data;
+  }
+
+  async joinFriendlyPairing(payload: JoinPairing): Promise<FriendlyPairing> {
+    const response = await this.client.post<FriendlyPairing>('/reading/competition/join', payload);
+    return response.data;
+  }
+
+  async leaveFriendlyPairing(payload: PairingCommand): Promise<FriendlyPairing> {
+    const response = await this.client.post<FriendlyPairing>('/reading/competition/leave', payload);
     return response.data;
   }
 

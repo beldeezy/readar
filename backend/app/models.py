@@ -640,3 +640,44 @@ def normalize_subscription_status_before_db(mapper, connection, target):
                 f"Force-setting to FREE."
             )
             target.subscription_status = SubscriptionStatus.FREE
+
+
+class FriendlyPair(Base):
+    """Pair lifecycle is retained; only current partners can see shared details."""
+    __tablename__ = "friendly_pairs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    first_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    second_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    started_at = Column(DateTime(timezone=True), nullable=False, server_default=sa.func.now())
+    ended_at = Column(DateTime(timezone=True), nullable=True)
+    ended_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    __table_args__ = (
+        sa.CheckConstraint("first_user_id <> second_user_id", name="ck_friendly_pair_distinct"),
+        sa.CheckConstraint("(ended_at IS NULL AND ended_by IS NULL) OR (ended_at IS NOT NULL AND ended_by IS NOT NULL AND ended_by IN (first_user_id, second_user_id))", name="ck_friendly_pair_ended"),
+    )
+
+
+class FriendlyParticipation(Base):
+    """One current participation per reader; all transitions use the pairing lock."""
+    __tablename__ = "friendly_participations"
+
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True)
+    status = Column(String, nullable=False, default="inactive", server_default="inactive")
+    revision = Column(Integer, nullable=False, default=0, server_default="0")
+    reading_name = Column(String(32), nullable=False, default="", server_default="")
+    book_id = Column(UUID(as_uuid=True), ForeignKey("books.id"), nullable=True)
+    book_title = Column(Text, nullable=False, default="", server_default="")
+    book_author = Column(Text, nullable=False, default="", server_default="")
+    queued_at = Column(DateTime(timezone=True), nullable=True)
+    pairing_id = Column(UUID(as_uuid=True), ForeignKey("friendly_pairs.id"), nullable=True)
+    consented_at = Column(DateTime(timezone=True), nullable=True)
+    last_request_id = Column(UUID(as_uuid=True), nullable=True)
+    last_request_hash = Column(String(64), nullable=True)
+    __table_args__ = (
+        sa.CheckConstraint("status IN ('inactive', 'waiting', 'paired', 'ended')", name="ck_friendly_participation_status"),
+        sa.CheckConstraint("revision >= 0", name="ck_friendly_participation_revision"),
+        sa.CheckConstraint("status NOT IN ('waiting', 'paired') OR (char_length(trim(reading_name)) BETWEEN 1 AND 32 AND book_id IS NOT NULL AND consented_at IS NOT NULL)", name="ck_friendly_participation_consent"),
+        sa.CheckConstraint("(status = 'waiting' AND queued_at IS NOT NULL AND pairing_id IS NULL) OR (status IN ('paired', 'ended') AND queued_at IS NULL AND pairing_id IS NOT NULL) OR (status = 'inactive' AND queued_at IS NULL AND pairing_id IS NULL)", name="ck_friendly_participation_state"),
+        sa.Index("ix_friendly_waiting", "queued_at", "user_id", postgresql_where=sa.text("status = 'waiting'")),
+    )

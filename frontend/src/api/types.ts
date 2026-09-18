@@ -341,3 +341,33 @@ export interface InsightReviewItem {
   outcome_match: number;
   total_score: number;
 }
+
+export interface SharedReader {
+  reading_name: string;
+  book_title: string;
+  book_author: string;
+}
+
+export interface FriendlyPairing {
+  status: 'inactive' | 'waiting' | 'paired' | 'ended';
+  revision: number;
+  you: SharedReader | null;
+  selected_book_id: string | null;
+  queued_at: string | null;
+  pairing_id: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  ended_by_you: boolean | null;
+  partner: SharedReader | null;
+}
+
+export interface PairingCommand {
+  request_id: string;
+  expected_revision: number;
+}
+
+export interface JoinPairing extends PairingCommand {
+  reading_name: string;
+  book_id: string;
+  share_with_partner: boolean;
+}
