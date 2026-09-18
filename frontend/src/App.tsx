@@ -39,7 +39,7 @@ const StorePrivacyPage = lazy(() => import('./store/StorePrivacyPage'));
 // When on, the store takes over the homepage (for Amazon Associates review).
 const SHOW_PROP_STORE = import.meta.env.VITE_PROP_STORE === 'true';
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading, onboardingComplete, onboardingChecked } = useAuth();
   const location = useLocation();
 
@@ -75,6 +75,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" replace />;
   }
   
+  if (localStorage.getItem('readar_pending_onboarding')) {
+    return <Navigate to="/recommendations/loading" replace />;
+  }
+
   // 2. If logged in and onboarding not complete → force /onboarding
   // (except if already on /onboarding to avoid redirect loop)
   // Only force onboarding if we definitively checked and found it missing
@@ -88,10 +92,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function AdminRoute({ children }: { children: React.ReactNode }) {
+export function AdminRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading, user } = useAuth();
 
-  if (loading) {
+  if (loading || (isAuthenticated && user?.is_admin === undefined)) {
     return (
       <div style={{
         display: 'flex',

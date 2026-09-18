@@ -1,3 +1,4 @@
+import { withTimeout } from '../utils/withTimeout';
 import type { FriendlyPairing, PairingCommand, JoinPairing, WeeklyCompetitionSummary, CompetitionConsent } from './types';
 import axios, { AxiosInstance } from 'axios';
 import type {
@@ -926,51 +927,56 @@ export async function fetchRecommendations(params: {
   spin?: boolean;
 }): Promise<RecommendationsResponse> {
   const { limit = 5, spin = false } = params;
-  const safeLimit = Math.min(Math.max(limit, 1), 5);
+  const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(Math.floor(limit), 1), 5) : 5;
   const url = `${API_BASE_URL}/recommendations?limit=${safeLimit}${spin ? '&spin=true' : ''}`;
 
   console.log(`[fetchRecommendations] Requesting ${safeLimit} recommendations from ${url}`);
 
+  const controller = new AbortController();
   try {
-    const authHeader = getAuthHeader();
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    };
-    if (authHeader) {
-      headers.Authorization = authHeader.Authorization;
-    }
-
-    const res = await fetch(url, {
-      method: "GET",
-      headers,
-      credentials: 'include',
-    });
-
-    console.log(`[fetchRecommendations] Response status: ${res.status}`);
-
-    if (!res.ok) {
-      // Free user hit the daily refresh allowance — surface a typed error so the
-      // caller can show the upgrade prompt instead of a generic failure.
-      if (res.status === 429) {
-        throw new RefreshLimitError();
+    return await withTimeout((async () => {
+      const authHeader = getAuthHeader();
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      if (authHeader) {
+        headers.Authorization = authHeader.Authorization;
       }
-      let message = `Failed to fetch recommendations (status ${res.status}).`;
-      try {
-        const data = await res.json();
-        if (data && typeof data.detail === "string") {
-          message = data.detail;
+
+      const res = await fetch(url, {
+        method: "GET",
+        headers,
+        credentials: 'include',
+        signal: controller.signal,
+      });
+
+      console.log(`[fetchRecommendations] Response status: ${res.status}`);
+
+      if (!res.ok) {
+        // Free user hit the daily refresh allowance — surface a typed error so the
+        // caller can show the upgrade prompt instead of a generic failure.
+        if (res.status === 429) {
+          throw new RefreshLimitError();
         }
-      } catch {
-        // ignore
+        let message = `Failed to fetch recommendations (status ${res.status}).`;
+        try {
+          const data = await res.json();
+          if (data && typeof data.detail === "string") {
+            message = data.detail;
+          }
+        } catch {
+          // ignore
+        }
+        console.error(`[fetchRecommendations] Error: ${message}`);
+        throw new Error(message);
       }
-      console.error(`[fetchRecommendations] Error: ${message}`);
-      throw new Error(message);
-    }
 
-    const data = await res.json();
-    const itemCount = data?.items?.length ?? 0;
-    console.log(`[fetchRecommendations] Successfully received ${itemCount} items`);
-    return data;
+      const data = await res.json();
+      if (!Array.isArray(data?.items)) throw new Error('We could not read your recommendations. Please try again.');
+      const itemCount = data.items.length;
+      console.log(`[fetchRecommendations] Successfully received ${itemCount} items`);
+      return data as RecommendationsResponse;
+    })(), 20000, 'Finding your books is taking longer than expected. Please try again.');
   } catch (err: any) {
     console.error("[fetchRecommendations] Network error:", err);
 
@@ -982,7 +988,9 @@ export async function fetchRecommendations(params: {
       );
     }
 
-    throw new Error(err?.message || "Failed to fetch recommendations");
+    throw err instanceof Error ? err : new Error("Failed to fetch recommendations");
+  } finally {
+    controller.abort();
   }
 }
 

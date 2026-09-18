@@ -46,10 +46,6 @@ export default function RecommendationsPage() {
 
   useEffect(() => {
 
-    // Liveness check: verify backend is reachable
-    const rawBase = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
-    const apiBaseUrl = rawBase.endsWith('/api') ? rawBase : `${rawBase}/api`;
-
     // Check if we have prefetched recommendations from the loading page
     const prefetchedData = (location.state as any)?.prefetchedRecommendations;
 
@@ -61,6 +57,7 @@ export default function RecommendationsPage() {
     if (prefetchedRecs !== undefined) {
       // Use prefetched results immediately (even if empty array)
       setRecommendations(prefetchedRecs);
+      if (!Array.isArray(prefetchedData)) applyAllowance(prefetchedData);
       if (prefetchedRequestId) {
         setRequestId(prefetchedRequestId);
       }
@@ -68,52 +65,8 @@ export default function RecommendationsPage() {
       return;
     }
 
-    // Otherwise, check backend health first, then fetch recommendations
     let cancelled = false;
-
-    async function checkHealthAndLoad() {
-      // First, check backend health
-      try {
-        const healthRes = await fetch(`${apiBaseUrl}/health`, {
-          method: 'GET',
-          credentials: 'include', // Include credentials for CORS
-        });
-        
-        if (!healthRes.ok) {
-          throw new Error(`Backend health check failed: ${healthRes.status} ${healthRes.statusText}`);
-        }
-        
-        await healthRes.json();
-      } catch (err: any) {
-        console.error('[Backend Health] Backend is unreachable:', err);
-
-        // If backend is down, try to fall back to preview recs from localStorage
-        const previewRecsStr = localStorage.getItem(PREVIEW_RECS_KEY);
-        if (previewRecsStr) {
-          try {
-            const previewRecs = JSON.parse(previewRecsStr);
-            if (!cancelled) {
-              setRecommendations(previewRecs);
-              setLoading(false);
-              // Clear preview recs after using them
-              localStorage.removeItem(PREVIEW_RECS_KEY);
-            }
-            return;
-          } catch (parseErr) {
-            console.error('Failed to parse preview recs:', parseErr);
-          }
-        }
-        
-        if (!cancelled) {
-          setError('offline');
-          setLoading(false);
-        }
-        return; // Don't proceed with recommendations fetch if backend is down
-      }
-
-      // Backend is healthy, proceed with recommendations
-      if (cancelled) return;
-
+    async function load() {
       setLoading(true);
       setError(null);
 
@@ -154,7 +107,7 @@ export default function RecommendationsPage() {
       }
     }
 
-    checkHealthAndLoad();
+    load();
 
     return () => {
       cancelled = true;
