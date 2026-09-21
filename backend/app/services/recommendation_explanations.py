@@ -8,6 +8,7 @@ from html import unescape
 from typing import Any, Dict, Optional
 
 from app.services import founder_knowledge as fk
+from app.services import challenge_matching as cm
 
 
 STAGE_LABELS = {
@@ -99,6 +100,18 @@ def build_book_fit(user_ctx: Optional[Dict[str, Any]], book: Any) -> Dict[str, A
         "reading_focus": "Check the contents or a sample for an idea that speaks to your priority before choosing this book.",
         "match_type": "general",
     }
+    # Use untruncated reader text and the same concrete concepts as ranking.
+    # This remains a catalog topic connection, not a promise of an outcome.
+    matches = cm.matched_concepts(ctx, book)
+    if matches:
+        labels = "; ".join(cm.CONCEPTS[key][0] for key in matches[:2])
+        kind = "challenge" if ctx.get("biggest_challenge") else "goal"
+        result.update(
+            reason=f"Your {kind} and this book's catalog details both mention {labels}.",
+            reading_focus=f"Look for one approach to {cm.CONCEPTS[matches[0]][0]} that you could test in your business.",
+            match_type=kind,
+        )
+        return result
     for kind, priority in (("challenge", challenge), ("goal", goal)):
         overlap = domains & _reader_domains(priority)
         if overlap:
