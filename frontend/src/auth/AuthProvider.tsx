@@ -1,12 +1,11 @@
-import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
-import { Session, User as SupabaseUser } from '@supabase/supabase-js';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { Session } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
 import { apiClient, getApiBaseUrlDebug } from '../api/client';
 import { getAccessToken, setAccessToken, clearAccessToken } from './auth';
-import type { User, OnboardingPayload } from '../api/types';
+import type { User } from '../api/types';
 
 const PENDING_ONBOARDING_KEY = 'readar_pending_onboarding';
-const PREVIEW_RECS_KEY = 'readar_preview_recs';
 const HAS_ONBOARDING_KEY = 'readar_has_onboarding';
 
 interface AuthContextType {
@@ -32,17 +31,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [onboardingChecked, setOnboardingChecked] = useState(false);
   const [hasVerifiedMagicLink, setHasVerifiedMagicLink] = useState(false);
 
-  // Guard to prevent double execution in React StrictMode
-  const finalizePendingOnboardingRef = useRef(false);
-  // Store stable reference to checkOnboardingStatus
-  const checkOnboardingStatusRef = useRef<(() => Promise<void>) | null>(null);
-
   // Fetch full user profile from backend including is_admin
   const fetchUserProfile = React.useCallback(async (baseUser: User) => {
     try {
       const token = getAccessToken();
       if (!token) {
-        return baseUser; // No token yet, return base user
+        return { ...baseUser, is_admin: false }; // No token means no verified admin role
       }
 
       // Fetch full profile from backend
@@ -51,60 +45,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Merge is_admin into user state
       return {
         ...baseUser,
-        is_admin: fullProfile.is_admin,
+        is_admin: fullProfile.is_admin === true,
       };
     } catch (err) {
       console.warn('[AuthProvider] Failed to fetch user profile, using base user:', err);
-      return baseUser; // Fallback to base user if fetch fails
+      return { ...baseUser, is_admin: false }; // Fail closed if the role lookup fails
     }
   }, []);
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      // Keep the localStorage token mirror in sync with Supabase on first load.
-      if (session?.access_token) {
-        setAccessToken(session.access_token);
-      }
-      if (session?.user) {
+    let active = true;
+    let revision = 0;
+    const applySession = (nextSession: Session | null) => {
+      if (!active) return;
+      const currentRevision = ++revision;
+      setSession(nextSession);
+      if (nextSession?.access_token) setAccessToken(nextSession.access_token);
+      else clearAccessToken();
+      if (nextSession?.user) {
         const baseUser: User = {
-          id: session.user.id,
-          email: session.user.email || '',
+          id: nextSession.user.id,
+          email: nextSession.user.email || '',
           subscription_status: 'free',
-          created_at: session.user.created_at,
+          created_at: nextSession.user.created_at,
         };
-
-        // Fetch full profile including is_admin
-        const fullUser = await fetchUserProfile(baseUser);
-        setUser(fullUser);
-      }
-      setLoading(false);
-    });
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session);
-      // Mirror the current token (incl. background TOKEN_REFRESHED rotations) so
-      // the API client never sends a stale/expired token on a live session.
-      if (session?.access_token) {
-        setAccessToken(session.access_token);
-      } else {
-        clearAccessToken();
-      }
-      if (session?.user) {
-        const baseUser: User = {
-          id: session.user.id,
-          email: session.user.email || '',
-          subscription_status: 'free',
-          created_at: session.user.created_at,
-        };
-
-        // Fetch full profile including is_admin
-        const fullUser = await fetchUserProfile(baseUser);
-        setUser(fullUser);
+        // Publish the authenticated identity before loading optional profile
+        // details, so the callback cannot send a signed-in reader back to login.
+        setUser(baseUser);
+        void fetchUserProfile(baseUser).then(fullUser => {
+          if (active && revision === currentRevision) setUser(fullUser);
+        });
       } else {
         setUser(null);
         setOnboardingComplete(null);
@@ -112,9 +82,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setHasVerifiedMagicLink(false);
       }
       setLoading(false);
-    });
+    };
 
+    const initialRevision = revision;
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      // An auth event is newer than the initial session lookup.
+      if (revision === initialRevision) applySession(session);
+    }).catch(() => {
+      if (revision === initialRevision) applySession(null);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      applySession(session);
+    });
     return () => {
+      active = false;
       subscription.unsubscribe();
     };
   }, [fetchUserProfile]);
@@ -196,105 +177,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
-  // Keep stable reference to checkOnboardingStatus
+  // The loading route owns saving pending answers and handling failures. A
+  // background save here used to race the callback and discard newer drafts.
   useEffect(() => {
-    checkOnboardingStatusRef.current = checkOnboardingStatus;
-  }, [checkOnboardingStatus]);
-
-  // Finalize pending onboarding after login
-  useEffect(() => {
-    const finalizePendingOnboarding = async () => {
-      // Guard to prevent double execution in React StrictMode
-      if (finalizePendingOnboardingRef.current) {
-        return;
-      }
-      finalizePendingOnboardingRef.current = true;
-
-      if (!user) {
-        return;
-      }
-
-      // Only check if we have an access token
-      const token = getAccessToken();
-      if (!token) {
-        return;
-      }
-
-      // If user just authenticated and we have pending onboarding, finalize it once.
-      const pending = localStorage.getItem(PENDING_ONBOARDING_KEY);
-      if (pending) {
-        try {
-          const parsed = JSON.parse(pending);
-
-          // ✅ Idempotency check: Verify onboarding doesn't already exist
-          // This prevents duplicate saves if the effect runs multiple times
-          let onboardingExists = false;
-          try {
-            await apiClient.getOnboarding();
-            onboardingExists = true;
-            console.log("Onboarding already exists, skipping save");
-          } catch (err: any) {
-            const status = err?.response?.status;
-            if (status === 404) {
-              // Onboarding doesn't exist, proceed with save
-              onboardingExists = false;
-            } else if (status === 401) {
-              // Unauthorized, can't check - proceed with save
-              onboardingExists = false;
-            } else {
-              // Other errors - assume it might exist, log and skip to be safe
-              console.error("Error checking onboarding status, skipping save to avoid duplicates:", err);
-              finalizePendingOnboardingRef.current = false;
-              return;
-            }
-          }
-
-          // Only save if onboarding doesn't already exist
-          if (!onboardingExists) {
-            // Map pending payload to backend expected shape (match what RecommendationsLoadingPage does)
-            const payload: OnboardingPayload = {
-              ...parsed,
-              business_model: parsed.business_models?.join(', ') || parsed.business_model || '',
-              biggest_challenge: parsed.challenges_and_blockers || parsed.biggest_challenge || '',
-              blockers: parsed.challenges_and_blockers || parsed.blockers || '',
-              book_preferences: parsed.book_preferences || [],
-            } as OnboardingPayload;
-
-            await apiClient.saveOnboarding(payload);
-            console.log("Successfully saved pending onboarding");
-          }
-
-          // ✅ Clear pending so we don't loop
-          localStorage.removeItem(PENDING_ONBOARDING_KEY);
-          localStorage.removeItem(PREVIEW_RECS_KEY);
-          localStorage.setItem(HAS_ONBOARDING_KEY, '1');
-
-          // ✅ Mark onboarded locally to prevent redirect back
-          setOnboardingComplete(true);
-
-          // Refresh onboarding status to confirm it's saved
-          await checkOnboardingStatusRef.current?.();
-        } catch (e) {
-          console.error("Failed to finalize pending onboarding after login", e);
-          // leave pending for retry, but DO NOT redirect to onboarding endlessly
-          // Still check onboarding status in case it was saved by another process
-          checkOnboardingStatusRef.current?.();
-          finalizePendingOnboardingRef.current = false;
-        }
-      } else {
-        // No pending onboarding, just check status normally
-        checkOnboardingStatusRef.current?.();
-      }
-    };
-
-    if (user) {
-      finalizePendingOnboarding();
-    } else {
+    if (user && localStorage.getItem(PENDING_ONBOARDING_KEY)) {
       setOnboardingComplete(null);
-      // Reset guard when user logs out
-      finalizePendingOnboardingRef.current = false;
+      setOnboardingChecked(false);
+      return;
     }
-  }, [user]);
+    void checkOnboardingStatus();
+  }, [user, checkOnboardingStatus]);
 
   const logout = async () => {
     await supabase.auth.signOut();

@@ -1,3 +1,5 @@
+import { withTimeout } from '../utils/withTimeout';
+import type { FriendlyPairing, PairingCommand, JoinPairing, WeeklyCompetitionSummary, CompetitionConsent } from './types';
 import axios, { AxiosInstance } from 'axios';
 import type {
   User,
@@ -9,6 +11,18 @@ import type {
   RecommendationsResponse,
   UserBookInteraction,
   BookPreferenceStatus,
+  BookStatusItem,
+  ReadingStatus,
+  ReadingProgress,
+  ReadingRewards,
+  ReadingTakeaway,
+  ReadingTakeawayText,
+  ReadingTakeawayList,
+  TakeawayFilter,
+  ReflectionText,
+  ReflectionList,
+  ReflectionSaved,
+  ReadingSettings,
   CheckoutSessionRequest,
   CheckoutSessionResponse,
   KnowledgeMap,
@@ -655,28 +669,118 @@ class ApiClient {
     return response.data;
   }
 
+  async selectBookForReading(payload: {
+    book_id: string;
+    request_id?: string;
+    position?: number;
+  }): Promise<{ ok: boolean; status: ReadingStatus }> {
+    const response = await this.client.post<{ ok: boolean; status: ReadingStatus }>('/reading/selection', payload);
+    return response.data;
+  }
+
+  async syncWeeklyCompetition(): Promise<WeeklyCompetitionSummary> {
+    const response = await this.client.post<WeeklyCompetitionSummary>('/reading/competition/rounds/sync');
+    return response.data;
+  }
+
+  async joinWeeklyCompetition(payload: CompetitionConsent): Promise<WeeklyCompetitionSummary> {
+    const response = await this.client.post<WeeklyCompetitionSummary>('/reading/competition/rounds/join', payload);
+    return response.data;
+  }
+
+  async getFriendlyPairing(): Promise<FriendlyPairing> {
+    const response = await this.client.get<FriendlyPairing>('/reading/competition');
+    return response.data;
+  }
+
+  async joinFriendlyPairing(payload: JoinPairing): Promise<FriendlyPairing> {
+    const response = await this.client.post<FriendlyPairing>('/reading/competition/join', payload);
+    return response.data;
+  }
+
+  async leaveFriendlyPairing(payload: PairingCommand): Promise<FriendlyPairing> {
+    const response = await this.client.post<FriendlyPairing>('/reading/competition/leave', payload);
+    return response.data;
+  }
+
+  async getReadingTakeaways(before?: string, state: TakeawayFilter = 'all'): Promise<ReadingTakeawayList> {
+    const response = await this.client.get<ReadingTakeawayList>('/reading/takeaways', { params: { before, state } });
+    return response.data;
+  }
+
+  async getReadingTakeaway(id: string): Promise<ReadingTakeaway> {
+    const response = await this.client.get<ReadingTakeaway>(`/reading/takeaways/${id}`);
+    return response.data;
+  }
+
+  async createReadingTakeaway(payload: ReadingTakeawayText & { book_id: string; client_id: string }): Promise<ReadingTakeaway> {
+    const response = await this.client.post<ReadingTakeaway>('/reading/takeaways', payload);
+    return response.data;
+  }
+
+  async updateReadingTakeaway(id: string, payload: ReadingTakeawayText & { expected_revision: number }): Promise<ReadingTakeaway> {
+    const response = await this.client.put<ReadingTakeaway>(`/reading/takeaways/${id}`, payload);
+    return response.data;
+  }
+
+  async getReadingReflections(id: string, before?: number): Promise<ReflectionList> {
+    const response = await this.client.get<ReflectionList>(`/reading/takeaways/${id}/reflections`, { params: { before } });
+    return response.data;
+  }
+
+  async getReadingReflection(id: string, reflectionId: string): Promise<ReflectionSaved> {
+    const response = await this.client.get<ReflectionSaved>(`/reading/takeaways/${id}/reflections/${reflectionId}`);
+    return response.data;
+  }
+
+  async createReadingReflection(id: string, payload: ReflectionText & { client_id: string; expected_revision: number }, tz: string): Promise<ReflectionSaved> {
+    const response = await this.client.post<ReflectionSaved>(`/reading/takeaways/${id}/reflections`, payload, { params: { tz } });
+    return response.data;
+  }
+
+  async updateReadingReflection(id: string, reflectionId: string, payload: ReflectionText & { expected_revision: number }, tz: string): Promise<ReflectionSaved> {
+    const response = await this.client.put<ReflectionSaved>(`/reading/takeaways/${id}/reflections/${reflectionId}`, payload, { params: { tz } });
+    return response.data;
+  }
+
+  async reopenReadingAction(id: string, revision: number): Promise<ReadingTakeaway> {
+    const response = await this.client.put<ReadingTakeaway>(`/reading/takeaways/${id}/reopen`, { expected_revision: revision });
+    return response.data;
+  }
+
+  async getReadingRewards(tz: string): Promise<ReadingRewards> {
+    const response = await this.client.get<ReadingRewards>('/reading/rewards', { params: { tz } });
+    return response.data;
+  }
+
+  async getReadingProgress(bookId: string, tz: string): Promise<ReadingProgress> {
+    const response = await this.client.get<ReadingProgress>(`/reading/books/${bookId}/progress`, { params: { tz } });
+    return response.data;
+  }
+
+  async saveReadingSettings(bookId: string, settings: ReadingSettings, tz: string): Promise<ReadingProgress> {
+    const response = await this.client.put<ReadingProgress>(`/reading/books/${bookId}/settings`, settings, { params: { tz } });
+    return response.data;
+  }
+
+  async saveReadingLog(bookId: string, date: string, position: number, revision: number, tz: string): Promise<ReadingProgress> {
+    const response = await this.client.put<ReadingProgress>(`/reading/books/${bookId}/logs/${date}`, { position, expected_revision: revision }, { params: { tz } });
+    return response.data;
+  }
+
+  async deleteReadingLog(bookId: string, date: string, revision: number, tz: string): Promise<ReadingProgress> {
+    const response = await this.client.delete<ReadingProgress>(`/reading/books/${bookId}/logs/${date}`, { params: { expected_revision: revision, tz } });
+    return response.data;
+  }
+
   async deleteBookStatus(bookId: string): Promise<{ ok: boolean }> {
     const response = await this.client.delete<{ ok: boolean }>(`/book-status/${bookId}`);
     return response.data;
   }
 
-  async getBookStatusList(status?: string): Promise<Array<{
-    book_id: string;
-    status: string;
-    updated_at: string;
-    title?: string;
-    author_name?: string;
-  }>> {
+  async getBookStatusList(status?: string): Promise<BookStatusItem[]> {
     const params = status ? { status } : {};
-    const response = await this.client.get<
-      Array<{
-        book_id: string;
-        status: string;
-        updated_at: string;
-        title?: string;
-        author_name?: string;
-      }>
-    >('/profile/book-status', { params });
+    const response = await this.client.get<BookStatusItem[]>('/profile/book-status', { params });
     return response.data;
   }
 
@@ -823,51 +927,56 @@ export async function fetchRecommendations(params: {
   spin?: boolean;
 }): Promise<RecommendationsResponse> {
   const { limit = 5, spin = false } = params;
-  const safeLimit = Math.min(Math.max(limit, 1), 5);
+  const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(Math.floor(limit), 1), 5) : 5;
   const url = `${API_BASE_URL}/recommendations?limit=${safeLimit}${spin ? '&spin=true' : ''}`;
 
   console.log(`[fetchRecommendations] Requesting ${safeLimit} recommendations from ${url}`);
 
+  const controller = new AbortController();
   try {
-    const authHeader = getAuthHeader();
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    };
-    if (authHeader) {
-      headers.Authorization = authHeader.Authorization;
-    }
-
-    const res = await fetch(url, {
-      method: "GET",
-      headers,
-      credentials: 'include',
-    });
-
-    console.log(`[fetchRecommendations] Response status: ${res.status}`);
-
-    if (!res.ok) {
-      // Free user hit the daily refresh allowance — surface a typed error so the
-      // caller can show the upgrade prompt instead of a generic failure.
-      if (res.status === 429) {
-        throw new RefreshLimitError();
+    return await withTimeout((async () => {
+      const authHeader = getAuthHeader();
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      if (authHeader) {
+        headers.Authorization = authHeader.Authorization;
       }
-      let message = `Failed to fetch recommendations (status ${res.status}).`;
-      try {
-        const data = await res.json();
-        if (data && typeof data.detail === "string") {
-          message = data.detail;
+
+      const res = await fetch(url, {
+        method: "GET",
+        headers,
+        credentials: 'include',
+        signal: controller.signal,
+      });
+
+      console.log(`[fetchRecommendations] Response status: ${res.status}`);
+
+      if (!res.ok) {
+        // Free user hit the daily refresh allowance — surface a typed error so the
+        // caller can show the upgrade prompt instead of a generic failure.
+        if (res.status === 429) {
+          throw new RefreshLimitError();
         }
-      } catch {
-        // ignore
+        let message = `Failed to fetch recommendations (status ${res.status}).`;
+        try {
+          const data = await res.json();
+          if (data && typeof data.detail === "string") {
+            message = data.detail;
+          }
+        } catch {
+          // ignore
+        }
+        console.error(`[fetchRecommendations] Error: ${message}`);
+        throw new Error(message);
       }
-      console.error(`[fetchRecommendations] Error: ${message}`);
-      throw new Error(message);
-    }
 
-    const data = await res.json();
-    const itemCount = data?.items?.length ?? 0;
-    console.log(`[fetchRecommendations] Successfully received ${itemCount} items`);
-    return data;
+      const data = await res.json();
+      if (!Array.isArray(data?.items)) throw new Error('We could not read your recommendations. Please try again.');
+      const itemCount = data.items.length;
+      console.log(`[fetchRecommendations] Successfully received ${itemCount} items`);
+      return data as RecommendationsResponse;
+    })(), 20000, 'Finding your books is taking longer than expected. Please try again.');
   } catch (err: any) {
     console.error("[fetchRecommendations] Network error:", err);
 
@@ -879,7 +988,9 @@ export async function fetchRecommendations(params: {
       );
     }
 
-    throw new Error(err?.message || "Failed to fetch recommendations");
+    throw err instanceof Error ? err : new Error("Failed to fetch recommendations");
+  } finally {
+    controller.abort();
   }
 }
 

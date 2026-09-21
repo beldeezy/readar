@@ -1,0 +1,38 @@
+.reading-takeaways { max-width: 640px; margin: 2.5rem auto 0; scroll-margin-top: 6rem; color: var(--rd-text); }
+.reading-takeaways-heading, .reading-takeaways-item-heading { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 0.75rem; }
+.reading-takeaways h2 { margin: 0 0 0.4rem; font-size: 1.3rem; }
+.reading-takeaways h3 { font-size: 0.85rem; margin: 1rem 0 0.35rem; }
+.reading-takeaways p { font-size: 0.9rem; line-height: 1.6; margin: 0.4rem 0 1rem; }
+.reading-takeaways-heading p { color: var(--rd-muted); margin-bottom: 0; }
+.reading-takeaways .reading-takeaways-hint, .reading-takeaways-optional { color: var(--rd-muted); font-size: 0.78rem; }
+.reading-takeaway-editor, .reading-takeaways-list > li { background: var(--rd-surface); border: 1px solid var(--rd-border); border-radius: var(--rd-radius-md); padding: 1.25rem; margin: 1rem 0; }
+.reading-takeaway-editor { border-color: var(--rd-accent); }
+.reading-takeaway-editor h3 { margin-top: 0; font-size: 1rem; }
+.reading-takeaway-editor label { display: block; font-size: 0.85rem; margin-top: 1rem; }
+.reading-takeaway-editor textarea, .reading-takeaway-editor select { display: block; box-sizing: border-box; width: 100%; min-width: 0; font: inherit; font-size: 1rem; line-height: 1.5; margin-top: 0.4rem; padding: 0.65rem; background: var(--readar-bg); color: var(--rd-text); border: 1px solid var(--rd-border-strong); border-radius: 6px; color-scheme: dark; }
+.reading-takeaway-editor textarea { resize: vertical; }
+.reading-takeaway-editor :is(textarea, select):focus-visible { outline: var(--rd-focus-ring); outline-offset: 3px; }
+.reading-takeaways-list { list-style: none; padding: 0; margin: 0; }
+.reading-takeaways-item-heading a { color: var(--rd-accent); font-size: 0.85rem; overflow-wrap: anywhere; }
+.reading-takeaways-item-heading > span { font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 999px; background: var(--rd-accent-soft); color: var(--rd-accent); }
+.reading-takeaways-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.reading-takeaways-next { border-left: 2px solid var(--rd-accent); padding-left: 0.8rem; }
+.reading-takeaways-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 0.6rem; margin-top: 1rem; }
+.reading-takeaways-actions small { color: var(--rd-muted); font-size: 0.75rem; margin-right: auto; }
+.reading-takeaways-empty { padding: 1rem; border: 1px dashed var(--rd-border-strong); border-radius: var(--rd-radius-md); color: var(--rd-muted); }
+.reading-takeaways-shortcut { text-align: center; margin: -0.75rem 0 1.75rem; font-size: 0.85rem; }
+.reading-takeaways-shortcut a { color: var(--rd-accent); }
+@media (max-width: 480px) { .reading-takeaway-editor, .reading-takeaways-list > li { padding: 1rem; } .reading-takeaway-editor .reading-takeaways-actions > button { width: 100%; } }
+.reading-takeaways-filter { display: flex; align-items: center; flex-wrap: wrap; gap: 0.75rem; font-size: 0.85rem; margin: 1rem 0; }
+.reading-takeaways-filter select, .reading-takeaway-editor input[type="date"] { box-sizing: border-box; max-width: 100%; font: inherit; font-size: 1rem; padding: 0.65rem; background: var(--readar-bg); color: var(--rd-text); border: 1px solid var(--rd-border-strong); border-radius: 6px; color-scheme: dark; }
+.reading-takeaway-editor input[type="date"] { display: block; margin-top: 0.4rem; }
+.reading-takeaway-editor .reading-reflection-checkbox { display: flex; align-items: center; gap: 0.6rem; }
+.reading-reflection-checkbox input { width: 1.1rem; height: 1.1rem; accent-color: var(--rd-accent); }
+.reading-reflections { margin-top: 1rem; }
+.reading-reflections .reading-takeaway-editor { padding: 1rem; }
+.reading-reflection-history { margin-top: 1rem; border-top: 1px solid var(--rd-border); padding-top: 0.75rem; }
+.reading-reflection-list { list-style: none; padding: 0; }
+.reading-reflection-list > li { border-left: 2px solid var(--rd-border-strong); padding-left: 1rem; margin: 1rem 0 1.5rem; }
+.reading-reflection-list h4 { font-size: 0.85rem; margin: 0.5rem 0; }
+.reading-reflection-list summary { cursor: pointer; color: var(--rd-muted); font-size: 0.85rem; padding: 0.5rem 0; }
+.reading-takeaways :is(input, select, summary):focus-visible { outline: var(--rd-focus-ring); outline-offset: 3px; }

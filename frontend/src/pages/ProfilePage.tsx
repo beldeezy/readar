@@ -16,8 +16,8 @@ interface BookStatusItem {
   book_id: string;
   status: string;
   updated_at: string;
-  title?: string;
-  author_name?: string;
+  title?: string | null;
+  author_name?: string | null;
 }
 
 interface ReadingProfileData {

@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from app.schemas.book import BookResponse
 
 
@@ -9,6 +9,15 @@ class RecommendationExplanation(BaseModel):
     primary_reasons: List[str]  # Top 2-3 human-readable reasons (for admin/debug only)
     signals: Optional[Dict[str, Any]] = None  # Signal flags (stage_match, challenge_match, etc.)
     score_components: Optional[Dict[str, float]] = None  # Score breakdown by component
+
+
+class RecommendationFit(BaseModel):
+    priority: Optional[str] = None
+    priority_label: str
+    reason: str
+    evidence: Optional[str] = None
+    reading_focus: str
+    match_type: Literal["challenge", "goal", "stage", "general"]
 
 
 class RecommendationItem(BaseModel):
@@ -33,6 +42,7 @@ class RecommendationItem(BaseModel):
     business_stage_tags: Optional[List[str]] = None
     purchase_url: Optional[str] = None
     why_this_book: str  # Always present, single compelling paragraph explaining why recommended
+    fit: Optional[RecommendationFit] = None
     why_recommended: Optional[List[str]] = None  # Deprecated: use why_this_book instead
     why_signals: Optional[List[Dict[str, str]]] = None
     explanation: Optional[RecommendationExplanation] = None  # Structured explanation (primary_reasons + signals + score_components)
@@ -64,4 +74,3 @@ class RecommendationsResponse(BaseModel):
     is_premium: Optional[bool] = None
     refresh_limit: Optional[int] = None        # None for premium (unlimited)
     refreshes_remaining: Optional[int] = None  # None for premium (unlimited)
-

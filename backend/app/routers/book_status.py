@@ -3,7 +3,8 @@ Book status endpoints for persisting user book status and powering Profile dashb
 """
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, cast, func, String
+from sqlalchemy import and_, cast, case, func, String
+from sqlalchemy.dialects.postgresql import insert
 from pydantic import BaseModel
 from typing import Optional, List, Literal
 from uuid import UUID
@@ -20,6 +21,7 @@ router = APIRouter(tags=["book-status"])
 
 # Rating we record when a book is marked read in-app (Goodreads scale 1–5).
 READ_RATING = {"read_liked": 5.0, "read_disliked": 2.0}
+READING_STATES = ("reading_next", "waiting_for_book", "currently_reading")
 
 
 def _lookup_book(db: Session, book_id: str) -> Optional[Book]:
@@ -85,19 +87,28 @@ def _regen_reading_profile(user_id) -> None:
 class SetBookStatusRequest(BaseModel):
     """Request body for setting book status."""
     book_id: str
-    status: str  # one of: interested | currently_reading | read_liked | read_disliked | not_for_me
+    status: str  # Shelf states and READING_STATES; validated by the handler.
     request_id: Optional[str] = None
     position: Optional[int] = None
     source: Optional[str] = "recommendations"
 
 
+class SelectBookRequest(BaseModel):
+    book_id: str
+    request_id: Optional[str] = None
+    position: Optional[int] = None
+
+
 class BookStatusResponse(BaseModel):
     """Response for book status."""
     book_id: str
+    catalog_book_id: Optional[str] = None
     status: str
     updated_at: str
     title: Optional[str] = None
     author_name: Optional[str] = None
+    cover_image_url: Optional[str] = None
+    purchase_url: Optional[str] = None
     
     class Config:
         from_attributes = True
@@ -110,6 +121,30 @@ async def set_book_status(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    return await _set_book_status(payload, background_tasks, user, db)
+
+
+@router.post("/reading/selection", status_code=status.HTTP_200_OK)
+async def select_book_for_reading(
+    payload: SelectBookRequest,
+    background_tasks: BackgroundTasks,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Choose a book without restarting or downgrading an existing reading choice."""
+    return await _set_book_status(
+        SetBookStatusRequest(**payload.model_dump(), status="reading_next", source="reading_selection"),
+        background_tasks, user, db, preserve_reading_state=True,
+    )
+
+
+async def _set_book_status(
+    payload: SetBookStatusRequest,
+    background_tasks: BackgroundTasks,
+    user: User,
+    db: Session,
+    preserve_reading_state: bool = False,
+):
     """
     Set or update the latest book status for the current user.
     
@@ -118,51 +153,38 @@ async def set_book_status(
     2. Logs an event (best-effort, must never fail the request)
     """
     # Validate status
-    valid_statuses = ["interested", "currently_reading", "read_liked", "read_disliked", "not_for_me"]
-    if payload.status not in valid_statuses:
+    valid_statuses = ["interested", "read_liked", "read_disliked", "not_for_me", *READING_STATES]
+    status_value = "not_for_me" if payload.status == "not_interested" else payload.status
+    if status_value not in valid_statuses:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}",
         )
     
-    # Map frontend "not_interested" to backend "not_for_me" if needed
-    # (This handles any legacy frontend calls)
-    status_value = payload.status
-    if status_value == "not_interested":
-        status_value = "not_for_me"
+    book = None
+    if status_value in READING_STATES:
+        book = _lookup_book(db, payload.book_id)
+        if book is None:
+            raise HTTPException(status_code=404, detail="This book is no longer available. Choose another book.")
     
     try:
-        # Upsert into user_book_status
-        existing = db.query(UserBookStatusModel).filter(
-            and_(
-                UserBookStatusModel.user_id == user.id,
-                UserBookStatusModel.book_id == payload.book_id
-            )
-        ).first()
-        
-        if existing:
-            # Update existing
-            existing.status = status_value
-            existing.updated_at = datetime.utcnow()
-            db.commit()
-            db.refresh(existing)
-        else:
-            # Create new
-            new_status = UserBookStatusModel(
-                user_id=user.id,
-                book_id=payload.book_id,
-                status=status_value,
-            )
-            db.add(new_status)
-            db.commit()
-            db.refresh(new_status)
+        # Atomic upsert tolerates retries and concurrent clicks. Selecting an
+        # already queued/waiting/started book preserves that state in the DB.
+        keep_existing = UserBookStatusModel.status.in_(READING_STATES)
+        update_status = case((keep_existing, UserBookStatusModel.status), else_=status_value) if preserve_reading_state else status_value
+        statement = insert(UserBookStatusModel).values(
+            user_id=user.id, book_id=payload.book_id, status=status_value,
+        ).on_conflict_do_update(
+            constraint="uq_user_book_status_user_book",
+            set_={"status": update_status, "updated_at": datetime.utcnow()},
+        ).returning(UserBookStatusModel.status)
+        status_value = db.execute(statement).scalar_one()
 
-        # "currently_reading" is a transient shelf state and must not feed the
-        # recommendation engine. If the book had a prior graded/interest
-        # interaction, clear it so the Knowledge Map / scoring stays accurate.
-        if status_value == "currently_reading":
-            _delete_interaction(db, user.id, payload.book_id)
-            db.commit()
+        # Reading intent is not a rating or a completed book. Clear the old
+        # interaction in the same transaction so a failed save changes neither.
+        if status_value in READING_STATES:
+            _delete_interaction(db, user.id, str(book.id))
+        db.commit()
 
         # Marking a book read feeds the user's reading history (powers the
         # "Books read" count, reading confidence, and the 50-book goal), then
@@ -222,7 +244,7 @@ async def set_book_status(
                 exc_info=True,
             )
         
-        return {"ok": True}
+        return {"ok": True, "status": status_value}
         
     except Exception as e:
         db.rollback()
@@ -292,7 +314,7 @@ async def delete_book_status(
         )
 
 
-StatusLiteral = Literal["interested", "currently_reading", "read_liked", "read_disliked", "not_for_me", "not_interested"]
+StatusLiteral = Literal["interested", "reading_next", "waiting_for_book", "currently_reading", "read_liked", "read_disliked", "not_for_me", "not_interested"]
 
 @router.get("/profile/book-status", response_model=List[BookStatusResponse])
 async def get_book_status_list(
@@ -346,12 +368,14 @@ async def get_book_status_list(
         
         result = BookStatusResponse(
             book_id=status_obj.book_id,
+            catalog_book_id=str(book.id) if book else None,
             status=status_obj.status,
             updated_at=status_obj.updated_at.isoformat() if status_obj.updated_at else "",
             title=book.title if book else None,
             author_name=book.author_name if book else None,
+            cover_image_url=(book.cover_image_url or book.thumbnail_url) if book else None,
+            purchase_url=book.purchase_url if book else None,
         )
         results.append(result)
     
     return results
-

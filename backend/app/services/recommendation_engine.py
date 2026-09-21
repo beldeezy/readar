@@ -23,6 +23,7 @@ from app.models import (
 )
 from app.schemas.recommendation import RecommendationItem
 from app.services import founder_knowledge as fk
+from app.services.recommendation_explanations import build_book_fit, fit_summary
 
 logger = logging.getLogger(__name__)
 
@@ -261,78 +262,8 @@ def _generate_explanation_blurb(
     onboarding: Optional[OnboardingProfile],
     signals: Dict[str, Any],
 ) -> str:
-    """
-    Generate a user-facing 2-3 sentence blurb explaining why the book was recommended.
-
-    Template:
-    - Sentence 1: Tie to user situation (stage/challenge)
-    - Sentence 2: What the book helps them do
-    - Sentence 3 (optional): How to use it / what to look for
-
-    Returns a deterministic 2-3 sentence string (no LLMs).
-    """
-    sentences: List[str] = []
-
-    # Extract user context
-    business_stage = user_ctx.get("business_stage", "")
-    biggest_challenge = user_ctx.get("biggest_challenge", "")
-    business_model = user_ctx.get("business_model", "")
-
-    # Sentence 1: Tie to user situation
-    situation_parts = []
-    if signals.get("stage_match") and business_stage:
-        stage_label = business_stage.replace("_", " ").replace("-", " ")
-        situation_parts.append(f"at the {stage_label} stage")
-
-    if signals.get("challenge_match") and biggest_challenge:
-        # Summarize challenge without pasting full text
-        challenge_clean = biggest_challenge.replace("Struggling with:", "").strip()
-        # Take first clause or truncate if too long
-        if len(challenge_clean) > 60:
-            challenge_clean = challenge_clean[:57] + "..."
-        situation_parts.append(f"working through {challenge_clean}")
-
-    if situation_parts:
-        situation = " and ".join(situation_parts)
-        sentences.append(f"Given you're {situation}, this book is especially relevant.")
-    elif business_model:
-        model_clean = business_model.replace("_", " ").replace("-", " ")
-        sentences.append(f"This book is tailored for {model_clean} founders.")
-
-    # Sentence 2: What the book helps them do
-    help_text = None
-    if hasattr(book, 'promise') and book.promise:
-        help_text = book.promise.strip()
-        if not help_text.endswith('.'):
-            help_text += "."
-        sentences.append(help_text)
-    elif hasattr(book, 'outcomes') and book.outcomes:
-        outcome = book.outcomes[0]
-        sentences.append(f"This book will help you {outcome.lower()}.")
-    elif hasattr(book, 'core_frameworks') and book.core_frameworks:
-        framework = book.core_frameworks[0]
-        sentences.append(f"It introduces the {framework} framework to sharpen your execution.")
-
-    # Sentence 3 (optional): How to use it / what to look for
-    if signals.get("functional_overlap"):
-        overlap_areas = signals["functional_overlap"]
-        if overlap_areas:
-            area_text = ", ".join(overlap_areas[:2])
-            sentences.append(f"Pay special attention to the {area_text} insights.")
-    elif hasattr(book, 'core_frameworks') and book.core_frameworks and not help_text:
-        # Only add if we didn't already mention frameworks
-        framework = book.core_frameworks[0]
-        sentences.append(f"Read it with the goal of applying the {framework} framework to your work.")
-
-    # Fallback if no sentences generated
-    if not sentences:
-        sentences.append("This book is recommended based on your profile and reading history.")
-        if hasattr(book, 'promise') and book.promise:
-            sentences.append(book.promise.strip())
-
-    # Join and limit to 3 sentences max
-    blurb = " ".join(sentences[:3])
-    return blurb
+    """Explain only supported profile/catalog connections; keep the legacy API."""
+    return fit_summary(build_book_fit(user_ctx, book))
 
 
 def build_recommendation_explanation(
@@ -577,7 +508,8 @@ def get_generic_recommendations(
         why_signals = _build_why_signals(None, book)
         
         # Build why_this_book for generic recs (no onboarding, so use empty factors)
-        why_this_book_text = build_why_this_book_v2(None, book, None, None)
+        fit_data = build_book_fit(None, book)
+        why_this_book_text = fit_summary(fit_data)
         
         relevancy_score = 0.0  # generic recs, no personalized score
         recommendations.append(
@@ -603,6 +535,7 @@ def get_generic_recommendations(
                 business_stage_tags=book.business_stage_tags,
                 purchase_url=purchase_url,
                 why_this_book=why_this_book_text,
+                fit=fit_data,
                 why_recommended=None,  # Deprecated
                 why_signals=why_signals if why_signals else None,
             )
@@ -1193,297 +1126,8 @@ def build_why_this_book_v2(
     matched_insights: Optional[List[Insight]] = None,
     dominant_insight: Optional[str] = None,
 ) -> str:
-    """
-    Build a concise, personal "Why this book?" explanation.
-    
-    Requirements:
-    - Limit to 1-2 sentences
-    - Explicitly reference: the user's stated challenge OR business stage OR what the book helps them stop doing
-    - Remove generic phrases and tag lists
-    - Keep all logic deterministic. No new data sources.
-    
-    Priority order:
-    1. If matched_insights exist: use top insight + book promise (personalized to user challenge/stage)
-    2. Else if user_ctx has biggest_challenge: reference challenge + book promise
-    3. Else if user_ctx has business_stage: reference stage + book promise
-    4. Else: simple fallback with book promise
-    
-    Returns 1-2 sentences, max 240 chars. Never shows raw tags.
-    
-    Args:
-        user_ctx: User context dict (from _build_user_context) or None
-        book: Book model instance
-        matched_insights: List of matched insights (from scoring)
-        dominant_insight: Dominant insight key (from _get_dominant_insight) or None
-    """
-    parts: List[str] = []
-    
-    # Helper: Normalize stage display
-    def normalize_stage(stage_value: str) -> str:
-        """Convert stage value to display format."""
-        stage_map = {
-            "idea": "Idea",
-            "pre-revenue": "Pre-revenue",
-            "pre_revenue": "Pre-revenue",
-            "early-revenue": "Early revenue",
-            "early_revenue": "Early revenue",
-            "scaling": "Scaling",
-        }
-        normalized = stage_value.lower().replace("_", "-")
-        return stage_map.get(normalized, stage_value.replace("-", " ").title())
-    
-    # Helper: Extract value from insight key
-    def extract_insight_value(insight_key: str) -> str:
-        """Extract the value part from an insight key like 'business_stage:pre-revenue'."""
-        if ":" in insight_key:
-            return insight_key.split(":", 1)[1]
-        return insight_key
-    
-    # Helper: Convert insight to plain English phrase
-    def insight_to_phrase(insight: Insight) -> str:
-        """Convert an insight to a human-readable phrase."""
-        key = insight["key"]
-        reason = insight.get("reason", "")
-        
-        # If reason exists, convert it to the right format based on insight type
-        if reason:
-            if key.startswith("business_stage:"):
-                # Reason is like "at the Pre Revenue stage" -> "You're in the Pre-revenue stage"
-                if reason.startswith("at the "):
-                    stage_part = reason[7:]  # "Pre Revenue stage"
-                    # Normalize the stage part
-                    stage_value = extract_insight_value(key)
-                    stage_display = normalize_stage(stage_value)
-                    return f"You're in the {stage_display} stage"
-                return f"You're in the {reason}."
-            elif key.startswith("business_model:"):
-                # Reason is like "building a saas business" -> "This fits a SaaS-style business"
-                if reason.startswith("building a "):
-                    model_part = reason[10:]  # "saas business"
-                    model_display = model_part.replace(" business", "").title()
-                    return f"This fits a {model_display}-style business"
-                return f"This fits a {reason}."
-            elif key.startswith("focus_area:"):
-                # Reason is like "focused on Marketing" -> "It strengthens your Marketing"
-                if reason.startswith("focused on "):
-                    area_part = reason[11:]  # "Marketing"
-                    return f"It strengthens your {area_part}"
-                return f"It strengthens your {reason}."
-            elif key.startswith("bottleneck:"):
-                # Reason is like "facing pricing challenges" -> "It helps with Pricing Challenges"
-                if reason.startswith("facing "):
-                    bottleneck_part = reason[7:]  # "pricing challenges"
-                    # Clean up: title case, trim to ~6 words
-                    words = bottleneck_part.split()[:6]
-                    bottleneck_display = " ".join(words).title()
-                    return f"It helps with {bottleneck_display}"
-                return f"It helps with {reason}."
-            # If reason doesn't match expected patterns, use it as-is
-            return reason
-        
-        # Fallback: parse from key if no reason
-        if key.startswith("business_stage:"):
-            value = extract_insight_value(key)
-            stage_display = normalize_stage(value)
-            return f"You're in the {stage_display} stage"
-        elif key.startswith("business_model:"):
-            value = extract_insight_value(key)
-            model_display = value.replace("-", " ").replace("_", " ").title()
-            return f"This fits a {model_display}-style business"
-        elif key.startswith("focus_area:"):
-            value = extract_insight_value(key)
-            area_display = value.replace("-", " ").replace("_", " ").title()
-            return f"It strengthens your {area_display}"
-        elif key.startswith("bottleneck:"):
-            value = extract_insight_value(key)
-            # Clean up bottleneck: remove punctuation, trim to ~6 words
-            words = value.replace("-", " ").replace("_", " ").split()[:6]
-            bottleneck_display = " ".join(words).title()
-            return f"It helps with {bottleneck_display}"
-        return ""
-    
-    # Helper: Get book promise clause
-    def get_book_promise() -> Optional[str]:
-        """Get a single book promise clause if available."""
-        if book.promise and book.promise.strip():
-            promise = book.promise.strip()
-            # Remove trailing period if present, we'll add it later
-            if promise.endswith("."):
-                promise = promise[:-1]
-            return promise
-        return None
-    
-    # Helper: Get book category/functional tag for fallback
-    def get_book_category_fallback() -> Optional[str]:
-        """Get a single category or functional tag for fallback."""
-        if book.categories and len(book.categories) > 0:
-            return book.categories[0]
-        if book.functional_tags and len(book.functional_tags) > 0:
-            return book.functional_tags[0]
-        return None
-    
-    # PRIORITY A: If matched_insights exist
-    if matched_insights and len(matched_insights) > 0:
-        # Sort by weight (descending) and take top 1
-        sorted_insights = sorted(matched_insights, key=lambda x: x.get("weight", 0.0), reverse=True)
-        top_insight = sorted_insights[0]
-        
-        # Get user context for personalization
-        biggest_challenge = user_ctx.get("biggest_challenge") if user_ctx else None
-        business_stage = user_ctx.get("business_stage") if user_ctx else None
-        
-        # Build personalized opening based on insight type
-        insight_key = top_insight.get("key", "")
-        if insight_key.startswith("bottleneck:") and biggest_challenge:
-            # Reference the user's stated challenge directly
-            challenge_text = biggest_challenge.strip()
-            # Capitalize first letter
-            if challenge_text:
-                challenge_text = challenge_text[0].upper() + challenge_text[1:] if len(challenge_text) > 1 else challenge_text.upper()
-            parts.append(f"Since you're facing {challenge_text.lower()}, this book")
-        elif insight_key.startswith("business_stage:") and business_stage:
-            # Reference the user's business stage
-            stage_display = normalize_stage(business_stage)
-            parts.append(f"As you're in the {stage_display} stage, this book")
-        else:
-            # Use insight phrase as opening
-            phrase = insight_to_phrase(top_insight)
-            if phrase:
-                # Make it more personal - convert "You're" to "Since you're" or similar
-                if phrase.startswith("You're "):
-                    phrase = "Since " + phrase.lower()
-                elif phrase.startswith("This "):
-                    phrase = "This book " + phrase[5:].lower()
-                parts.append(phrase)
-        
-        # Add book promise - make it actionable
-        promise = get_book_promise()
-        if promise:
-            # Ensure promise references what it helps them stop doing or achieve
-            promise_lower = promise.lower()
-            if "help" not in promise_lower and "stop" not in promise_lower and "avoid" not in promise_lower:
-                # Add a connector if promise doesn't already have action words
-                if parts:
-                    parts[-1] = parts[-1].rstrip(".") + " helps you " + promise.lower()
-                else:
-                    parts.append(f"This book helps you {promise.lower()}")
-            else:
-                if parts:
-                    parts[-1] = parts[-1].rstrip(".") + ", " + promise.lower()
-                else:
-                    parts.append(promise)
-        else:
-            # Fallback if no promise
-            if not parts:
-                parts.append("This book directly addresses your current needs.")
-        
-        # Build result - limit to 1-2 sentences
-        result = " ".join(parts).strip()
-        if result:
-            # Enforce length limit (1-2 sentences, ~240 chars max)
-            if len(result) > 240:
-                # Truncate at last sentence boundary before 240 chars
-                sentences = result.split(". ")
-                if len(sentences) > 1:
-                    # Take first sentence if it's reasonable length
-                    first_sentence = sentences[0] + "."
-                    if len(first_sentence) <= 240:
-                        result = first_sentence
-                    else:
-                        # Truncate first sentence
-                        truncated = first_sentence[:237]
-                        last_space = truncated.rfind(" ")
-                        if last_space > 180:
-                            result = truncated[:last_space] + "..."
-                        else:
-                            result = truncated + "..."
-                else:
-                    # Single sentence - truncate at word boundary
-                    truncated = result[:237]
-                    last_space = truncated.rfind(" ")
-                    if last_space > 180:
-                        result = truncated[:last_space] + "..."
-                    else:
-                        result = truncated + "..."
-            # Clean up: remove double spaces, ensure ends with period
-            result = " ".join(result.split())
-            if not result.endswith("."):
-                result += "."
-            return result
-    
-    # PRIORITY B: Reference user's biggest challenge directly
-    if user_ctx:
-        biggest_challenge = user_ctx.get("biggest_challenge")
-        if biggest_challenge:
-            challenge_text = biggest_challenge.strip()
-            # Capitalize first letter
-            if challenge_text:
-                challenge_text = challenge_text[0].upper() + challenge_text[1:] if len(challenge_text) > 1 else challenge_text.upper()
-            parts.append(f"Since you're facing {challenge_text.lower()}, this book")
-            
-            # Add book promise
-            promise = get_book_promise()
-            if promise:
-                promise_lower = promise.lower()
-                if "help" not in promise_lower and "stop" not in promise_lower:
-                    parts[-1] = parts[-1].rstrip(".") + " helps you " + promise.lower()
-                else:
-                    parts[-1] = parts[-1].rstrip(".") + ", " + promise.lower()
-            else:
-                parts[-1] = parts[-1] + " directly addresses this challenge."
-            
-            result = " ".join(parts).strip()
-            if result and len(result) <= 240:
-                if not result.endswith("."):
-                    result += "."
-                return result
-    
-    # PRIORITY C: Reference business stage
-    if user_ctx:
-        business_stage = user_ctx.get("business_stage")
-        if business_stage:
-            stage_display = normalize_stage(business_stage)
-            parts.append(f"As you're in the {stage_display} stage, this book")
-            
-            # Add book promise
-            promise = get_book_promise()
-            if promise:
-                promise_lower = promise.lower()
-                if "help" not in promise_lower and "stop" not in promise_lower:
-                    parts[-1] = parts[-1].rstrip(".") + " helps you " + promise.lower()
-                else:
-                    parts[-1] = parts[-1].rstrip(".") + ", " + promise.lower()
-            else:
-                parts[-1] = parts[-1] + " is tailored to your current needs."
-            
-            result = " ".join(parts).strip()
-            if result:
-                if len(result) > 240:
-                    truncated = result[:237]
-                    last_space = truncated.rfind(" ")
-                    if last_space > 180:
-                        result = truncated[:last_space] + "..."
-                    else:
-                        result = truncated + "..."
-                result = " ".join(result.split())
-                if not result.endswith("."):
-                    result += "."
-                return result
-    
-    # Ultimate fallback
-    promise = get_book_promise()
-    if promise:
-        result = promise + "."
-        if len(result) > 240:
-            truncated = result[:237]
-            last_space = truncated.rfind(" ")
-            if last_space > 180:
-                result = truncated[:last_space] + "..."
-            else:
-                result = truncated + "..."
-        return result
-    
-    return "This is a solid foundational pick to build clarity and execution momentum."
+    """Explain only supported profile/catalog connections; keep the legacy API."""
+    return fit_summary(build_book_fit(user_ctx, book))
 
 
 def _build_why_signals(
@@ -2741,7 +2385,8 @@ def get_personalized_recommendations(
         score_factors = book_score_factors.get(book_id, ScoreFactors())
         matched_insights = book_matched_insights.get(book_id, [])
         dominant_insight = book_dominant_insights.get(book_id)
-        why_this_book_text = build_why_this_book_v2(user_ctx, book, matched_insights, dominant_insight)
+        fit_data = build_book_fit(user_ctx, book)
+        why_this_book_text = fit_summary(fit_data)
         
         # Build why_signals (reason chips)
         why_signals = _build_why_signals(onboarding, book)
@@ -2842,6 +2487,7 @@ def get_personalized_recommendations(
                 business_stage_tags=book.business_stage_tags,
                 purchase_url=purchase_url,
                 why_this_book=why_this_book_text,
+                fit=fit_data,
                 why_recommended=None,  # Deprecated
                 why_signals=why_signals if why_signals else None,
                 explanation=explanation_data,
@@ -2899,6 +2545,7 @@ def get_recommendations_from_payload(
             self.areas_of_business = payload.areas_of_business
             self.current_gross_revenue = payload.current_gross_revenue
             self.vision_6_12_months = payload.vision_6_12_months
+            self.ideal_book_description = payload.ideal_book_description
             self.blockers = payload.blockers
     
     # Create mock onboarding profile from payload
@@ -3091,7 +2738,8 @@ def get_recommendations_from_payload(
         score_factors = book_score_factors.get(book_id, ScoreFactors())
         matched_insights = book_matched_insights.get(book_id, [])
         dominant_insight = book_dominant_insights.get(book_id)
-        why_this_book_text = build_why_this_book_v2(user_ctx, book, matched_insights, dominant_insight)
+        fit_data = build_book_fit(user_ctx, book)
+        why_this_book_text = fit_summary(fit_data)
         
         # Build why_signals (reason chips)
         why_signals = _build_why_signals(onboarding, book)
@@ -3162,6 +2810,7 @@ def get_recommendations_from_payload(
                 business_stage_tags=book.business_stage_tags,
                 purchase_url=purchase_url,
                 why_this_book=why_this_book_text,
+                fit=fit_data,
                 why_recommended=None,  # Deprecated
                 why_signals=why_signals if why_signals else None,
                 dominant_insight=book_diversity_info.get("dominant_insight"),
@@ -3412,7 +3061,8 @@ def get_recommendations_for_user(
     user_ctx = _build_user_context(onboarding)
     for book, score, why, factors in top:
         # Build why_this_book paragraph from score factors
-        why_this_book_text = build_why_this_book_v2(user_ctx, book, None, None)
+        fit_data = build_book_fit(user_ctx, book)
+        why_this_book_text = fit_summary(fit_data)
         
         # Build why_signals (reason chips)
         why_signals = _build_why_signals(onboarding, book)
@@ -3444,6 +3094,7 @@ def get_recommendations_for_user(
                 business_stage_tags=book.business_stage_tags,
                 purchase_url=purchase_url,
                 why_this_book=why_this_book_text,
+                fit=fit_data,
                 why_recommended=None,  # Deprecated
                 why_signals=why_signals if why_signals else None,
             )
