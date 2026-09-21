@@ -74,6 +74,7 @@ def test_response_loss_retry_keeps_one_finish_and_does_not_overwrite_new_challen
     assert db.query(ReadingHistoryEntry).count() == 1
     assert client.get("/api/reading/journey").json()["challenge"] == "Hire a team"
     assert finish(client, book).status_code == 409
+    assert finish(client, book, payload | {"reflection": "Changed after the lost response"}).status_code == 409
 
 
 def test_optional_feedback_does_not_invent_a_rating_or_change_challenge(db, journey):

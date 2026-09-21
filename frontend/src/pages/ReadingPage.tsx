@@ -107,6 +107,7 @@ export default function ReadingPage() {
         cover_image_url: book.cover_image_url || book.thumbnail_url,
       }, ...current.filter((item) => item.book_id !== book.id)]);
       setQuery('');
+      setJourneyRefresh(value => value + 1);
       setNotice(`${book.title} is saved to your reading list.`);
     } catch {
       setActionError(`We couldn't save ${book.title}. Please try again.`);
@@ -118,6 +119,7 @@ export default function ReadingPage() {
     try {
       await apiClient.setBookStatus({ book_id: item.book_id, status, source: 'reading_page' });
       setItems((current) => current.map((book) => book.book_id === item.book_id ? { ...book, status } : book));
+      setJourneyRefresh(value => value + 1);
       const label = item.title || 'Your book';
       setNotice(status === 'currently_reading' ? `${label} is now in Now reading.`
         : status === 'waiting_for_book' ? `${label} is saved while you wait for your copy.`
@@ -132,6 +134,7 @@ export default function ReadingPage() {
     try {
       await apiClient.deleteBookStatus(item.book_id);
       setItems((current) => current.filter((book) => book.book_id !== item.book_id));
+      setJourneyRefresh(value => value + 1);
       setNotice(`${item.title || 'The book'} was removed from your reading list.`);
     } catch {
       setActionError("We couldn't remove that book. Please try again.");

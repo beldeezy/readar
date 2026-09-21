@@ -146,6 +146,10 @@ def finish_book(book_id: UUID, payload: FinishRequest, tz: str = Query(default="
         if existing:
             if existing.request_id != payload.request_id:
                 raise HTTPException(status_code=409, detail="This book is already finished. Refresh Reading to see it.")
+            intended_after = payload.next_challenge.strip() if payload.next_challenge is not None else existing.challenge_before
+            if (existing.rating != payload.rating or existing.reflection != payload.reflection.strip()
+                    or existing.challenge_after != intended_after):
+                raise HTTPException(status_code=409, detail="Your earlier finish was saved with different answers. Refresh Reading to see the saved check-in.")
             response = completion_response(existing, book)
             db.commit()
             return response

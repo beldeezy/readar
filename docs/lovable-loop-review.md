@@ -47,7 +47,7 @@ cd backend
 source .venv/bin/activate
 python -m pip install -r requirements.txt
 python -m alembic upgrade head
-ENVIRONMENT=development FRONTEND_ORIGINS=http://localhost:5173,http://127.0.0.1:5173 USER_EMAILS_PAUSED=true python -m uvicorn app.main:app --reload --env-file .env --host 127.0.0.1 --port 8000
+ENVIRONMENT=development CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173 USER_EMAILS_PAUSED=true python -m uvicorn app.main:app --reload --env-file .env --host 127.0.0.1 --port 8000
 ```
 
 If your existing virtual environment is named `venv`, activate `venv/bin/activate` instead. Create one with `python3 -m venv .venv` only if needed. Use a test database for review; the migration applies to the configured database. Keep production mail credentials out of a local test environment.
@@ -70,4 +70,4 @@ Open `http://localhost:5173/onboarding`. Keep `VITE_API_BASE_URL=http://127.0.0.
 4. Import a real Goodreads CSV. Verify actual saved/skipped counts; pause or continue immediately. Try a zero-row file, an invalid file and interrupted upload. A successful import must request fresh picks. Verify Google branding separately as described above.
 5. Sign in as a returning reader; resume Reading. Save progress, capture an action, snooze the next-step prompt and reload. Finish a started book with optional feedback, change the challenge, and follow Find my next book. Reload to verify the finished record; confirm the finished book is not offered again. Verify a second account cannot see the first account's check-in. Points must not increase just from finishing.
 
-Automated checks cover the provider-failure/summary behavior, import timing and recovery, typing accessibility, safe OAuth destinations, finish retry/conflict behavior, database atomicity/isolation, local-date preferences and migration upgrade/downgrade. They use mocked AI/auth responses and an isolated test database; live recommendation quality, Google branding and the owner's UX acceptance remain separate gates.
+GitHub CI passed 319 backend tests and 42 frontend tests, plus TypeScript/build and lint (run 35604196654). Automated checks cover the provider-failure/summary behavior, import timing and recovery, typing accessibility, safe OAuth destinations, finish retry/conflict behavior, database atomicity/isolation, local-date preferences and migration upgrade/downgrade. They use mocked AI/auth responses and an isolated test database; live recommendation quality, Google branding and the owner's UX acceptance remain separate gates.
