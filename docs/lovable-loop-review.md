@@ -38,7 +38,19 @@ Sources checked 2026-09-21: [Supabase Google setup](https://supabase.com/docs/gu
 
 ## Terminal quick reference
 
-From the repository root on the intended review branch, with the existing working test credentials in `backend/.env` and `frontend/.env.local`:
+First stop both running servers with Ctrl+C. From the root of `readar-v1`, check `git status --short`. If it lists local edits, preserve them before switching; do not discard or reset them.
+
+For the combined implementation, use `dev`:
+
+```bash
+git fetch origin && git switch dev && git pull --ff-only origin dev
+git branch --show-current
+git log -1 --oneline
+```
+
+The branch must be `dev` and include the PR #20 merge (`462481b`) or a later descendant. `npm ci` only installs dependencies; it does not fetch code or change branches. Run both servers from this same updated checkout and use a fresh incognito session for a new onboarding review. See [the September 21 UX review](ux-review-2026-09-21.md) for the version mismatch and acceptance cases.
+
+With the existing working test credentials in `backend/.env` and `frontend/.env.local`:
 
 Terminal 1:
 
