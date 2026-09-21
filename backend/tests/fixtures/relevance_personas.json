@@ -225,6 +225,49 @@
         "vision_6_12_months": "Fulfilment that keeps up with demand without quality dropping."
       },
       "expected_any_of": ["The Goal", "Thinking in Systems", "Work the System"]
+    },
+    {
+      "id": "P16",
+      "label": "Cleaning company needs steady leads to retain cleaners",
+      "probes": "RD-11 owner-reported causal bottleneck; acquisition before generic sales or hiring",
+      "payload": {
+        "business_model": "service",
+        "business_stage": "early-revenue",
+        "biggest_challenge": "I run a residential cleaning company. Inconsistent lead flow means I cannot fill cleaners schedules. They leave because their earnings are unreliable, so I spend all my time recruiting and cleaning instead of growing the business.",
+        "areas_of_business": [
+          "marketing",
+          "operations"
+        ],
+        "vision_6_12_months": "Grow profitably and hire someone to manage the cleaners"
+      },
+      "expected_any_of": [
+        "Book Yourself Solid",
+        "The Referral Engine",
+        "The 1-Page Marketing Plan",
+        "Duct Tape Marketing"
+      ]
+    },
+    {
+      "id": "P17",
+      "label": "Cleaning company needs profitable client volume",
+      "probes": "RD-11 September 21 screenshot challenge; specific evidence beyond broad sales/marketing",
+      "payload": {
+        "business_model": "service",
+        "business_stage": "early-revenue",
+        "biggest_challenge": "Growing client volume profitably to fill subcontractor schedules while maintaining margins tight enough to reinvest in acquisition",
+        "areas_of_business": [
+          "marketing",
+          "operations"
+        ],
+        "vision_6_12_months": "Grow profitably and hire someone to manage the cleaners"
+      },
+      "expected_any_of": [
+        "Book Yourself Solid",
+        "The Referral Engine",
+        "The 1-Page Marketing Plan",
+        "Duct Tape Marketing",
+        "Profit First"
+      ]
     }
   ]
 }
