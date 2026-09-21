@@ -2,7 +2,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import Badge from './Badge';
 import Button from './Button';
-import readarLogo from '../assets/readar-logo.png';
+import ReadarBrand from './ReadarBrand';
 import './Header.css';
 
 // Immersive full-screen flows that own the whole viewport — hide the marketing header.
@@ -32,10 +32,7 @@ export default function Header() {
   return (
     <header className="readar-header">
       <div className="readar-header-container container">
-        <Link to="/" className="readar-logo-link">
-          <img src={readarLogo} alt="Readar" className="readar-logo-icon" />
-          <span className="readar-logo-text">readar</span>
-        </Link>
+        <ReadarBrand />
         <nav className={`readar-nav${user ? ' readar-nav--authenticated' : ''}`}>
           {user ? (
             <>
@@ -66,4 +63,3 @@ export default function Header() {
     </header>
   );
 }
-

@@ -36,6 +36,7 @@ function mount(start: string, strict = true) {
     <Route path="/onboarding/import" element={<ImportReadingHistoryPage />} />
     <Route path="/recommendations" element={<ProtectedRoute><RecommendationsPage /></ProtectedRoute>} />
     <Route path="/admin" element={<AdminRoute><p>Admin dashboard</p></AdminRoute>} />
+    <Route path="/reading" element={<p>Return to Reading</p>} />
     <Route path="/onboarding" element={<p>Start onboarding</p>} />
   </Routes></MemoryRouter></AuthProvider>;
   return render(strict ? <StrictMode>{app}</StrictMode> : app);
@@ -84,7 +85,7 @@ it('resumes pending answers on a protected route after a refresh', async () => {
 });
 it('does not exchange the OAuth code twice when the callback itself mounts in StrictMode', async () => {
   mount('/auth/callback?code=test-code');
-  expect(await screen.findByText('The Mom Test')).toBeTruthy();
+  expect(await screen.findByText('Return to Reading')).toBeTruthy();
   expect(mocks.exchange).toHaveBeenCalledTimes(1);
 });
 it('loads books for an existing reader on a direct refresh without a health preflight', async () => {

@@ -1,152 +1,49 @@
-"""
-NEPQ conversational onboarding — background stage framework.
+"""Private discovery objectives: understand the reader without creating pressure."""
 
-IMPORTANT: stages, goals, and outcomes here are INTERNAL. They are never shown,
-named, or hinted to the user — they only steer the model's next question so the
-user experiences a single natural conversation. Each stage lists the outcomes to
-elicit and stage-specific guidance distilled from product direction (threading,
-gentle reframe, accurate language, the rationale "kill shot", etc.).
-"""
-from typing import List, Dict, Any
+OPENING_MESSAGE = (
+    "Hey! Before I play matchmaker between you and your next read, what's got you here — "
+    "is there a specific problem you'd like to solve in your business, or are you curious "
+    "what book I'd pick for you?"
+)
 
-NEPQ_STAGES: List[Dict[str, Any]] = [
-    {
-        "key": "connection",
-        "goal": "Convert curiosity into comfort. Set a frame and a gap so the user opts in.",
-        "outcomes": [
-            "A playful, warm opener lands.",
-            "A tangible sense of what they're looking for.",
-            "Explicit agreement to the status frame (yes/no).",
-        ],
-        "guidance": (
-            "Open playfully — e.g. 'Before I play matchmaker between you and your "
-            "next read, what's got you here — something specific, or curious what "
-            "I'd pick for you?'. Then, as your VERY NEXT message after their "
-            "first answer, deliver the STATUS FRAME (this is required — do not "
-            "skip it or replace it with another question). Deliver the STATUS FRAME "
-            "(you may lightly vary the wording, keep the frame + gap intact): "
-            "\"Before we get into anything, this first part is pretty basic — it's "
-            "really just for us to find out what you're doing now and where you'd "
-            "like to be, so I can see if I can actually help. You might be better "
-            "off continuing exactly what you're doing. But if it turns out this is "
-            "what you're looking for, I can point you to some possible next steps. "
-            "Would that help you?\" When you deliver the status frame, set ui to "
-            "'yes_no'. Treat any affirmative as agreement and move on."
-        ),
-    },
-    {
-        "key": "situation",
-        "goal": (
-            "Convert comfort into doubt — but ONLY gentle doubt about how they "
-            "currently find information/ideas to grow. NEVER cast doubt on their "
-            "business itself; stay affirming about the business."
-        ),
-        "outcomes": [
-            "What they're building (the business, briefly).",
-            "How long they've been at it.",
-            "What CAUSED them to go that route.",
-            "How they currently decide what to read / where they get ideas to grow.",
-        ],
-        "guidance": (
-            "Stay warm and affirming about their business. Use 'what caused you to "
-            "go with...' — NEVER 'what made you...'. The only doubt you gently "
-            "surface is about their current METHOD of finding what to read/learn "
-            "to grow (e.g. random recommendations from friends/social), not the "
-            "business. Get them describing how they currently pick books/ideas."
-        ),
-    },
-    {
-        "key": "problem_awareness",
-        "goal": "Convert doubt into pain by drawing out the real cost of the gap.",
-        "outcomes": [
-            "The core problem's cause/symptoms, in their words.",
-            "A concrete example of it.",
-            "Numbers — what it's costing them (time, money, missed opportunity).",
-            "A mini consequence.",
-            "Impact on the business day-to-day, THEN impact on them personally.",
-            "The rationale beat (final question — see guidance).",
-        ],
-        "guidance": (
-            "Thread their exact words; do not escalate emotion they haven't "
-            "expressed. For impact, FIRST ask how it's affecting the business "
-            "day-to-day, THEN what kind of impact that's had on them personally. "
-            "END this stage with the RATIONALE question that gently makes the "
-            "DIY/random-recommendation route sound unappealing by contrast, e.g.: "
-            "\"Just so I understand — what's the rationale behind wanting a "
-            "recommendation that actually fits your situation, rather than "
-            "continuing with random suggestions from strangers who have no context "
-            "on what you're dealing with?\" Only complete the stage after the "
-            "rationale beat."
-        ),
-    },
-    {
-        "key": "solution_awareness_1",
-        "goal": (
-            "Convert pain into hope: surface what they've tried (and any limiting "
-            "belief), gently reframe, secure forward commitment, and learn their "
-            "ideal criteria in a book."
-        ),
-        "outcomes": [
-            "What they've already tried (surfacing a limiting belief, if any).",
-            "A gentle, permission-first reframe toward the future.",
-            "A sense of commitment to solving it going forward.",
-            "Their ideal criteria in a book / what makes ideas stick for them.",
-        ],
-        "guidance": (
-            "When you reframe: reflect their own words back, ASK PERMISSION to "
-            "offer a perspective ('mind if I share a thought?'), and reframe toward "
-            "the future. NEVER tell them they're wrong or assert a belief they "
-            "didn't express. For ideal criteria, ask something like 'what would "
-            "your ideal criteria in a book be — or what really helps ideas stick "
-            "for you?'. If they're unsure, offer a short menu to react to: "
-            "practical frameworks, checklists, stories, case studies."
-        ),
-    },
-    {
-        "key": "solution_awareness_2",
-        "goal": "Convert hope into meaning.",
-        "outcomes": [
-            "What achieving this would genuinely MEAN to them, in their own words.",
-        ],
-        "guidance": (
-            "Use their specific language for what they want — never vague "
-            "placeholders like 'solved this'. Draw out why it actually matters to "
-            "them at a deeper level."
-        ),
-    },
-    {
-        "key": "consequence_qualifying",
-        "goal": "Convert meaning into urgency.",
-        "outcomes": [
-            "Before today, how close they felt to getting what they want.",
-            "What specifically happens if nothing changes (reference their real situation).",
-            "Why now.",
-        ],
-        "guidance": (
-            "Be specific and accurate to the goal and stakes they named. Avoid "
-            "vague phrasing like 'if it stays this way' — reference the actual "
-            "outcome and the actual cost they described."
-        ),
-    },
-    {
-        "key": "transition",
-        "goal": (
-            "Lean into confirmation bias: summarize what they want and what's "
-            "holding them back, then invite clarification before recommendations."
-        ),
-        "outcomes": [
-            "A concise summary of their goal + the blocker, in their language.",
-            "Explicit confirmation, or a correction to fold in.",
-        ],
-        "guidance": (
-            "Summarize back what they said they want and what's holding them back, "
-            "using their own words, then ask if you got it right or if there's "
-            "anything you're missing. Set ui to 'confirm'. Once they confirm, your "
-            "FINAL message is a brief, warm hand-off — e.g. 'Perfect — let me pull "
-            "a few that actually fit you.' Do NOT ask another question after they "
-            "have confirmed; just close warmly and complete."
-        ),
-    },
+# Stable keys let an in-progress conversation survive this prompt revision.
+NEPQ_STAGES = [
+    dict(key="connection", goal="Help the reader feel comfortable and understand why they came.",
+         outcomes=["A specific problem OR a curiosity-led reading interest."],
+         guidance="Use the supplied opener. After their answer, briefly acknowledge their actual words. "
+         "Curiosity is a valid reason to be here; do not manufacture a problem or require a sales frame. "
+         "If they have no business yet, ask about an idea or subject they want to explore."),
+    dict(key="situation", goal="Understand the reader's context with the minimum necessary questions.",
+         outcomes=["What they are building, exploring or trying to learn."],
+         guidance="Infer context already supplied. Ask only one missing contextual question. "
+         "For aspiring readers ask about their idea, not revenue, staff or an existing business. "
+         "For established readers use their specific business context. Never cast doubt on their choices."),
+    dict(key="problem_awareness", goal="Understand the obstacle or learning interest in the reader's words.",
+         outcomes=["A concrete obstacle or topic they want to understand."],
+         guidance="Thread a follow-up from something they actually said. If useful, ask for one example. "
+         "Do not insist on financial costs, emotional pain, personal consequences or a rationale for using Readar. "
+         "Curious readers can describe what they would enjoy learning. Unknown is an acceptable answer."),
+    dict(key="solution_awareness_1", goal="Learn what they have tried and what kind of reading helps them.",
+         outcomes=["Relevant prior attempts if volunteered.", "Preferred reading style or format."],
+         guidance="Do not ask again about approaches already mentioned. Ask a concrete reading preference "
+         "such as practical examples, exercises or stories. If unsure, offer a small menu with no preferred answer. "
+         "Do not label beliefs as limiting or ask for a commitment."),
+    dict(key="solution_awareness_2", goal="Understand the outcome that would make the book worthwhile.",
+         outcomes=["Their desired outcome or learning direction."],
+         guidance="Use their actual context, e.g. if they named customer interviews, ask what they hope "
+         "to learn from those interviews. Do not imply that a book guarantees a business outcome. "
+         "Advance when this has already been answered."),
+    dict(key="consequence_qualifying", goal="Check practical priorities without manufacturing urgency.",
+         outcomes=["Any remaining constraint that would materially change the recommendation."],
+         guidance="Ask only if a missing priority, time constraint or level of detail matters. "
+         "Never require a why-now answer, predict a negative future, or amplify stakes. "
+         "If enough is known, move directly toward the summary."),
+    dict(key="transition", goal="Let the reader confirm or correct what you understood.",
+         outcomes=["A brief summary of their context, priority and reading preferences.", "Their confirmation."],
+         guidance="Summarize only what they said, then ask if it fits or what needs correcting. "
+         "Use ui='confirm' and stage_complete=false until they confirm. Incorporate corrections "
+         "and ask again even if the turn budget is reached. After confirmation, close warmly "
+         "with no further question and stage_complete=true."),
 ]
 
-STAGE_KEYS = [s["key"] for s in NEPQ_STAGES]
+STAGE_KEYS = [stage["key"] for stage in NEPQ_STAGES]

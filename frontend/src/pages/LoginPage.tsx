@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../auth/supabaseClient';
 import PrimaryButton from '../components/PrimaryButton';
 import Card from '../components/Card';
+import ReadarBrand from '../components/ReadarBrand';
+import { safeReturnPath } from '../auth/postAuthRedirect';
 import './AuthPage.css';
 
 export default function LoginPage() {
@@ -18,8 +20,8 @@ export default function LoginPage() {
       const origin = window.location.origin;
       // Only forward an explicit `next`; otherwise let the callback decide the
       // destination based on the user's actual onboarding status (returning
-      // users go to recommendations, new users to onboarding).
-      const next = searchParams.get('next');
+      // users go to Reading, new users to onboarding).
+      const next = safeReturnPath(searchParams.get('next'));
       const callbackUrl = next
         ? `${origin}/auth/callback?next=${encodeURIComponent(next)}`
         : `${origin}/auth/callback`;
@@ -43,12 +45,14 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="readar-auth-page">
+    <div className="readar-auth-page rd-scan-bg">
       <Card variant="elevated" className="readar-auth-card">
-        <h1 className="readar-auth-title">Sign in to Readar to get your book recommendations</h1>
+        <ReadarBrand />
+        <h1 className="readar-auth-title">Your next chapter starts here.</h1>
+        <p className="readar-auth-description">Sign in to Readar to keep your recommendations, reading progress, and takeaways together.</p>
 
         {error && (
-          <div className="readar-auth-error" style={{ marginBottom: '1.5rem' }}>
+          <div role="alert" className="readar-auth-error" style={{ marginBottom: '1.5rem' }}>
             {error}
           </div>
         )}
@@ -73,7 +77,7 @@ export default function LoginPage() {
                 fontSize: '1rem',
               }}
             >
-              {loading ? 'Redirecting...' : '🔐 Continue with Google'}
+              {loading ? 'Redirecting...' : 'Continue with Google'}
             </PrimaryButton>
           </div>
         </div>

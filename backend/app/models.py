@@ -396,6 +396,35 @@ class UserBookStatusModel(Base):
     )
 
 
+class ReadingJourneyPreference(Base):
+    __tablename__ = "reading_journey_preferences"
+
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    show_next_action = Column(Boolean, nullable=False, default=True, server_default=sa.true())
+    snoozed_until = Column(Date, nullable=True)
+
+
+class ReadingCompletion(Base):
+    __tablename__ = "reading_completions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    book_id = Column(UUID(as_uuid=True), ForeignKey("books.id", ondelete="RESTRICT"), nullable=False)
+    request_id = Column(UUID(as_uuid=True), nullable=False)
+    completed_on = Column(Date, nullable=False)
+    rating = Column(Integer, nullable=True)
+    reflection = Column(Text, nullable=False, default="", server_default="")
+    challenge_before = Column(Text, nullable=False, default="", server_default="")
+    challenge_after = Column(Text, nullable=False, default="", server_default="")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=sa.func.now())
+    __table_args__ = (
+        UniqueConstraint("user_id", "book_id", name="uq_reading_completion_user_book"),
+        UniqueConstraint("user_id", "request_id", name="uq_reading_completion_user_request"),
+        sa.CheckConstraint("rating IS NULL OR rating BETWEEN 1 AND 5", name="ck_reading_completion_rating"),
+        sa.CheckConstraint("char_length(reflection) <= 2000", name="ck_reading_completion_reflection"),
+    )
+
+
 class ReadingProgress(Base):
     __tablename__ = "reading_progress"
 

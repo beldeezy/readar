@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { apiClient } from '../api/client';
-import type { Book, BookStatusItem, ReadingStatus } from '../api/types';
+import type { Book, BookStatusItem, ReadingStatus, ReadingJourney as Journey, ReadingCompletion } from '../api/types';
 import Button from '../components/Button';
+import { ReadingReturnCard, FinishBook, FinishedBooks } from '../components/ReadingJourney';
+import { useReadingCalendar } from '../hooks/useReadingCalendar';
 import BookReadingProgress from '../components/BookReadingProgress';
 import ReadingRewards from '../components/ReadingRewards';
 import FriendlyCompetition from '../components/FriendlyCompetition';
@@ -18,6 +20,12 @@ const READING_STATES = new Set(['reading_next', 'waiting_for_book', 'currently_r
 /** A choice stays here until the reader explicitly starts or removes it. */
 export default function ReadingPage() {
   const location = useLocation();
+  const { day, tz } = useReadingCalendar();
+  const [journey, setJourney] = useState<Journey | null>(null);
+  const [journeyError, setJourneyError] = useState('');
+  const [journeyRefresh, setJourneyRefresh] = useState(0);
+  const [finishing, setFinishing] = useState<string | null>(null);
+  const [finished, setFinished] = useState<ReadingCompletion | null>(null);
   const [items, setItems] = useState<BookStatusItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -34,6 +42,14 @@ export default function ReadingPage() {
   const [rewardsRefresh, setRewardsRefresh] = useState(0);
   const [takeawayBook, setTakeawayBook] = useState<TakeawayBookRequest | null>(null);
   const [takeawayEditing, setTakeawayEditing] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setJourneyError('');
+    apiClient.getReadingJourney(tz).then(data => { if (!cancelled) setJourney(data); })
+      .catch(() => { if (!cancelled) setJourneyError("We couldn't load your next step or finished books. Your reading list is still available."); });
+    return () => { cancelled = true; };
+  }, [location.key, journeyRefresh, rewardsRefresh, reload, day, tz]);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,6 +107,7 @@ export default function ReadingPage() {
         cover_image_url: book.cover_image_url || book.thumbnail_url,
       }, ...current.filter((item) => item.book_id !== book.id)]);
       setQuery('');
+      setJourneyRefresh(value => value + 1);
       setNotice(`${book.title} is saved to your reading list.`);
     } catch {
       setActionError(`We couldn't save ${book.title}. Please try again.`);
@@ -102,6 +119,7 @@ export default function ReadingPage() {
     try {
       await apiClient.setBookStatus({ book_id: item.book_id, status, source: 'reading_page' });
       setItems((current) => current.map((book) => book.book_id === item.book_id ? { ...book, status } : book));
+      setJourneyRefresh(value => value + 1);
       const label = item.title || 'Your book';
       setNotice(status === 'currently_reading' ? `${label} is now in Now reading.`
         : status === 'waiting_for_book' ? `${label} is saved while you wait for your copy.`
@@ -116,13 +134,14 @@ export default function ReadingPage() {
     try {
       await apiClient.deleteBookStatus(item.book_id);
       setItems((current) => current.filter((book) => book.book_id !== item.book_id));
+      setJourneyRefresh(value => value + 1);
       setNotice(`${item.title || 'The book'} was removed from your reading list.`);
     } catch {
       setActionError("We couldn't remove that book. Please try again.");
     } finally { endSave(); }
   };
 
-  const disabled = pending !== null || loading || !!loadError;
+  const disabled = pending !== null || loading || !!loadError || finishing !== null;
   const active = items.filter((item) => item.status === 'currently_reading');
   const upcoming = items.filter((item) => item.status !== 'currently_reading');
 
@@ -133,7 +152,7 @@ export default function ReadingPage() {
     const purchaseUrl = item.purchase_url || (item.title
       ? `https://www.amazon.com/s?k=${encodeURIComponent(`${item.title} ${item.author_name || ''}`.trim())}` : null);
     return (
-      <li key={item.book_id} className="reading-book" aria-busy={busy}>
+      <li key={item.book_id} id={`reading-book-${item.catalog_book_id || item.book_id}`} className="reading-book" aria-busy={busy}>
         <div className="reading-book-header">
           {item.cover_image_url && <img className="reading-cover" src={item.cover_image_url} alt="" loading="lazy" referrerPolicy="no-referrer" />}
           <div>
@@ -152,6 +171,7 @@ export default function ReadingPage() {
             : 'Have a copy? Start when you’re ready. Still getting it? Keep your choice here.'}
         </p>}
         <div className="reading-book-actions">
+          {started && <Button variant="secondary" disabled={disabled || takeawayEditing || !journey || !!journeyError} onClick={() => { setFinishing(item.book_id); setFinished(null); }}>Finish book</Button>}
           {started && <Button variant="secondary" disabled={disabled || takeawayEditing} title={takeawayEditing ? 'Save or cancel your open takeaway first.' : undefined} onClick={() => setTakeawayBook((current) => ({ id: item.catalog_book_id || item.book_id, title: item.title || 'Selected book', request: (current?.request ?? 0) + 1 }))}>Capture a takeaway</Button>}
           {!started && (
             <Button onClick={() => changeStatus(item, 'currently_reading')} disabled={disabled}>
@@ -173,6 +193,14 @@ export default function ReadingPage() {
             {busy && pending?.action === 'remove' ? 'Removing…' : 'Remove'}
           </button>
         </div>
+        {finishing === item.book_id && journey && <FinishBook bookId={item.catalog_book_id || item.book_id} title={item.title || 'this book'} challenge={journey.challenge} tz={tz}
+          onCancel={() => { setFinishing(null); setReload(value => value + 1); }}
+          onBusyChange={isBusy => { saving.current = isBusy; setPending(isBusy ? { id: item.book_id, action: 'finish' } : null); }}
+          onSaved={saved => {
+            setFinished(saved); setFinishing(null);
+            setItems(current => current.filter(book => book.book_id !== item.book_id));
+            setJourneyRefresh(value => value + 1);
+          }} />}
       </li>
     );
   };
@@ -182,6 +210,12 @@ export default function ReadingPage() {
       <div className="container">
         <h1 className="reading-title">Reading</h1>
         <p className="reading-sub reading-muted">Your next book, and the ones you’ve started.</p>
+        {journeyError ? <div role="alert" className="reading-feedback"><p>{journeyError}</p><Button onClick={() => setJourneyRefresh(value => value + 1)}>Reload next step</Button></div>
+          : journey && <ReadingReturnCard journey={journey} tz={tz} onSaved={() => setJourneyRefresh(value => value + 1)} />}
+        {finished && <section className="reading-finish-saved" role="status" aria-live="polite">
+          <h2>You finished {finished.title}.</h2><p>Your book and check-in are saved. Take that idea into your next chapter.</p>
+          <Link className="reading-text-link" to="/recommendations">Find my next book →</Link> · <a className="reading-text-link" href="#reading-takeaways">Revisit my takeaways</a>
+        </section>}
         <ReadingRewards refreshKey={rewardsRefresh} />
         <p className="reading-takeaways-shortcut"><a href="#reading-takeaways">My takeaways & actions ↓</a> · <a href="#friendly-competition">Friendly Competition ↓</a></p>
         <div className="reading-add">
@@ -221,13 +255,15 @@ export default function ReadingPage() {
               <ul className="reading-list">{upcoming.map(renderBook)}</ul>
             </section>}
           </>}
-        <FriendlyCompetition books={items} refreshKey={rewardsRefresh} booksReady={!loading && !loadError} disabled={pending !== null} onBusyChange={(isBusy) => {
+        {journey && <FinishedBooks books={journey.completions} />}
+        <FriendlyCompetition books={items} refreshKey={rewardsRefresh} booksReady={!loading && !loadError} disabled={pending !== null || finishing !== null} onBusyChange={(isBusy) => {
           saving.current = isBusy;
           setPending(isBusy ? { id: 'competition', action: 'pairing' } : null);
         }} />
-        <ReadingTakeaways books={items} requestedBook={takeawayBook} disabled={pending !== null} onEditingChange={setTakeawayEditing} onBusyChange={(isBusy) => {
+        <ReadingTakeaways books={items} requestedBook={takeawayBook} disabled={pending !== null || finishing !== null} onEditingChange={setTakeawayEditing} onBusyChange={(isBusy) => {
           saving.current = isBusy;
           setPending(isBusy ? { id: 'takeaways', action: 'takeaway' } : null);
+          if (!isBusy) setJourneyRefresh(value => value + 1);
         }} />
       </div>
       <ScrollTopButton />

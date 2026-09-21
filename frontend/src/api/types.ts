@@ -403,3 +403,30 @@ export interface CompetitionConsent extends PairingCommand {
   share_progress: boolean;
   expected_reading_revision: number;
 }
+
+export interface ReadingCompletion {
+  book_id: string;
+  title: string;
+  completed_on: string;
+  rating: number | null;
+  reflection: string;
+  challenge_before: string;
+  challenge_after: string;
+}
+
+export interface ReadingJourney {
+  today: string;
+  show_next_action: boolean;
+  snoozed_until: string | null;
+  challenge: string;
+  next_action: { kind: string; title: string; detail: string; href: string; label: string } | null;
+  completions: ReadingCompletion[];
+}
+
+export interface FinishBookRequest {
+  request_id: string;
+  rating: number | null;
+  reflection: string;
+  next_challenge: string | null;
+  expected_challenge: string | null;
+}
