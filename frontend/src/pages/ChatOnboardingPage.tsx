@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mic, X, Check } from 'lucide-react';
 import { apiClient, logEvent } from '../api/client';
 import ChatMessage from '../components/Onboarding/ChatMessage';
 import RadarIcon from '../components/RadarIcon';
+import ReadarBrand from '../components/ReadarBrand';
 import { useSpeechToText } from '../hooks/useSpeechToText';
 import './ChatOnboardingPage.css';
 
@@ -66,6 +67,16 @@ const ChatOnboardingPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<HTMLElement>(null);
+  const transcriptRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
+  const followLatest = useRef(true);
+  const [showLatest, setShowLatest] = useState(false);
+  const [revealingId, setRevealingId] = useState<string | null>(null);
+  const scrollToLatest = () => {
+    const channel = messagesRef.current;
+    if (channel) channel.scrollTop = channel.scrollHeight;
+  };
   const initializedRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -81,9 +92,23 @@ const ChatOnboardingPage: React.FC = () => {
   };
 
   // Keep the textarea sized to its content (covers typing AND the live voice stream).
-  useEffect(() => {
+  useLayoutEffect(() => {
     autoGrow();
+    if (followLatest.current) scrollToLatest();
   }, [input]);
+
+  // Both composer growth (including voice input) and typing reveal resize the
+  // conversation. Follow its end only while the reader is already there.
+  useEffect(() => {
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => {
+      if (followLatest.current) scrollToLatest();
+    });
+    for (const element of [composerRef.current, transcriptRef.current, messagesRef.current]) {
+      if (element) observer.observe(element);
+    }
+    return () => observer.disconnect();
+  }, [done, completing]);
 
   // ── Voice-to-text ──────────────────────────────────────────────────────────
   const stt = useSpeechToText();
@@ -129,7 +154,7 @@ const ChatOnboardingPage: React.FC = () => {
   };
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (followLatest.current) scrollToLatest();
   }, [messages, loading]);
 
   // Resume a saved chat if present; otherwise kick off the opener (once).
@@ -165,8 +190,11 @@ const ChatOnboardingPage: React.FC = () => {
     saveProgress({ messages, history, stageIndex, turnsInStage, ui, done });
   }, [messages, history, stageIndex, turnsInStage, ui, done]);
 
-  const addBot = (content: string) =>
-    setMessages((prev) => [...prev, { id: newId('bot'), type: 'bot', content, timestamp: new Date() }]);
+  const addBot = (content: string) => {
+    const id = newId('bot');
+    setRevealingId(id);
+    setMessages((prev) => [...prev, { id, type: 'bot', content, timestamp: new Date() }]);
+  };
   const addUser = (content: string) =>
     setMessages((prev) => [...prev, { id: newId('user'), type: 'user', content, timestamp: new Date() }]);
 
@@ -200,6 +228,9 @@ const ChatOnboardingPage: React.FC = () => {
   const send = (text: string) => {
     const value = text.trim();
     if (!value || loading || completing || error) return;
+    followLatest.current = true;
+    setShowLatest(false);
+    setRevealingId(null);
     addUser(value);
     setInput('');
     resetTextareaHeight();
@@ -239,10 +270,11 @@ const ChatOnboardingPage: React.FC = () => {
   const disabled = loading || completing || !!error;
 
   return (
-    <div className="chat-onboarding-page">
+    <div className="chat-onboarding-page rd-scan-bg">
       <header className="chat-header">
         <div className="chat-header-content">
-          <h1>Readar</h1>
+          <ReadarBrand />
+          <h1 className="readar-sr-only">Find your next book</h1>
           {/* Non-labeled progress hint — never reveals the conversation framework */}
           <div className="progress-bar" aria-hidden="true">
             <div className="progress-fill" style={{ width: `${progress}%` }} />
@@ -250,9 +282,15 @@ const ChatOnboardingPage: React.FC = () => {
         </div>
       </header>
 
-      <main className="chat-messages">
+      <main className="chat-messages" ref={messagesRef} aria-label="Onboarding conversation" onScroll={() => {
+        const el = messagesRef.current;
+        if (!el) return;
+        followLatest.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+        setShowLatest(!followLatest.current);
+      }}>
+        <div ref={transcriptRef}>
         {messages.map((m) => (
-          <ChatMessage key={m.id} message={m as any} />
+          <ChatMessage key={m.id} message={m} animate={m.id === revealingId} />
         ))}
 
         {loading && (
@@ -277,6 +315,7 @@ const ChatOnboardingPage: React.FC = () => {
         )}
 
         <div ref={messagesEndRef} />
+        </div>
       </main>
 
       {completing ? (
@@ -297,7 +336,10 @@ const ChatOnboardingPage: React.FC = () => {
           </button>
         </div>
       ) : (
-        <div className="nepq-input-bar">
+        <div className="nepq-input-bar" ref={composerRef}>
+          {showLatest && <button type="button" className="message-show-all" onClick={() => {
+            followLatest.current = true; setShowLatest(false); scrollToLatest();
+          }}>Back to latest message ↓</button>}
           {!stt.recording && ui === 'yes_no' && (
             <div className="nepq-quick-replies">
               <button className="nepq-chip" disabled={disabled} onClick={() => send('Yes')}>Yes</button>
@@ -328,10 +370,11 @@ const ChatOnboardingPage: React.FC = () => {
                   ? 'Type or talk-to-text your reply…'
                   : 'Type your reply…'
               }
+              aria-label="Your reply"
               rows={1}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+                if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                   e.preventDefault();
                   send(input);
                 }

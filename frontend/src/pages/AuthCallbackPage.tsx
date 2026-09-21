@@ -4,7 +4,7 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../auth/supabaseClient';
 import { apiClient } from '../api/client';
 import { setAccessToken } from '../auth/auth';
-import { popPostAuthRedirect } from '../auth/postAuthRedirect';
+import { popPostAuthRedirect, safeReturnPath } from '../auth/postAuthRedirect';
 import { useAuth } from '../auth/AuthProvider';
 import { withTimeout } from '../utils/withTimeout';
 import Card from '../components/Card';
@@ -64,16 +64,16 @@ export default function AuthCallbackPage() {
           navigate('/recommendations/loading', { replace: true });
           return;
         }
-        let target = popPostAuthRedirect() || next;
+        let target = safeReturnPath(popPostAuthRedirect()) || safeReturnPath(next);
         if (!target) {
           if (localStorage.getItem(HAS_ONBOARDING_KEY) === '1') {
-            target = '/recommendations';
+            target = '/reading';
           } else {
             try {
               await withTimeout(apiClient.getOnboarding(), 20000, 'Checking your answers timed out.');
               if (!active) return;
               localStorage.setItem(HAS_ONBOARDING_KEY, '1');
-              target = '/recommendations';
+              target = '/reading';
             } catch (cause: any) {
               if (cause?.response?.status !== 404) throw cause;
               target = '/onboarding';

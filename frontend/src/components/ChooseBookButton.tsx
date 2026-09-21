@@ -37,7 +37,7 @@ export default function ChooseBookButton({ bookId, requestId, position, disabled
   };
 
   return (
-    <div>
+    <div className="readar-choose-book">
       <Button variant="primary" onClick={choose} disabled={disabled || saving} aria-busy={saving}>
         {saving ? 'Saving your choice…' : 'Choose this book'}
       </Button>

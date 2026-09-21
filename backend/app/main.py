@@ -19,6 +19,7 @@ from app.routers import (
     billing,
     reading_history,
     reading_progress,
+    reading_journey,
     reading_rewards,
     reading_takeaways,
     reading_reflections,
@@ -143,6 +144,7 @@ app.include_router(user_books.router, prefix="/api")
 app.include_router(billing.router, prefix="/api")
 app.include_router(reading_history.router, prefix="/api")
 app.include_router(reading_progress.router, prefix="/api")
+app.include_router(reading_journey.router, prefix="/api")
 app.include_router(reading_rewards.router, prefix="/api")
 app.include_router(reading_takeaways.router, prefix="/api")
 app.include_router(reading_reflections.router, prefix="/api")

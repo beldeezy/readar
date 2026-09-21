@@ -35,6 +35,30 @@ class OnboardingHandoffTests(unittest.TestCase):
             content=[SimpleNamespace(text=json.dumps(data))]
         )
 
+    def test_agreed_opening_is_available_without_provider_and_is_exact(self):
+        from app.config.nepq import OPENING_MESSAGE
+        self.provider.messages.create.side_effect = RuntimeError("no provider")
+        result = next_turn([], stage_index=0)
+        self.assertEqual(result["message"], OPENING_MESSAGE)
+        self.assertIn("specific problem you'd like to solve in your business", result["message"])
+        self.assertFalse(result["done"])
+        self.provider.messages.create.assert_not_called()
+
+    def test_summary_cannot_finish_by_hitting_a_turn_budget(self):
+        for ui, message in (("confirm", "You want more predictable sales. Is that right?"), (None, "Would you change anything?")):
+            self.provider.messages.create.return_value = SimpleNamespace(content=[SimpleNamespace(text=json.dumps({
+                "message": message, "ui": ui, "stage_complete": True,
+            })[1:])])
+            result = next_turn(self.history, stage_index=6, turns_in_stage=12)
+            self.assertFalse(result["done"])
+            self.assertEqual(result["stage_index"], 6)
+
+    def test_curiosity_can_be_the_goal_without_invented_distress(self):
+        self.respond({"business_stage": "idea", "business_model": "exploring", "biggest_challenge": "Curious about starting a business", "personal_impact": None})
+        result = extract_profile([{"role": "user", "content": "Just curious; I don't have a business yet."}])
+        self.assertEqual(result["business_model"], "exploring")
+        self.assertIsNone(result["personal_impact"])
+
     def test_goal_and_reading_preferences_survive_extraction(self):
         self.respond(self.profile)
         result = extract_profile(self.history)

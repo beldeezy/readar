@@ -16,3 +16,13 @@ export function popPostAuthRedirect(): string | null {
   }
 }
 
+
+/** OAuth always returns inside Readar. Reject protocol-relative and escaped URLs. */
+export function safeReturnPath(path: string | null): string | null {
+  if (!path || !path.startsWith('/') || path.startsWith('//') || /[\\\x00-\x20]/.test(path)) return null;
+  try {
+    const decoded = decodeURIComponent(path);
+    if (decoded.startsWith('//') || /[\\\x00-\x20]/.test(decoded)) return null;
+  } catch { return null; }
+  return path;
+}

@@ -18,7 +18,7 @@ from typing import Dict, List, Any, Optional
 
 import anthropic
 
-from app.config.nepq import NEPQ_STAGES, STAGE_KEYS
+from app.config.nepq import NEPQ_STAGES, STAGE_KEYS, OPENING_MESSAGE
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +40,14 @@ CORE RULES:
 - ACCURATE language: reference the specific things they actually said. Never use vague placeholders like "solved this" or "if it stays this way" — name the real thing.
 - One question at a time. Keep it tight and conversational — usually 1–3 sentences.
 - Vary your phrasing across turns; never sound templated.
+- Never ask "what keeps you up at night", "what is keeping you up at night", or other stock sales questions. Do not manufacture pain, doubt, urgency or commitment.
+- Curiosity is a valid goal. For a reader without a business, discuss their idea or learning interest; never assume revenue, staff or customers. For short or uncertain answers, offer a neutral example or a small choice rather than probing for distress.
+- Ask at most ONE question per response. Use details already provided; never re-ask them. Say when you do not know.
 - Gentle by default: to offer a perspective, reflect first, ASK PERMISSION, and never tell them they're wrong.
 - Never say "what made you…" — use "what caused you to…".
 - If the user gets skeptical, tries to test or break you, or breaks the "fourth wall", acknowledge it tactfully but directly in one line — then redirect to the current objective. Do not get defensive or robotic.
 
-BE BRISK — this is a sharp, friendly chat, NOT an interrogation. INFER whatever you reasonably can from what they've already said instead of asking for it (their stage, business model, how long they've been at it, etc. are captured separately — do NOT ask for them). Ask a follow-up ONLY when it's essential to the current objective's core beat — one good question beats three clarifying ones. NEVER re-ask something already answered or re-deliver something you already said (deliver the status frame only ONCE — any affirmative completes it). The moment the objective's core is reasonably captured, set "stage_complete": true and move on. When in doubt, advance rather than linger — it's better to infer than to over-probe.
+BE BRISK — this is a sharp, friendly chat, NOT an interrogation. INFER whatever you reasonably can from what they've already said instead of asking for it (their stage, business model, how long they've been at it, etc. are captured separately — do NOT ask for them). Ask a follow-up ONLY when it's essential to the current objective's core beat — one good question beats three clarifying ones. NEVER re-ask something already answered or re-deliver something you already said (do not deliver a sales status frame). The moment the objective's core is reasonably captured, set "stage_complete": true and move on. When in doubt, advance rather than linger — it's better to infer than to over-probe.
 
 You are given a hidden CURRENT OBJECTIVE and the OUTCOMES to draw out. Work toward them by threading. When the outcomes are sufficiently met, set "stage_complete": true (the same message can gracefully bridge forward — but never announce a transition).
 
@@ -102,8 +105,8 @@ def _extract_first_json(text: str) -> Optional[dict]:
 STAGE_SOFT_CAPS = {
     "connection": 2,
     "situation": 2,
-    "problem_awareness": 4,
-    "solution_awareness_1": 3,
+    "problem_awareness": 2,
+    "solution_awareness_1": 2,
     "solution_awareness_2": 1,
     "consequence_qualifying": 2,
     "transition": 3,
@@ -162,6 +165,10 @@ def next_turn(
         "ui": None | "yes_no" | "confirm",
       }
     """
+    # The agreed greeting is product copy, not a model improvisation.
+    if not history:
+        return dict(message=OPENING_MESSAGE, stage_index=0, stage_key="connection",
+                    turns_in_stage=1, done=False, ui=None)
     stage_index = max(0, min(stage_index, len(NEPQ_STAGES) - 1))
     system = f"{NEPQ_SYSTEM}\n\n{_stage_block(stage_index, turns_in_stage)}"
 
@@ -197,9 +204,13 @@ def next_turn(
     cap = STAGE_SOFT_CAPS.get(STAGE_KEYS[stage_index], 4)
     # Never complete on the turn where we're still asking the user to confirm —
     # they need a real turn to actually confirm or correct the summary first.
-    if ui == "confirm" and (turns_in_stage + 1) < cap:
+    if ui == "confirm":
         stage_complete = False
-    advance = stage_complete or (turns_in_stage + 1 >= cap)
+    # A turn budget is never permission to accept a summary on the reader's behalf.
+    is_transition = stage_index == len(NEPQ_STAGES) - 1
+    advance = stage_complete or (not is_transition and turns_in_stage + 1 >= cap)
+    if is_transition and (ui == "confirm" or "?" in message):
+        advance = False
 
     done = False
     if advance:
@@ -224,7 +235,7 @@ def next_turn(
 # ── Scribe: infer structured signals from the transcript ──────────────────────
 SCRIBE_SYSTEM = """You are a careful analyst. You will read a discovery conversation between Readar (an entrepreneur book-recommendation guide) and a user. Infer the user's profile for a book-recommendation engine.
 
-Return ONLY valid JSON (no markdown) with these fields. Infer from what the user said; use null when genuinely unknown. The three starred fields are required — make your best inference even if implicit.
+Return ONLY valid JSON (no markdown) with these fields. Infer from what the user said; use null when genuinely unknown. The three starred fields are required. Preserve a curiosity-led learning interest as biggest_challenge without inventing pain. Use business_stage="idea" and business_model="exploring" when the reader explicitly has no business yet. Do not fabricate revenue, staff, emotional stakes or personal impact. Unknown optional fields stay null.
 
 {
   "business_stage": "idea" | "pre-revenue" | "early-revenue" | "scaling",   // *required

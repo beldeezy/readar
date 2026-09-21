@@ -6,6 +6,7 @@ import { setPostAuthRedirect } from '../auth/postAuthRedirect';
 import { useAuth } from '../auth/AuthProvider';
 import { withTimeout } from '../utils/withTimeout';
 import RadarIcon from '../components/RadarIcon';
+import ReadarBrand from '../components/ReadarBrand';
 import './RecommendationsPage.css';
 
 const PENDING_ONBOARDING_KEY = 'readar_pending_onboarding';
@@ -143,8 +144,9 @@ export default function RecommendationsLoadingPage() {
 
   if (error) {
     return (
-      <div className="readar-recommendations-page">
+      <div className="readar-recommendations-page rd-scan-bg">
         <div className="container">
+        <div style={{ textAlign: 'center', marginBottom: '2rem' }}><ReadarBrand /></div>
           <h1
             style={{
               fontSize: 'var(--rd-font-size-2xl)',
@@ -200,8 +202,9 @@ export default function RecommendationsLoadingPage() {
   }
 
   return (
-    <div className="readar-recommendations-page">
+    <div className="readar-recommendations-page rd-scan-bg">
       <div className="container">
+        <div style={{ textAlign: 'center', marginBottom: '2rem' }}><ReadarBrand /></div>
         <div
           style={{
             display: 'flex',

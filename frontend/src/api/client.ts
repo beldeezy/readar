@@ -13,6 +13,9 @@ import type {
   BookPreferenceStatus,
   BookStatusItem,
   ReadingStatus,
+  ReadingJourney,
+  ReadingCompletion,
+  FinishBookRequest,
   ReadingProgress,
   ReadingRewards,
   ReadingTakeaway,
@@ -751,6 +754,18 @@ class ApiClient {
   async getReadingRewards(tz: string): Promise<ReadingRewards> {
     const response = await this.client.get<ReadingRewards>('/reading/rewards', { params: { tz } });
     return response.data;
+  }
+
+  async getReadingJourney(tz: string): Promise<ReadingJourney> {
+    return (await this.client.get<ReadingJourney>('/reading/journey', { params: { tz } })).data;
+  }
+
+  async saveReadingJourneyPreferences(show_next_action: boolean, snooze_days: 0 | 1 | 7, tz: string): Promise<void> {
+    await this.client.put('/reading/journey/preferences', { show_next_action, snooze_days }, { params: { tz } });
+  }
+
+  async finishReadingBook(bookId: string, payload: FinishBookRequest, tz: string): Promise<ReadingCompletion> {
+    return (await this.client.post<ReadingCompletion>(`/reading/books/${bookId}/finish`, payload, { params: { tz } })).data;
   }
 
   async getReadingProgress(bookId: string, tz: string): Promise<ReadingProgress> {

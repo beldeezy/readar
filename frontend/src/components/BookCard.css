@@ -133,3 +133,6 @@
   font-weight: 500;
 }
 
+
+.readar-book-actions .readar-choose-book { width: 100%; text-align: center; padding: .5rem 0 .75rem; }
+.readar-book-actions .readar-choose-book button { min-width: min(100%, 240px); max-width: 100%; white-space: normal; }

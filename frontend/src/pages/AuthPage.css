@@ -81,3 +81,6 @@
   }
 }
 
+
+.readar-auth-card .readar-brand { margin-bottom: 1.5rem; }
+.readar-auth-description { color: var(--rd-muted); line-height: 1.6; margin-bottom: 1.5rem; }
