@@ -9,7 +9,7 @@ from app.core.auth import get_current_user
 from app.core.user_helpers import get_or_create_user_by_auth_id
 from app.database import get_db
 from app.main import app
-from app.models import Book, ReadingHistoryEntry, UserBookInteraction, UserBookStatus, UserBookStatusModel
+from app.models import Book, ReadingHistoryEntry, ReadingLog, ReadingProgress, ReadingCompletion, UserBookInteraction, UserBookStatus, UserBookStatusModel
 
 
 @pytest.fixture
@@ -92,6 +92,58 @@ def test_selection_is_distinct_from_saving_for_later(db, handoff):
     assert saved_list(client, db, "interested") == []
     assert len(saved_list(client, db, "reading_next")) == 1
     assert db.query(UserBookInteraction).filter_by(user_id=user.id, book_id=book.id).count() == 0
+
+
+def test_get_book_saves_waiting_choice_without_reading_credit(db, handoff):
+    client, user, _, book = handoff
+    response = client.post('/api/reading/selection', json={'book_id': str(book.id), 'intent': 'get_book'})
+    assert response.status_code == 200
+    assert response.json() == {'ok': True, 'status': 'waiting_for_book'}
+    assert saved_list(client, db, 'waiting_for_book')[0]['book_id'] == str(book.id)
+    # Buying intent must not initialize a log, completion, rating or points input.
+    for model in (ReadingHistoryEntry, ReadingLog, ReadingProgress, ReadingCompletion, UserBookInteraction):
+        assert db.query(model).filter_by(user_id=user.id).count() == 0
+    assert saved_list(client, db, 'currently_reading') == []
+
+
+def test_book_details_preserve_the_catalog_purchase_link(db, handoff):
+    client, _, _, book = handoff
+    response = client.get(f'/api/books/{book.id}')
+    assert response.status_code == 200
+    assert response.json()['purchase_url'] == book.purchase_url
+
+
+@pytest.mark.parametrize('before,after', [
+    ('reading_next', 'waiting_for_book'), ('waiting_for_book', 'waiting_for_book'),
+    ('currently_reading', 'currently_reading'),
+])
+def test_get_book_retries_preserve_waiting_and_started_state(db, handoff, before, after):
+    client, _, _, book = handoff
+    assert change(client, book, before).status_code == 200
+    for _ in range(2):
+        response = client.post('/api/reading/selection', json={'book_id': str(book.id), 'intent': 'get_book'})
+        assert response.status_code == 200
+        assert response.json()['status'] == after
+    items = saved_list(client, db)
+    assert len(items) == 1
+    assert items[0]['status'] == after
+
+
+def test_failed_purchase_save_cannot_report_success(db, handoff, monkeypatch):
+    client, _, _, book = handoff
+    assert select(client, book).status_code == 200
+    with monkeypatch.context() as patcher:
+        patcher.setattr(db, 'commit', Mock(side_effect=RuntimeError('database unavailable')))
+        response = client.post('/api/reading/selection', json={'book_id': str(book.id), 'intent': 'get_book'})
+    assert response.status_code == 500
+    assert saved_list(client, db)[0]['status'] == 'reading_next'
+
+
+def test_selection_cannot_be_used_to_forge_a_reading_start(db, handoff):
+    client, _, _, book = handoff
+    response = client.post('/api/reading/selection', json={'book_id': str(book.id), 'intent': 'currently_reading'})
+    assert response.status_code == 422
+    assert saved_list(client, db) == []
 
 
 def test_accounts_cannot_read_or_change_each_others_choice(db, handoff):

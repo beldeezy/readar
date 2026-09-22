@@ -4,6 +4,8 @@ import { Search } from 'lucide-react';
 import { apiClient } from '../api/client';
 import type { Book, BookStatusItem, ReadingStatus, ReadingJourney as Journey, ReadingCompletion } from '../api/types';
 import Button from '../components/Button';
+import BookSelectionNotice from '../components/BookSelectionNotice';
+import { amazonBookUrl } from '../utils/amazonBookUrl';
 import { ReadingReturnCard, FinishBook, FinishedBooks } from '../components/ReadingJourney';
 import { useReadingCalendar } from '../hooks/useReadingCalendar';
 import BookReadingProgress from '../components/BookReadingProgress';
@@ -105,6 +107,7 @@ export default function ReadingPage() {
         book_id: book.id, status: saved.status, updated_at: new Date().toISOString(),
         title: book.title, author_name: book.author_name,
         cover_image_url: book.cover_image_url || book.thumbnail_url,
+        purchase_url: book.purchase_url,
       }, ...current.filter((item) => item.book_id !== book.id)]);
       setQuery('');
       setJourneyRefresh(value => value + 1);
@@ -149,8 +152,7 @@ export default function ReadingPage() {
     const started = item.status === 'currently_reading';
     const waiting = item.status === 'waiting_for_book';
     const busy = pending?.id === item.book_id;
-    const purchaseUrl = item.purchase_url || (item.title
-      ? `https://www.amazon.com/s?k=${encodeURIComponent(`${item.title} ${item.author_name || ''}`.trim())}` : null);
+    const purchaseUrl = amazonBookUrl(item.purchase_url, item.title, item.author_name);
     return (
       <li key={item.book_id} id={`reading-book-${item.catalog_book_id || item.book_id}`} className="reading-book" aria-busy={busy}>
         <div className="reading-book-header">
@@ -210,6 +212,7 @@ export default function ReadingPage() {
       <div className="container">
         <h1 className="reading-title">Reading</h1>
         <p className="reading-sub reading-muted">Your next book, and the ones you’ve started.</p>
+        <BookSelectionNotice receipt={location.state?.bookSelection} />
         {journeyError ? <div role="alert" className="reading-feedback"><p>{journeyError}</p><Button onClick={() => setJourneyRefresh(value => value + 1)}>Reload next step</Button></div>
           : journey && <ReadingReturnCard journey={journey} tz={tz} onSaved={() => setJourneyRefresh(value => value + 1)} />}
         {finished && <section className="reading-finish-saved" role="status" aria-live="polite">

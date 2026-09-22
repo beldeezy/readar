@@ -7,7 +7,6 @@ import { submitFeedback } from '../services/feedbackApi';
 import Card from './Card';
 import Badge from './Badge';
 import Button from './Button';
-import GetBookCTA from './GetBookCTA';
 import ChooseBookButton from './ChooseBookButton';
 import './BookCard.css';
 
@@ -17,16 +16,6 @@ interface RecommendationCardProps {
   isTopMatch?: boolean;
   requestId?: string;
   position?: number;
-}
-
-/**
- * Build an Amazon search URL from book title and author.
- * Uses encodeURIComponent (same style as backend's quote_plus).
- */
-function buildAmazonSearchUrl(title: string, author?: string): string {
-  const searchQuery = author ? `${title} ${author}`.trim() : title.trim();
-  const encodedQuery = encodeURIComponent(searchQuery);
-  return `https://www.amazon.com/s?k=${encodedQuery}`;
 }
 
 export default function RecommendationCard({
@@ -52,18 +41,6 @@ export default function RecommendationCard({
     }
     // Navigate as normal
     navigate(`/book/${book.book_id}`);
-  };
-
-  const handleCtaClick = () => {
-    // Log click event (best-effort, non-blocking)
-    if (requestId) {
-      logRecommendationClick({
-        book_id: book.book_id,
-        request_id: requestId,
-        position: position,
-      });
-    }
-    // Let the link navigate normally
   };
 
   const handleStatusClick = async (status: BookPreferenceStatus) => {
@@ -131,9 +108,6 @@ export default function RecommendationCard({
     );
   }
   const meta = metaParts.join(" • ");
-
-  // Build CTA URL
-  const ctaUrl = book.purchase_url || buildAmazonSearchUrl(book.title, book.author_name);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -210,7 +184,11 @@ export default function RecommendationCard({
 
           <div className="readar-book-actions">
             <ChooseBookButton
+              key={book.book_id}
               bookId={book.book_id}
+              title={book.title}
+              author={book.author_name}
+              purchaseUrl={book.purchase_url}
               requestId={requestId}
               position={position}
               disabled={savingStatus !== null}
@@ -268,11 +246,7 @@ export default function RecommendationCard({
           </div>
         </div>
 
-        <div style={{ marginTop: 'auto', paddingTop: '0.75rem' }}>
-          <GetBookCTA href={ctaUrl} onBeforeClick={handleCtaClick} />
-        </div>
       </Card>
     </div>
   );
 }
-

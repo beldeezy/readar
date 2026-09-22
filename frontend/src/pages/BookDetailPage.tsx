@@ -154,13 +154,11 @@ export default function BookDetailPage() {
           
           {actionError && <p role="alert" className="readar-action-error">{actionError}</p>}
           <div className="readar-book-detail-actions">
-            <ChooseBookButton bookId={book.id} disabled={savingStatus !== null}
+            <ChooseBookButton key={book.id} bookId={book.id} title={book.title} author={book.author_name}
+              purchaseUrl={book.purchase_url} disabled={savingStatus !== null}
               onBusyChange={(busy) => setSavingStatus(busy ? 'reading_next' : null)} />
             <Button variant="secondary" onClick={() => handleAction('interested')} disabled={savingStatus !== null}>
               Save as Interested
-            </Button>
-            <Button variant="secondary" onClick={() => handleAction('currently_reading')} disabled={savingStatus !== null}>
-              {savingStatus === 'currently_reading' ? 'Starting…' : 'Start reading'}
             </Button>
             <Button variant="secondary" onClick={() => handleAction('read_liked')} disabled={savingStatus !== null}>
               Mark as Read (Liked)
@@ -177,4 +175,3 @@ export default function BookDetailPage() {
     </div>
   );
 }
-

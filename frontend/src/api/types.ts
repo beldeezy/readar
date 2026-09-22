@@ -224,6 +224,7 @@ export interface AdminAnalytics {
 export interface Book {
   id: string;
   title: string;
+  purchase_url?: string | null;
   subtitle?: string;
   author_name: string;
   description: string;
