@@ -676,6 +676,7 @@ class ApiClient {
     book_id: string;
     request_id?: string;
     position?: number;
+    intent?: 'choose' | 'get_book';
   }): Promise<{ ok: boolean; status: ReadingStatus }> {
     const response = await this.client.post<{ ok: boolean; status: ReadingStatus }>('/reading/selection', payload);
     return response.data;

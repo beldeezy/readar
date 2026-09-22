@@ -176,3 +176,7 @@
   .reading-book { padding: 1rem; }
   .reading-book-actions > .readar-button { width: 100%; white-space: normal; }
 }
+.reading-selection-notice { padding: 1.25rem; margin: 1rem 0 1.5rem; border: 1px solid var(--rd-mint, #48efcc); border-radius: 1rem; background: var(--rd-surface, #1f2937); overflow-wrap: anywhere; }
+.reading-selection-notice h2 { font-size: 1.1rem; margin: 0 0 .65rem; }
+.reading-selection-notice p { line-height: 1.5; margin: .5rem 0; }
+.reading-selection-notice a { display: inline-block; padding: .75rem 0; }

@@ -37,6 +37,7 @@ function mount(start: string, strict = true) {
     <Route path="/recommendations" element={<ProtectedRoute><RecommendationsPage /></ProtectedRoute>} />
     <Route path="/admin" element={<AdminRoute><p>Admin dashboard</p></AdminRoute>} />
     <Route path="/reading" element={<p>Return to Reading</p>} />
+    <Route path="/book/:id" element={<p>Return to selected book</p>} />
     <Route path="/onboarding" element={<p>Start onboarding</p>} />
   </Routes></MemoryRouter></AuthProvider>;
   return render(strict ? <StrictMode>{app}</StrictMode> : app);
@@ -87,6 +88,21 @@ it('does not exchange the OAuth code twice when the callback itself mounts in St
   mount('/auth/callback?code=test-code');
   expect(await screen.findByText('Return to Reading')).toBeTruthy();
   expect(mocks.exchange).toHaveBeenCalledTimes(1);
+});
+it.each(['stored', 'query'])('preserves an explicit book return link from %s', async source => {
+  if (source === 'stored') localStorage.setItem('post_auth_redirect', '/book/book-1');
+  mount(`/auth/callback?code=test-code${source === 'query' ? '&next=%2Fbook%2Fbook-1' : ''}`);
+  expect(await screen.findByText('Return to selected book')).toBeTruthy();
+  expect(screen.queryByText('Return to Reading')).toBeNull();
+});
+it('takes a new account without saved onboarding to onboarding', async () => {
+  mocks.getOnboarding.mockRejectedValue({ response: { status: 404 } });
+  mount('/auth/callback?code=test-code');
+  expect(await screen.findByText('Start onboarding')).toBeTruthy();
+});
+it('ignores an external return URL and uses the existing reader’s Reading page', async () => {
+  mount('/auth/callback?code=test-code&next=https%3A%2F%2Fexample.test');
+  expect(await screen.findByText('Return to Reading')).toBeTruthy();
 });
 it('loads books for an existing reader on a direct refresh without a health preflight', async () => {
   mocks.getSession.mockResolvedValue({ data: { session }, error: null });

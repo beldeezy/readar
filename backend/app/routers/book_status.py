@@ -97,6 +97,7 @@ class SelectBookRequest(BaseModel):
     book_id: str
     request_id: Optional[str] = None
     position: Optional[int] = None
+    intent: Literal["choose", "get_book"] = "choose"
 
 
 class BookStatusResponse(BaseModel):
@@ -131,9 +132,11 @@ async def select_book_for_reading(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Choose a book without restarting or downgrading an existing reading choice."""
+    """Save a choice or wait for a copy without starting/restarting reading."""
     return await _set_book_status(
-        SetBookStatusRequest(**payload.model_dump(), status="reading_next", source="reading_selection"),
+        SetBookStatusRequest(**payload.model_dump(exclude={"intent"}),
+                             status="waiting_for_book" if payload.intent == "get_book" else "reading_next",
+                             source="get_book_selection" if payload.intent == "get_book" else "reading_selection"),
         background_tasks, user, db, preserve_reading_state=True,
     )
 
@@ -170,7 +173,10 @@ async def _set_book_status(
     try:
         # Atomic upsert tolerates retries and concurrent clicks. Selecting an
         # already queued/waiting/started book preserves that state in the DB.
-        keep_existing = UserBookStatusModel.status.in_(READING_STATES)
+        # Getting a queued book can mark it waiting, but repeated purchase
+        # clicks must never restart or downgrade a book already being read.
+        preserved_states = ("waiting_for_book", "currently_reading") if status_value == "waiting_for_book" else READING_STATES
+        keep_existing = UserBookStatusModel.status.in_(preserved_states)
         update_status = case((keep_existing, UserBookStatusModel.status), else_=status_value) if preserve_reading_state else status_value
         statement = insert(UserBookStatusModel).values(
             user_id=user.id, book_id=payload.book_id, status=status_value,
