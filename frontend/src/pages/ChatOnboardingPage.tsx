@@ -78,6 +78,7 @@ const ChatOnboardingPage: React.FC = () => {
     if (channel) channel.scrollTop = channel.scrollHeight;
   };
   const initializedRef = useRef(false);
+  const requestPendingRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Grow the textarea with its content (up to a max) so there's always room.
@@ -199,6 +200,8 @@ const ChatOnboardingPage: React.FC = () => {
     setMessages((prev) => [...prev, { id: newId('user'), type: 'user', content, timestamp: new Date() }]);
 
   async function runTurn(hist: ChatTurn[], stage: number, turns: number) {
+    if (requestPendingRef.current) return;
+    requestPendingRef.current = true;
     setLoading(true);
     setError(null);
     setUi(null);
@@ -221,13 +224,14 @@ const ChatOnboardingPage: React.FC = () => {
     } catch (e: any) {
       setError('We couldn’t continue just now. Your answers are still here. Please try again.');
     } finally {
+      requestPendingRef.current = false;
       setLoading(false);
     }
   }
 
   const send = (text: string) => {
     const value = text.trim();
-    if (!value || loading || completing || error) return;
+    if (!value || requestPendingRef.current || loading || completing || error || done) return;
     followLatest.current = true;
     setShowLatest(false);
     setRevealingId(null);
@@ -351,6 +355,9 @@ const ChatOnboardingPage: React.FC = () => {
               <button className="nepq-chip nepq-chip--primary" disabled={disabled} onClick={() => send("Yes, that's right")}>
                 Yes, that's right
               </button>
+              <button className="nepq-chip" disabled={disabled} onClick={() => textareaRef.current?.focus()}>
+                I'd like to change something
+              </button>
             </div>
           )}
 
@@ -364,6 +371,8 @@ const ChatOnboardingPage: React.FC = () => {
               placeholder={
                 stt.recording
                   ? 'Listening… speak your answer'
+                  : ui === 'confirm'
+                  ? 'What would you like to change? Type it here…'
                   : ui
                   ? 'Or type your own reply…'
                   : stt.supported

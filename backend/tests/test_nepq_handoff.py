@@ -46,12 +46,18 @@ class OnboardingHandoffTests(unittest.TestCase):
 
     def test_summary_cannot_finish_by_hitting_a_turn_budget(self):
         for ui, message in (("confirm", "You want more predictable sales. Is that right?"), (None, "Would you change anything?")):
-            self.provider.messages.create.return_value = SimpleNamespace(content=[SimpleNamespace(text=json.dumps({
+            initial = SimpleNamespace(content=[SimpleNamespace(text=json.dumps({
                 "message": message, "ui": ui, "stage_complete": True,
             })[1:])])
+            repair = SimpleNamespace(content=[SimpleNamespace(text=json.dumps({
+                "message": "You want predictable sales and practical checklists. Is that right?",
+                "ui": "confirm", "stage_complete": False,
+            })[1:])])
+            self.provider.messages.create.side_effect = [initial, repair]
             result = next_turn(self.history, stage_index=6, turns_in_stage=12)
             self.assertFalse(result["done"])
             self.assertEqual(result["stage_index"], 6)
+            self.assertEqual(result["ui"], "confirm")
 
     def test_curiosity_can_be_the_goal_without_invented_distress(self):
         self.respond({"business_stage": "idea", "business_model": "exploring", "biggest_challenge": "Curious about starting a business", "personal_impact": None})

@@ -6,6 +6,11 @@ OPENING_MESSAGE = (
     "what book I'd pick for you?"
 )
 
+SUMMARY_QUESTION = "Does that capture what you want from your next book, or would you change anything?"
+HANDOFF_MESSAGE = (
+    "Thanks for confirming. Select ‘Take me to my recommendations’ below when you’re ready to see your matches."
+)
+
 # Stable keys let an in-progress conversation survive this prompt revision.
 NEPQ_STAGES = [
     dict(key="connection", goal="Help the reader feel comfortable and understand why they came.",
@@ -42,8 +47,9 @@ NEPQ_STAGES = [
          outcomes=["A brief summary of their context, priority and reading preferences.", "Their confirmation."],
          guidance="Summarize only what they said, then ask if it fits or what needs correcting. "
          "Use ui='confirm' and stage_complete=false until they confirm. Incorporate corrections "
-         "and ask again even if the turn budget is reached. After confirmation, close warmly "
-         "with no further question and stage_complete=true."),
+         "and ask again even if the turn budget is reached. Always provide a short summary and "
+         "a confirmation question, not a promise to fetch books. The application handles the "
+         "confirmed handoff separately."),
 ]
 
 STAGE_KEYS = [stage["key"] for stage in NEPQ_STAGES]
