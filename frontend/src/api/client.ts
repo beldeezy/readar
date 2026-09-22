@@ -886,14 +886,14 @@ class ApiClient {
       history,
       stage_index: stageIndex,
       turns_in_stage: turnsInStage,
-    });
+    }, { timeout: 60000 }); // Allow one bounded question repair before offering retry.
     return response.data;
   }
 
   async nepqExtract(
     history: Array<{ role: 'assistant' | 'user'; content: string }>,
   ): Promise<Record<string, any>> {
-    const response = await this.client.post('/onboarding/chat/extract', { history });
+    const response = await this.client.post('/onboarding/chat/extract', { history }, { timeout: 45000 });
     return response.data;
   }
 
