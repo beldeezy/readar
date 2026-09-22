@@ -26,7 +26,8 @@ flag instead of an explicit reply to a reviewable summary.
   button focuses the reply box and preserves an existing draft.
 - Finish only after an explicit short agreement to that summary. “Yes, but…” or
   uncertainty requires a revised summary and confirmation, even past the turn
-  budget. Older saved summaries receive a new reviewable summary before finishing.
+  budget. Recognizable older summaries near the end of discovery can resume
+  confirmation directly; ambiguous saved chats still require a reviewable summary.
 - After confirmation, give the explicit **Take me to my recommendations** action.
   Do not redirect or extract the profile until the reader selects it. Keep the
   full transcript, profile fields, retry behavior and resume-on-refresh support.
@@ -71,5 +72,43 @@ both confirmation and correction remain available. Repeat with “I don't have a
 business yet; I'm curious about opening a bakery” and a short uncertain reply
 (“I'm not sure yet”) to check that it avoids assuming staff, revenue or distress.
 
-The typing-speed, footer-spacing and combined purchase/currently-reading CTA
-follow-ups remain in their existing roadmap tasks.
+The typing-speed and footer-spacing follow-ups remain in their existing roadmap
+tasks. The combined book action is now in dev under RD-53.
+
+## September 22 — summary-confirmation regression
+
+Owner testing of RD-53 was blocked earlier in onboarding by
+`No actionable onboarding question after one rewrite`. The screenshot showed a
+natural-language summary ending “Does that fit, or did I miss something?” and
+the reader's “That's right” reply, while the hidden stage was still in discovery.
+
+The previous implementation only completed after the final stage and an exact
+product-controlled summary question. It could display an early summary without
+confirmation buttons, then reject acknowledgement-only model replies after the
+reader had already confirmed. A fixture based on the reported flow reproduced
+that same exception before this correction. The rejected live provider text was
+not available; other provider failures remain retryable errors.
+
+- At the last discovery objectives, an explicit summary response now aligns the
+  stage, standard confirmation question and buttons before display. This also
+  applies to the single bounded rewrite.
+- Existing in-flight conversations recognize the standard question or a narrow
+  combination of a summary introduction and a confirmation question. Plain yes/no
+  questions and early discovery cannot use this recovery to finish onboarding.
+- Explicit agreement to that summary returns the recommendations action without
+  asking the provider for another chat turn. Corrections/uncertainty go to the
+  summary objective and must be confirmed again. The transcript is unchanged.
+- A valid final summary with a confirmation question no longer fails solely
+  because the provider omitted its UI flag. Acknowledgement-only replies still
+  fail validation; the diagnostic now records the validation reason without
+  logging the transcript.
+
+Local verification: 32 onboarding service tests passed, including ten new
+regression tests. CI also runs the full PostgreSQL-backed backend suite and
+frontend gates. Live-model/owner acceptance remains pending.
+
+Retest: pull dev and restart the backend, then use **Try again** in the existing
+browser tab. The saved confirmation should offer **Take me to my recommendations**.
+Profile extraction still occurs only when that action is selected. Also check a
+fresh chat: its summary should show confirmation buttons, and “Yes, but…” should
+produce a revised summary rather than finishing.
