@@ -47,7 +47,8 @@ export default function RecommendationsPage() {
   useEffect(() => {
 
     // Check if we have prefetched recommendations from the loading page
-    const prefetchedData = (location.state as any)?.prefetchedRecommendations;
+    const requireFresh = (location.state as any)?.requireFreshRecommendations === true;
+    const prefetchedData = requireFresh ? undefined : (location.state as any)?.prefetchedRecommendations;
 
     const prefetchedRecs = Array.isArray(prefetchedData)
       ? prefetchedData as RecommendationItem[]
@@ -84,7 +85,7 @@ export default function RecommendationsPage() {
           console.error("[RecommendationsPage] Failed to load recommendations", err);
           
           // Fall back to preview recs if backend errors
-          const previewRecsStr = localStorage.getItem(PREVIEW_RECS_KEY);
+          const previewRecsStr = requireFresh ? null : localStorage.getItem(PREVIEW_RECS_KEY);
           if (previewRecsStr) {
             try {
               const previewRecs = JSON.parse(previewRecsStr);
@@ -376,4 +377,3 @@ export default function RecommendationsPage() {
     </div>
   );
 }
-

@@ -142,4 +142,3 @@
 .import-success { display: grid; gap: 1.25rem; }
 .import-success [role="status"] { color: var(--rd-accent); line-height: 1.7; }
 .import-success .import-sub { margin: 0; }
-.import-transition { color: var(--rd-muted); font-size: .875rem; }
