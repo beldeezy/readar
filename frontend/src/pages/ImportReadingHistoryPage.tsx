@@ -23,13 +23,7 @@ export default function ImportReadingHistoryPage() {
   const navigated = useRef(false);
   type Receipt = { imported_count: number; skipped_count: number };
   const receipt = (location.state as { importReceipt?: Receipt } | null)?.importReceipt;
-  const [stay, setStay] = useState(false);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-  useEffect(() => {
-    if (!receipt || !receipt.imported_count || stay) return;
-    const timer = window.setTimeout(() => continueWithFreshPicks(), 1800);
-    return () => clearTimeout(timer);
-  }, [receipt, stay]);
 
   useEffect(() => {
     void logEvent('onboarding_import_shown');
@@ -43,9 +37,11 @@ export default function ImportReadingHistoryPage() {
 
   // After import, re-fetch fresh so the just-imported history is reflected.
   function continueWithFreshPicks() {
-    if (navigated.current) return;
+    if (pending.current || navigated.current) return;
     navigated.current = true;
-    navigate('/recommendations', { replace: true });
+    // Keep this receipt in browser history so Back restores it without re-upload.
+    // Never fall back to picks prepared before this import if the fresh fetch fails.
+    navigate('/recommendations', { state: { requireFreshRecommendations: true } });
   }
 
   const handleFile = async (file: File) => {
@@ -109,10 +105,11 @@ export default function ImportReadingHistoryPage() {
             {receipt.imported_count} {receipt.imported_count === 1 ? 'entry' : 'entries'} saved to your library.
             {receipt.skipped_count > 0 && ` ${receipt.skipped_count} ${receipt.skipped_count === 1 ? 'row was' : 'rows were'} skipped.`}
           </p>
-          <p className="import-sub">{receipt.imported_count ? 'Your next picks will take this reading history into account.' : 'Check that your CSV includes book titles, or continue with your conversation-based picks.'}</p>
-          <button className="import-btn-primary" onClick={continueWithFreshPicks}>See my recommendations →</button>
-          {receipt.imported_count > 0 && !stay && <><p className="import-transition">Opening your recommendations shortly…</p><button className="import-skip" onClick={() => setStay(true)}>Stay here for now</button></>}
-          {receipt.imported_count === 0 && <button className="import-skip" onClick={() => navigate(location.pathname, { replace: true, state: null })}>Choose another CSV</button>}
+          <p className="import-sub">{receipt.imported_count ? 'Your next picks will take your saved reading history into account. Continue whenever you’re ready.' : 'Check that your CSV includes book titles, or continue using your existing profile and reading history.'}</p>
+          <button className="import-btn-primary" disabled={uploading} onClick={continueWithFreshPicks}>Continue to my recommendations →</button>
+          <button className="import-skip" disabled={uploading} onClick={() => fileRef.current?.click()}>Choose another CSV</button>
+          <p className="import-sub">Another import adds to your library; it doesn’t remove previously saved books.</p>
+          {uploading && <p role="status">Importing your reading history…</p>}
         </section> : uploading ? (
           <div className="import-uploading" role="status">
             <RadarIcon size={88} animationDuration={6} />

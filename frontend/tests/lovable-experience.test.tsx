@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import ImportReadingHistoryPage from '../src/pages/ImportReadingHistoryPage';
 import ChatMessage from '../src/components/Onboarding/ChatMessage';
 import { FinishBook, ReadingReturnCard } from '../src/components/ReadingJourney';
@@ -9,7 +9,7 @@ import { safeReturnPath } from '../src/auth/postAuthRedirect';
 const mocks = vi.hoisted(() => ({ upload: vi.fn(), finish: vi.fn(), preference: vi.fn() }));
 vi.mock('../src/api/client', () => ({ apiClient: { uploadReadingHistoryCsv: mocks.upload, finishReadingBook: mocks.finish,
   saveReadingJourneyPreferences: mocks.preference }, logEvent: vi.fn() }));
-function Result() { const location = useLocation(); return <p>{location.state?.prefetchedRecommendations ? 'Cached picks' : 'Fresh picks'}</p>; }
+function Result() { const location = useLocation(); const navigate = useNavigate(); return <><p>{location.state?.prefetchedRecommendations ? 'Cached picks' : 'Fresh picks'}</p><button onClick={() => navigate(-1)}>Back to receipt</button></>; }
 function importPage(state?: object) {
   return render(<StrictMode><MemoryRouter initialEntries={[{ pathname: '/onboarding/import', state }]}><Routes>
     <Route path="/onboarding/import" element={<ImportReadingHistoryPage />} />
@@ -26,28 +26,33 @@ beforeEach(() => {
   vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
-it('shows saved counts before fresh picks, with StrictMode', async () => {
+it('waits indefinitely for explicit confirmation before fresh picks, with StrictMode', async () => {
   importPage({ prefetchedRecommendations: ['stale'] }); upload(); await settle();
   expect(screen.getByRole('status').textContent).toContain('4 entries saved');
   expect(screen.getByRole('status').textContent).toContain('2 rows were skipped');
-  await act(async () => { vi.advanceTimersByTime(1799); });
+  await act(async () => { vi.advanceTimersByTime(60000); });
   expect(screen.queryByText('Fresh picks')).toBeNull();
-  await act(async () => { vi.advanceTimersByTime(1); });
+  expect(screen.queryByText(/Opening your recommendations shortly/)).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Continue to my recommendations →' }));
   expect(screen.getByText('Fresh picks')).toBeTruthy();
   expect(mocks.upload).toHaveBeenCalledTimes(1);
 });
-it('lets a reader pause confirmation or continue immediately', async () => {
+it('restores the receipt on Back and lets the reader continue again without importing', async () => {
   importPage(); upload(); await settle();
-  fireEvent.click(screen.getByText('Stay here for now'));
+  fireEvent.click(screen.getByText('Continue to my recommendations →'));
+  fireEvent.click(screen.getByText('Back to receipt'));
   await act(async () => { vi.advanceTimersByTime(10000); });
   expect(screen.getByRole('heading', { name: 'Your reading history is saved.' })).toBeTruthy();
-  fireEvent.click(screen.getByText('See my recommendations →'));
+  fireEvent.click(screen.getByText('Continue to my recommendations →'));
   expect(screen.getByText('Fresh picks')).toBeTruthy();
+  expect(mocks.upload).toHaveBeenCalledTimes(1);
 });
 it('restores a confirmation without uploading again', async () => {
   importPage({ importReceipt: { imported_count: 4, skipped_count: 0 } }); await settle();
+  await act(async () => { vi.advanceTimersByTime(60000); });
+  expect(screen.getByRole('status').textContent).toContain('4 entries saved');
   expect(mocks.upload).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByText('See my recommendations →'));
+  fireEvent.click(screen.getByText('Continue to my recommendations →'));
   expect(screen.getByText('Fresh picks')).toBeTruthy();
 });
 it('keeps a zero-row import on screen with a retry choice', async () => {
@@ -55,8 +60,34 @@ it('keeps a zero-row import on screen with a retry choice', async () => {
   importPage(); upload(); await settle();
   await act(async () => { vi.advanceTimersByTime(10000); });
   expect(screen.getByText('No entries were imported.')).toBeTruthy();
+  const picker = vi.spyOn(screen.getByLabelText('Goodreads CSV file'), 'click');
   fireEvent.click(screen.getByText('Choose another CSV'));
-  expect(screen.getByText('Import Goodreads history')).toBeTruthy();
+  expect(picker).toHaveBeenCalledTimes(1);
+  mocks.upload.mockResolvedValue({ imported_count: 2, skipped_count: 0 });
+  upload(); await settle();
+  expect(screen.getByRole('status').textContent).toContain('2 entries saved');
+  expect(screen.queryByText('Fresh picks')).toBeNull();
+});
+it('retains the receipt if another file fails and prevents continuing during its upload', async () => {
+  importPage(); upload(); await settle();
+  let reject!: (error: Error) => void;
+  mocks.upload.mockReturnValueOnce(new Promise((_resolve, r) => { reject = r; }));
+  upload(); upload();
+  expect(mocks.upload).toHaveBeenCalledTimes(2);
+  expect((screen.getByText('Continue to my recommendations →') as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByText('Choose another CSV') as HTMLButtonElement).disabled).toBe(true);
+  await act(async () => { reject(new Error('Network unavailable')); });
+  expect(screen.getByRole('alert').textContent).toContain('Network unavailable');
+  expect(screen.getByRole('status').textContent).toContain('4 entries saved');
+  fireEvent.click(screen.getByText('Continue to my recommendations →'));
+  expect(screen.getByText('Fresh picks')).toBeTruthy();
+});
+it('does not replace a saved receipt with an unconfirmed response', async () => {
+  importPage({ importReceipt: { imported_count: 4, skipped_count: 0 } });
+  mocks.upload.mockResolvedValue({ imported_count: -1, skipped_count: 0 });
+  upload(); await settle();
+  expect(screen.getByRole('alert').textContent).toContain('could not be confirmed');
+  expect(screen.getByRole('status').textContent).toContain('4 entries saved');
 });
 it('preserves errors and permits retrying the same CSV', async () => {
   mocks.upload.mockRejectedValueOnce(new Error('Network unavailable'));
