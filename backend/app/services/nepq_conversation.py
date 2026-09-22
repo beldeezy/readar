@@ -46,6 +46,7 @@ CORE RULES:
 - Every message awaiting input MUST END with exactly one clear, answerable question. An acknowledgement such as "I've got what I need" is not a complete turn.
 - If the current objective is complete (or its budget is reached), briefly acknowledge the answer and ASK the next useful question from the NEXT OBJECTIVE in the SAME response. Never stop between objectives or claim you are already fetching books.
 - If the next objective is a summary, summarize the reader's context, priority and reading preference, then ask them to confirm or correct it. Use ui="confirm" only for this summary. Do not invent missing facts or treat a correction as agreement.
+- If you already have enough context and reading preferences near the end of discovery, you may move directly to that summary. Always mark it ui="confirm"; never hide a final summary inside an ordinary question turn.
 - Use ui="yes_no" occasionally only when Yes and No both answer the question naturally. For open questions and menus such as examples vs. exercises vs. stories, use ui=null so the reader can type their preference.
 - Gentle by default: to offer a perspective, reflect first, ASK PERMISSION, and never tell them they're wrong.
 - Never say "what made you…" — use "what caused you to…".
@@ -145,19 +146,61 @@ def _next_objective_block(stage_index: int) -> str:
     )
 
 
+FINAL_STAGE = len(NEPQ_STAGES) - 1
+SUMMARY_READY_STAGE = STAGE_KEYS.index("solution_awareness_2")
+SUMMARY_CONFIRMATION = re.compile(
+    r"\b(?:does that (?:fit|sound (?:right|accurate)|capture (?:it|what .+))|"
+    r"is that (?:about )?(?:right|correct|accurate)|have I got that right)"
+    r"(?:,? (?:or|and) (?:did I miss something|am I missing (?:something|anything)|"
+    r"would you change anything))?\?\s*$", re.I,
+)
+
+
+def _reviewable_summary(message: str) -> bool:
+    """Recognize controlled summaries and narrowly identified older summaries.
+
+    The natural-language path is for saved conversations from before summary
+    stage alignment. A generic yes/no question must not finish onboarding.
+    """
+    message = message.strip()
+    if message.endswith(SUMMARY_QUESTION):
+        return bool(message[:-len(SUMMARY_QUESTION)].strip())
+    if message.count("?") != 1 or not message.endswith("?"):
+        return False
+    has_summary_intro = re.search(
+        r"\b(?:let me (?:make sure|check|summarize|recap)|"
+        r"to (?:recap|sum up)|here['’]s (?:what I (?:heard|understand)|my understanding))\b",
+        message, re.I,
+    )
+    confirmation = SUMMARY_CONFIRMATION.search(message)
+    return bool(has_summary_intro and confirmation and confirmation.start() > has_summary_intro.end())
+
+
+def _reply_to_summary(history: List[Dict[str, str]]) -> bool:
+    return (len(history) >= 2 and history[-2].get("role") == "assistant"
+            and history[-1].get("role") == "user"
+            and _reviewable_summary(history[-2].get("content", "")))
+
+
+def _response_stage(data: Optional[dict], stage_index: int, proposed_stage: int) -> int:
+    # Align visible summary + buttons + hidden stage in one response, even if
+    # the model summarizes before the optional final discovery objective.
+    if stage_index >= SUMMARY_READY_STAGE and isinstance(data, dict):
+        message = data.get("message")
+        if isinstance(message, str) and (data.get("ui") == "confirm" or _reviewable_summary(message)):
+            return FINAL_STAGE
+    return proposed_stage
+
+
 def _confirmed_summary(history: List[Dict[str, str]]) -> bool:
     """Only an explicit reply to our visible summary can finish onboarding.
 
     Treat replies containing corrections or uncertainty as new input, even if
-    they begin with 'yes'. Old saved chats get one reviewable summary first.
+    they begin with 'yes'. Ambiguous saved chats get a reviewable summary first.
     """
-    if len(history) < 2:
+    if not _reply_to_summary(history):
         return False
-    summary, reply = history[-2:]
-    if summary.get("role") != "assistant" or reply.get("role") != "user":
-        return False
-    if not summary.get("content", "").strip().endswith(SUMMARY_QUESTION):
-        return False
+    reply = history[-1]
     answer = reply.get("content", "").strip().lower().replace("’", "'")
     answer = re.sub(r"[.!]+$", "", answer).strip()
     return answer in {
@@ -189,7 +232,10 @@ def _prepare_message(data: Optional[dict], stage_index: int, history: List[Dict[
         # The final question and confirmation action are product-controlled.
         # Retain the model's contextual summary, but never accept it on the user's behalf.
         summary = re.sub(r"[^.!?\n]*\?\s*[\"”']?$", "", message).strip()
-        if not summary or "?" in summary or data.get("ui") != "confirm":
+        # The app owns the buttons. A missing model UI flag alone must not
+        # reject a summary, but an acknowledgement/promise is still insufficient.
+        confirmation = message.endswith(SUMMARY_QUESTION) or SUMMARY_CONFIRMATION.search(message)
+        if not summary or "?" in summary or (data.get("ui") != "confirm" and not confirmation):
             return None, "Give a brief factual summary followed by one confirmation question, with ui=confirm."
         message = f"{summary}\n\n{SUMMARY_QUESTION}"
         # Reconfirming after a correction is intentional; don't reject the stable question.
@@ -255,6 +301,10 @@ def next_turn(
         return dict(message=OPENING_MESSAGE, stage_index=0, stage_key="connection",
                     turns_in_stage=1, done=False, ui=None)
     stage_index = max(0, min(stage_index, len(NEPQ_STAGES) - 1))
+    # Resume older in-flight summaries with the same transcript. Agreement can
+    # finish without another model call; corrections go to the summary objective.
+    if stage_index >= SUMMARY_READY_STAGE and _reply_to_summary(history):
+        stage_index = FINAL_STAGE
     if stage_index == len(NEPQ_STAGES) - 1 and _confirmed_summary(history):
         return dict(message=HANDOFF_MESSAGE, stage_index=stage_index, stage_key="transition",
                     turns_in_stage=turns_in_stage, done=True, ui=None)
@@ -269,6 +319,7 @@ def next_turn(
             data.get("stage_complete") is True or turns_in_stage + 1 >= cap
         )
         next_stage = stage_index + 1 if advance else stage_index
+        next_stage = _response_stage(data, stage_index, next_stage)
         prepared, issue = _prepare_message(data, next_stage, history)
         if issue:
             # Rewrite against the resulting objective, without another stage
@@ -281,9 +332,10 @@ def next_turn(
                 "Do not mention this rewrite. Set stage_complete=false."
             )
             data = _request_turn(client, repair_system, history)
+            next_stage = _response_stage(data, stage_index, next_stage)
             prepared, issue = _prepare_message(data, next_stage, history)
         if not prepared:
-            raise ValueError("No actionable onboarding question after one rewrite")
+            raise ValueError(f"No actionable onboarding question after one rewrite: {issue}")
         message, ui = prepared
     except Exception as e:
         logger.warning("NEPQ next_turn failed: %s", e)
@@ -295,7 +347,7 @@ def next_turn(
         "message": message,
         "stage_index": next_stage,
         "stage_key": STAGE_KEYS[next_stage],
-        "turns_in_stage": 0 if advance else turns_in_stage + 1,
+        "turns_in_stage": 0 if next_stage != stage_index else turns_in_stage + 1,
         "done": False,
         "ui": ui,
     }
