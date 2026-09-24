@@ -93,3 +93,22 @@ backend behavior.
 - Simulate load/save failures: the list must not look empty or claim success;
   retry must remain possible. Check keyboard controls and phone-width wrapping.
 - Confirm the flow feels clear and low effort before marking RD-53 Done.
+
+## September 24 follow-through
+
+The onboarding confirmation blocker is accepted by Michael (RD-71). Rechecked
+RD-53 and closed an additional response-validation gap: Reading search, start,
+wait/correct and remove now require an affirmative saved response before showing
+success or changing the visible list. Failed/unconfirmed writes retain the list
+and remain retryable.
+
+The recommendation-to-Reading integration test now mounts the real recommendation
+card and Reading page together, verifies blocked-popup fallback, already-owned
+selection, waiting state on remount, explicit start, reload and correction. It
+uses an API fixture to preserve state; Postgres persistence and account isolation
+remain covered by backend CI. Live sign-in, real browser popup behavior and
+owner visual acceptance are not claimed by these tests.
+
+The September 24 local browser attempt was blocked by the browser environment
+(ERR_BLOCKED_BY_CLIENT for localhost), so the short owner checklist above remains
+for local review. RD-53 is implementation-complete, pending that acceptance.
