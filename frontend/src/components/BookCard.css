@@ -99,4 +99,40 @@
 .readar-book-action--muted {
   opacity: 0.7;
 }
+.readar-book-fit {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.25rem;
+  overflow-wrap: anywhere;
+}
 
+.readar-book-fit h4 {
+  margin: 0 0 0.35rem;
+  color: var(--rd-text);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.readar-book-fit p {
+  margin: 0;
+  color: var(--rd-muted);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.readar-book-fit__priority {
+  border-left: 2px solid var(--rd-accent);
+  padding-left: 0.75rem;
+}
+
+.readar-book-fit p.readar-book-fit__evidence {
+  margin-top: 0.6rem;
+}
+
+.readar-book-fit__evidence span {
+  font-weight: 500;
+}
+
+
+.readar-book-actions .readar-choose-book { width: 100%; text-align: center; padding: .5rem 0 .75rem; }
+.readar-book-actions .readar-choose-book button { min-width: min(100%, 240px); max-width: 100%; white-space: normal; }

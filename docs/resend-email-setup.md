@@ -4,6 +4,46 @@
 
 Readar now uses [Resend](https://resend.com) for sending weekly email reports about new books added to the pending queue. This guide will help you configure Resend for production use.
 
+## Temporary pause for user emails
+
+User recommendation and learning-tip emails are paused by default with
+`USER_EMAILS_PAUSED=true`. This takes effect when the backend deploys/restarts,
+even if the environment variable is absent.
+
+- Both scheduled jobs and manual admin sends (including `force=true`) honor the pause.
+- Paused batches do not generate content, change user preferences, update email
+  frequency timestamps, or record sent events. They return `status: "paused"` with
+  zero counts; eligibility is not queried while paused.
+- The delivery helper also blocks direct user-email sends before calling Resend.
+- The internal weekly pending-books report and Supabase authentication emails
+  remain independent of this switch.
+- Emails already submitted to Resend are outside this application pause.
+
+To resume, set `USER_EMAILS_PAUSED=false` in the backend's Render environment and
+restart/redeploy the backend. Normal schedules, opt-ins, and frequency caps then
+apply; paused runs are not queued for replay. To pause again, set it to `true`
+and restart/redeploy. Keep the Resend API key in place.
+
+### Verify the release
+
+1. Confirm the backend's deployed commit includes the pause change. Check that
+   `USER_EMAILS_PAUSED` is absent or `true`, then wait for every backend instance
+   to restart successfully. An existing `false` override resumes delivery.
+2. As an authenticated admin, GET `/api/admin/email-status`. Expect
+   `{"user_emails_paused": true}`. This read-only endpoint does not send mail.
+   Alternatively, inspect the new instance's startup log for
+   `User email delivery paused=True`; this records the effective runtime setting
+   without needing an admin session or triggering a send.
+3. Confirm `/health` is healthy and ordinary sign-in still works. Do not trigger
+   login emails or the internal report solely to test this pause.
+4. Observe the next scheduled user-email job logs: expect `status: paused` and
+   zero sends. Check Resend delivery activity after deployment for unexpected
+   recommendation or learning-tip sends. Already-submitted mail may still arrive.
+
+Do not use the manual send endpoints to discover whether an old deployment is
+paused: they may send real user emails. Local tests mock Resend for scheduled,
+manual/forced, and direct delivery paths, as well as the internal report.
+
 ## Why Resend?
 
 - **Simple API** - Just one API call to send emails

@@ -8,6 +8,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
+from app.core.config import settings
 from app.utils.email import send_weekly_pending_books_email
 from app.services.reengagement import send_recommendation_emails
 from app.services.learning_tips import send_learning_tip_emails
@@ -79,6 +80,7 @@ def start_scheduler():
         return
 
     logger.info("Starting background scheduler")
+    logger.info("User email delivery paused=%s", settings.USER_EMAILS_PAUSED)
     scheduler = BackgroundScheduler()
 
     # Schedule weekly report: Every Monday at 9:00 AM UTC

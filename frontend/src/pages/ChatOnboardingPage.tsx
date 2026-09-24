@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mic, X, Check } from 'lucide-react';
 import { apiClient, logEvent } from '../api/client';
 import ChatMessage from '../components/Onboarding/ChatMessage';
 import RadarIcon from '../components/RadarIcon';
+import ReadarBrand from '../components/ReadarBrand';
 import { useSpeechToText } from '../hooks/useSpeechToText';
 import './ChatOnboardingPage.css';
 
@@ -66,7 +67,18 @@ const ChatOnboardingPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<HTMLElement>(null);
+  const transcriptRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
+  const followLatest = useRef(true);
+  const [showLatest, setShowLatest] = useState(false);
+  const [revealingId, setRevealingId] = useState<string | null>(null);
+  const scrollToLatest = () => {
+    const channel = messagesRef.current;
+    if (channel) channel.scrollTop = channel.scrollHeight;
+  };
   const initializedRef = useRef(false);
+  const requestPendingRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Grow the textarea with its content (up to a max) so there's always room.
@@ -81,9 +93,23 @@ const ChatOnboardingPage: React.FC = () => {
   };
 
   // Keep the textarea sized to its content (covers typing AND the live voice stream).
-  useEffect(() => {
+  useLayoutEffect(() => {
     autoGrow();
+    if (followLatest.current) scrollToLatest();
   }, [input]);
+
+  // Both composer growth (including voice input) and typing reveal resize the
+  // conversation. Follow its end only while the reader is already there.
+  useEffect(() => {
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => {
+      if (followLatest.current) scrollToLatest();
+    });
+    for (const element of [composerRef.current, transcriptRef.current, messagesRef.current]) {
+      if (element) observer.observe(element);
+    }
+    return () => observer.disconnect();
+  }, [done, completing]);
 
   // ── Voice-to-text ──────────────────────────────────────────────────────────
   const stt = useSpeechToText();
@@ -129,7 +155,7 @@ const ChatOnboardingPage: React.FC = () => {
   };
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (followLatest.current) scrollToLatest();
   }, [messages, loading]);
 
   // Resume a saved chat if present; otherwise kick off the opener (once).
@@ -165,12 +191,17 @@ const ChatOnboardingPage: React.FC = () => {
     saveProgress({ messages, history, stageIndex, turnsInStage, ui, done });
   }, [messages, history, stageIndex, turnsInStage, ui, done]);
 
-  const addBot = (content: string) =>
-    setMessages((prev) => [...prev, { id: newId('bot'), type: 'bot', content, timestamp: new Date() }]);
+  const addBot = (content: string) => {
+    const id = newId('bot');
+    setRevealingId(id);
+    setMessages((prev) => [...prev, { id, type: 'bot', content, timestamp: new Date() }]);
+  };
   const addUser = (content: string) =>
     setMessages((prev) => [...prev, { id: newId('user'), type: 'user', content, timestamp: new Date() }]);
 
   async function runTurn(hist: ChatTurn[], stage: number, turns: number) {
+    if (requestPendingRef.current) return;
+    requestPendingRef.current = true;
     setLoading(true);
     setError(null);
     setUi(null);
@@ -191,15 +222,19 @@ const ChatOnboardingPage: React.FC = () => {
         void logEvent('onboarding_chat_completed', { stage: res.stage_index });
       }
     } catch (e: any) {
-      setError(e?.message || 'Something went wrong. Please try again.');
+      setError('We couldn’t continue just now. Your answers are still here. Please try again.');
     } finally {
+      requestPendingRef.current = false;
       setLoading(false);
     }
   }
 
   const send = (text: string) => {
     const value = text.trim();
-    if (!value || loading || completing) return;
+    if (!value || requestPendingRef.current || loading || completing || error || done) return;
+    followLatest.current = true;
+    setShowLatest(false);
+    setRevealingId(null);
     addUser(value);
     setInput('');
     resetTextareaHeight();
@@ -209,9 +244,19 @@ const ChatOnboardingPage: React.FC = () => {
   };
 
   async function completeOnboarding(finalHistory: ChatTurn[]) {
+    if (loading || completing) return;
     setCompleting(true);
+    setError(null);
     try {
       const profile = await apiClient.nepqExtract(finalHistory);
+      // Keep the conversation if an older backend returns an empty/incomplete
+      // profile instead of an error during a rolling deployment.
+      if (!profile || !['idea', 'pre-revenue', 'early-revenue', 'scaling'].includes(profile.business_stage)
+        || !['business_model', 'biggest_challenge'].every(
+          (key) => typeof profile[key] === 'string' && profile[key].trim(),
+        )) {
+        throw new Error('Incomplete onboarding profile');
+      }
       // The scribe returns the structured fields the engine needs. Store it where
       // the existing /recommendations/loading handoff (auth → save → recs) reads.
       const payload = { full_name: '', ...profile };
@@ -221,18 +266,19 @@ const ChatOnboardingPage: React.FC = () => {
       navigate('/recommendations/loading');
     } catch (e: any) {
       setCompleting(false);
-      setError(e?.message || 'Could not finalize. Please try again.');
+      setError('We couldn’t prepare your recommendations just now. Your answers are still here. Please try again.');
     }
   }
 
   const progress = completing ? 100 : Math.min(100, Math.round((stageIndex / TOTAL_STAGES) * 100));
-  const disabled = loading || completing;
+  const disabled = loading || completing || !!error;
 
   return (
-    <div className="chat-onboarding-page">
+    <div className="chat-onboarding-page rd-scan-bg">
       <header className="chat-header">
         <div className="chat-header-content">
-          <h1>Readar</h1>
+          <ReadarBrand />
+          <h1 className="readar-sr-only">Find your next book</h1>
           {/* Non-labeled progress hint — never reveals the conversation framework */}
           <div className="progress-bar" aria-hidden="true">
             <div className="progress-fill" style={{ width: `${progress}%` }} />
@@ -240,9 +286,15 @@ const ChatOnboardingPage: React.FC = () => {
         </div>
       </header>
 
-      <main className="chat-messages">
+      <main className="chat-messages" ref={messagesRef} aria-label="Onboarding conversation" onScroll={() => {
+        const el = messagesRef.current;
+        if (!el) return;
+        followLatest.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+        setShowLatest(!followLatest.current);
+      }}>
+        <div ref={transcriptRef}>
         {messages.map((m) => (
-          <ChatMessage key={m.id} message={m as any} />
+          <ChatMessage key={m.id} message={m} animate={m.id === revealingId} />
         ))}
 
         {loading && (
@@ -252,15 +304,22 @@ const ChatOnboardingPage: React.FC = () => {
         )}
 
         {error && (
-          <div className="chat-error">
+          <div className="chat-error" role="alert">
             <p>⚠️ {error}</p>
-            <button className="nepq-retry" onClick={() => runTurn(history, stageIndex, turnsInStage)}>
+            <button
+              className="nepq-retry"
+              disabled={loading || completing}
+              onClick={() => done
+                ? completeOnboarding(history)
+                : runTurn(history, stageIndex, turnsInStage)}
+            >
               Try again
             </button>
           </div>
         )}
 
         <div ref={messagesEndRef} />
+        </div>
       </main>
 
       {completing ? (
@@ -281,7 +340,10 @@ const ChatOnboardingPage: React.FC = () => {
           </button>
         </div>
       ) : (
-        <div className="nepq-input-bar">
+        <div className="nepq-input-bar" ref={composerRef}>
+          {showLatest && <button type="button" className="message-show-all" onClick={() => {
+            followLatest.current = true; setShowLatest(false); scrollToLatest();
+          }}>Back to latest message ↓</button>}
           {!stt.recording && ui === 'yes_no' && (
             <div className="nepq-quick-replies">
               <button className="nepq-chip" disabled={disabled} onClick={() => send('Yes')}>Yes</button>
@@ -292,6 +354,9 @@ const ChatOnboardingPage: React.FC = () => {
             <div className="nepq-quick-replies">
               <button className="nepq-chip nepq-chip--primary" disabled={disabled} onClick={() => send("Yes, that's right")}>
                 Yes, that's right
+              </button>
+              <button className="nepq-chip" disabled={disabled} onClick={() => textareaRef.current?.focus()}>
+                I'd like to change something
               </button>
             </div>
           )}
@@ -306,16 +371,19 @@ const ChatOnboardingPage: React.FC = () => {
               placeholder={
                 stt.recording
                   ? 'Listening… speak your answer'
+                  : ui === 'confirm'
+                  ? 'What would you like to change? Type it here…'
                   : ui
                   ? 'Or type your own reply…'
                   : stt.supported
                   ? 'Type or talk-to-text your reply…'
                   : 'Type your reply…'
               }
+              aria-label="Your reply"
               rows={1}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+                if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                   e.preventDefault();
                   send(input);
                 }

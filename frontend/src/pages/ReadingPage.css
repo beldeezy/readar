@@ -77,6 +77,11 @@
   cursor: pointer;
   font-size: var(--rd-font-size-sm);
   color: var(--rd-text);
+  width: 100%;
+  border: none;
+  background: none;
+  text-align: left;
+  font-family: inherit;
 }
 
 .reading-result:hover {
@@ -139,3 +144,39 @@
   color: var(--readar-warm);
   background: rgba(255, 255, 255, 0.05);
 }
+
+.reading-section, .reading-feedback {
+  max-width: 640px;
+  margin: 0 auto 1.5rem;
+}
+.reading-section h2 { color: var(--rd-text); font-size: 1.2rem; margin: 0 0 1rem; }
+.reading-book {
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--rd-border);
+  border-radius: var(--rd-radius-md);
+  background: var(--rd-surface);
+  overflow-wrap: anywhere;
+}
+.reading-book-header { display: flex; gap: 1rem; align-items: flex-start; }
+.reading-book-header > div { min-width: 0; }
+.reading-book h3 { margin: 0; font-size: 1.1rem; line-height: 1.4; }
+.reading-book p { margin: 0.5rem 0 1rem; font-size: 0.9rem; line-height: 1.6; }
+.reading-cover { width: 56px; max-height: 88px; object-fit: contain; border-radius: 4px; }
+.reading-item-link { color: var(--rd-text); text-decoration: none; }
+.reading-book-actions { display: flex; flex-wrap: wrap; gap: 0.65rem; align-items: center; }
+.reading-waiting, .reading-notice, .reading-text-link { color: var(--rd-accent); }
+.reading-search-label { display: block; color: var(--rd-text); font-size: 0.9rem; margin-bottom: 0.6rem; }
+.reading-result-hint { display: block; font-size: 0.75rem; color: var(--rd-accent); margin-top: 0.25rem; }
+.reading-browse { font-size: 0.85rem; margin-top: 0.8rem; color: var(--rd-muted); line-height: 1.7; }
+.reading-browse a { color: var(--rd-accent); }
+.reading-result:disabled, .reading-remove:disabled { cursor: wait; opacity: 0.6; }
+.reading-page a:focus-visible, .reading-page button:focus-visible { outline: var(--rd-focus-ring); outline-offset: 3px; }
+@media (max-width: 480px) {
+  .reading-book { padding: 1rem; }
+  .reading-book-actions > .readar-button { width: 100%; white-space: normal; }
+}
+.reading-selection-notice { padding: 1.25rem; margin: 1rem 0 1.5rem; border: 1px solid var(--rd-mint, #48efcc); border-radius: 1rem; background: var(--rd-surface, #1f2937); overflow-wrap: anywhere; }
+.reading-selection-notice h2 { font-size: 1.1rem; margin: 0 0 .65rem; }
+.reading-selection-notice p { line-height: 1.5; margin: .5rem 0; }
+.reading-selection-notice a { display: inline-block; padding: .75rem 0; }

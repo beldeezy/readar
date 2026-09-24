@@ -7,14 +7,8 @@ import { submitFeedback } from '../services/feedbackApi';
 import Card from './Card';
 import Badge from './Badge';
 import Button from './Button';
-import GetBookCTA from './GetBookCTA';
+import ChooseBookButton from './ChooseBookButton';
 import './BookCard.css';
-
-interface BookPitch {
-  challenge: string;
-  solution: string;
-  outcome: string;
-}
 
 interface RecommendationCardProps {
   book: RecommendationItem;
@@ -22,18 +16,6 @@ interface RecommendationCardProps {
   isTopMatch?: boolean;
   requestId?: string;
   position?: number;
-  pitch?: BookPitch;
-  pitchLoading?: boolean;
-}
-
-/**
- * Build an Amazon search URL from book title and author.
- * Uses encodeURIComponent (same style as backend's quote_plus).
- */
-function buildAmazonSearchUrl(title: string, author?: string): string {
-  const searchQuery = author ? `${title} ${author}`.trim() : title.trim();
-  const encodedQuery = encodeURIComponent(searchQuery);
-  return `https://www.amazon.com/s?k=${encodedQuery}`;
 }
 
 export default function RecommendationCard({
@@ -42,12 +24,11 @@ export default function RecommendationCard({
   isTopMatch = false,
   requestId,
   position = 0,
-  pitch,
-  pitchLoading = false,
 }: RecommendationCardProps) {
   const navigate = useNavigate();
   const [savingStatus, setSavingStatus] = useState<string | null>(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [actionError, setActionError] = useState('');
 
   const handleClick = (e: React.MouseEvent) => {
     // Log click event (best-effort, non-blocking)
@@ -62,23 +43,12 @@ export default function RecommendationCard({
     navigate(`/book/${book.book_id}`);
   };
 
-  const handleCtaClick = () => {
-    // Log click event (best-effort, non-blocking)
-    if (requestId) {
-      logRecommendationClick({
-        book_id: book.book_id,
-        request_id: requestId,
-        position: position,
-      });
-    }
-    // Let the link navigate normally
-  };
-
   const handleStatusClick = async (status: BookPreferenceStatus) => {
     // Prevent spam clicks
     if (savingStatus) return;
     
     setSavingStatus(status);
+    setActionError('');
     
     // Map status to feedback action
     const actionMap: Record<BookPreferenceStatus, string> = {
@@ -91,22 +61,17 @@ export default function RecommendationCard({
     const feedbackAction = actionMap[status];
     
     try {
-      // Submit feedback (best-effort, non-blocking)
-      await submitFeedback(book.book_id, feedbackAction, requestId);
-      
-      // Also call the existing setBookStatus API for backward compatibility
-      try {
-        await apiClient.setBookStatus({
+      // Shelf persistence is required before confirmation or advancing the deck.
+      await apiClient.setBookStatus({
           book_id: book.book_id,
           status: status,
           request_id: requestId || undefined,
           position: position,
           source: 'recommendations',
-        });
-      } catch (err: any) {
-        // Non-fatal - feedback was already submitted
-        console.warn('Failed to save book status:', err);
-      }
+      });
+      void submitFeedback(book.book_id, feedbackAction, requestId).catch((err) => {
+        console.warn('Optional recommendation feedback failed:', err);
+      });
       
       // Also call the existing onAction callback for backward compatibility
       if (onAction) {
@@ -125,6 +90,7 @@ export default function RecommendationCard({
       console.warn('Failed to submit feedback:', err);
       // Re-enable buttons on error
       setSavingStatus(null);
+      setActionError("We couldn't save that change. Please try again.");
     }
   };
 
@@ -143,9 +109,6 @@ export default function RecommendationCard({
   }
   const meta = metaParts.join(" • ");
 
-  // Build CTA URL
-  const ctaUrl = book.purchase_url || buildAmazonSearchUrl(book.title, book.author_name);
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Card variant="default" className="readar-book-card rd-signal-panel" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -153,7 +116,7 @@ export default function RecommendationCard({
           <div className="readar-book-header">
             {isTopMatch && (
               <Badge variant="signal" size="sm">
-                High fit
+                First suggestion
               </Badge>
             )}
           </div>
@@ -176,18 +139,6 @@ export default function RecommendationCard({
             {book.subtitle && <p className="readar-book-subtitle">{book.subtitle}</p>}
             {book.author_name && <p className="readar-book-author">by {book.author_name}</p>}
 
-            {/* Radar-forward technical labels */}
-            {(book.functional_tags?.length || book.business_stage_tags?.length) ? (
-              <div className="readar-book-tech-row">
-                {book.functional_tags?.[0] && (
-                  <span className="rd-tech">SECTOR: {book.functional_tags[0].replace(/_/g, ' ')}</span>
-                )}
-                {book.business_stage_tags?.[0] && (
-                  <span className="rd-tech">STAGE: {book.business_stage_tags[0].replace(/-/g, ' ')}</span>
-                )}
-              </div>
-            ) : null}
-
             {/* Metadata line */}
             {meta && (
               <p className="mt-1 text-sm text-muted-foreground" style={{
@@ -199,47 +150,51 @@ export default function RecommendationCard({
               </p>
             )}
 
-            {/* Tailored pitch sentences — skeleton while loading, never show generic blurb */}
-            {pitch ? (
-              <div style={{ marginTop: '1rem' }}>
-                {pitch.challenge && (
-                  <p style={{ color: 'var(--rd-muted)', fontSize: '0.875rem', lineHeight: '1.5', margin: 0, marginBottom: '1.25rem' }}>
-                    {pitch.challenge}
-                  </p>
-                )}
-                {pitch.solution && (
-                  <p style={{ color: 'var(--rd-muted)', fontSize: '0.875rem', lineHeight: '1.5', margin: 0, marginBottom: '1.25rem' }}>
-                    {pitch.solution}
-                  </p>
-                )}
-                {pitch.outcome && (
-                  <p style={{ color: 'var(--rd-muted)', fontSize: '0.875rem', lineHeight: '1.5', margin: 0 }}>
-                    {pitch.outcome}
-                  </p>
-                )}
-              </div>
-            ) : pitchLoading ? (
-              <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                {[100, 85, 90].map((w, i) => (
-                  <div key={i} style={{
-                    height: '0.8rem',
-                    width: `${w}%`,
-                    borderRadius: '4px',
-                    backgroundColor: 'rgba(255,255,255,0.07)',
-                    animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                  }} />
-                ))}
-              </div>
-            ) : (book.promise || book.best_for) ? (
-              // Fallback when no tailored pitch is available (e.g. returning user
-              // with no onboarding context) — show the book's generic value prop.
-              <p style={{ color: 'var(--rd-muted)', fontSize: '0.875rem', lineHeight: '1.5', marginTop: '1rem' }}>
-                {book.promise || book.best_for}
-              </p>
-            ) : null}
+            <section className="readar-book-fit" aria-label="Why this book">
+              {book.fit ? (
+                <>
+                  {book.fit.priority && (
+                    <div className="readar-book-fit__priority">
+                      <h4>{book.fit.priority_label}</h4>
+                      <p>“{book.fit.priority}”</p>
+                    </div>
+                  )}
+                  <div>
+                    <h4>Why this book</h4>
+                    <p>{book.fit.reason}</p>
+                    {book.fit.evidence && (
+                      <p className="readar-book-fit__evidence">
+                        <span>From the book details: </span>“{book.fit.evidence}”
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <h4>As you read</h4>
+                    <p>{book.fit.reading_focus}</p>
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <h4>Why this book</h4>
+                  <p>A personal explanation isn't available for this suggestion yet. Check the book details to see whether it speaks to your priority.</p>
+                </div>
+              )}
+            </section>
           </div>
 
           <div className="readar-book-actions">
+            <ChooseBookButton
+              key={book.book_id}
+              bookId={book.book_id}
+              title={book.title}
+              author={book.author_name}
+              purchaseUrl={book.purchase_url}
+              requestId={requestId}
+              position={position}
+              disabled={savingStatus !== null}
+              onBusyChange={(busy) => setSavingStatus(busy ? 'reading_next' : null)}
+            />
+            {actionError && <p role="alert" className="readar-action-error">{actionError}</p>}
             <Button
               variant="ghost"
               size="sm"
@@ -291,12 +246,7 @@ export default function RecommendationCard({
           </div>
         </div>
 
-        <div style={{ marginTop: 'auto', paddingTop: '0.75rem' }}>
-          <GetBookCTA href={ctaUrl} onBeforeClick={handleCtaClick} />
-        </div>
       </Card>
     </div>
   );
 }
-
-

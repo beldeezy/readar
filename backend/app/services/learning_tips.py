@@ -136,6 +136,10 @@ def send_learning_tip_emails(
     :param max_users: cap how many users to process this run.
     :param only_user_id: restrict to a single user (admin testing).
     """
+    if settings.USER_EMAILS_PAUSED:
+        logger.info("Learning-tip email run paused")
+        return {"status": "paused", "eligible": 0, "sent": 0, "skipped": 0, "errors": 0}
+
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(days=MIN_DAYS_BETWEEN_TIPS)
 
@@ -189,6 +193,9 @@ def send_learning_tip_emails(
 
             if result.get("status") == "success":
                 sent += 1
+            elif result.get("status") == "paused":
+                skipped += 1
+                continue  # a pause must not consume the cap or log a sent event
             elif result.get("status") == "skipped":
                 skipped += 1
             else:

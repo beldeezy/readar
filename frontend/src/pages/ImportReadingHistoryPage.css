@@ -137,3 +137,8 @@
 .import-link:hover {
   border-bottom-color: #53ffc9;
 }
+
+.import-card > .readar-brand { margin-bottom: 1.75rem; }
+.import-success { display: grid; gap: 1.25rem; }
+.import-success [role="status"] { color: var(--rd-accent); line-height: 1.7; }
+.import-success .import-sub { margin: 0; }

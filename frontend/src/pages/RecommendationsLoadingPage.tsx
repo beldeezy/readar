@@ -1,22 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchRecommendations, apiClient, logEvent } from '../api/client';
-import type { OnboardingPayload } from '../api/types';
+import type { OnboardingPayload, RecommendationsResponse, RecommendationItem } from '../api/types';
 import { setPostAuthRedirect } from '../auth/postAuthRedirect';
 import { useAuth } from '../auth/AuthProvider';
+import { withTimeout } from '../utils/withTimeout';
 import RadarIcon from '../components/RadarIcon';
+import ReadarBrand from '../components/ReadarBrand';
 import './RecommendationsPage.css';
 
 const PENDING_ONBOARDING_KEY = 'readar_pending_onboarding';
 const PREVIEW_RECS_KEY = 'readar_preview_recs';
 const HAS_ONBOARDING_KEY = 'readar_has_onboarding';
-
-async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
-  const timeoutPromise = new Promise<T>((_, reject) =>
-    setTimeout(() => reject(new Error(message)), ms)
-  );
-  return Promise.race([promise, timeoutPromise]);
-}
 
 function normalizePendingOnboardingToPayload(pendingOnboarding: any): OnboardingPayload {
   return {
@@ -52,273 +47,106 @@ export default function RecommendationsLoadingPage() {
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<'fetching' | 'finalizing'>('fetching');
 
-  const { user: authUser, hasVerifiedMagicLink, setHasVerifiedMagicLink, refreshOnboardingStatus } =
-    useAuth();
-
-  const limitParam = searchParams.get('limit');
-  const limit = limitParam ? parseInt(limitParam, 10) : 5;
-
-  // Keep latest refresh function without making it a dependency that can re-trigger the main effect
+  const { user: authUser, loading: authLoading, refreshOnboardingStatus } = useAuth();
+  const [attempt, setAttempt] = useState(0);
+  const parsedLimit = Number(searchParams.get('limit') || 5);
+  const limit = Number.isFinite(parsedLimit) ? Math.min(5, Math.max(1, Math.floor(parsedLimit))) : 5;
+  const userId = authUser?.id;
   const refreshRef = useRef(refreshOnboardingStatus);
+  refreshRef.current = refreshOnboardingStatus;
+
+  type Result =
+    | { kind: 'preview'; items: RecommendationItem[] }
+    | { kind: 'saved' | 'existing'; recommendations: RecommendationsResponse };
+  // StrictMode replays effects. Share the work, but give each effect its own
+  // subscription: cleanup detaches the old subscriber, never the replacement.
+  const requestRef = useRef<{ key: string; promise: Promise<Result> } | null>(null);
+
   useEffect(() => {
-    refreshRef.current = refreshOnboardingStatus;
-  }, [refreshOnboardingStatus]);
-
-  // Guard to prevent spam/re-runs
-  const lastRunKeyRef = useRef<string | null>(null);
-  // Guard to prevent navigation from being called multiple times
-  const hasNavigatedRef = useRef<boolean>(false);
-  // Track which effect run we're in (for debugging race conditions)
-  const runIdRef = useRef<number>(0);
-
-  // Helper to check whether onboarding exists for the authenticated user
-  async function checkExistingOnboarding(): Promise<boolean> {
-    const cached = localStorage.getItem(HAS_ONBOARDING_KEY);
-    if (cached === '1') return true;
-
-    try {
-      await apiClient.getOnboarding(); // GET /api/onboarding (auth required)
-      localStorage.setItem(HAS_ONBOARDING_KEY, '1');
-      return true;
-    } catch (e: any) {
-      const status = e?.response?.status;
-      if (status === 404) {
-        localStorage.removeItem(HAS_ONBOARDING_KEY);
-        return false;
-      }
-      throw e;
+    if (authLoading) return;
+    let active = true;
+    const pending = localStorage.getItem(PENDING_ONBOARDING_KEY);
+    if (!pending && !userId) {
+      navigate('/onboarding', { replace: true });
+      return;
     }
-  }
+    const key = JSON.stringify([userId, limit, pending, attempt]);
+    setError(null);
+    setPhase('fetching');
 
-  useEffect(() => {
-    let cancelled = false;
-    const currentRunId = ++runIdRef.current;
-
-    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-    async function run() {
+    async function request(): Promise<Result> {
+      const started = performance.now();
       try {
-        console.log(`[RecommendationsLoading] Effect run #${currentRunId} starting`);
-
-        const pendingOnboardingStr = localStorage.getItem(PENDING_ONBOARDING_KEY);
-        const userId = authUser?.id ?? 'anon';
-
-        const runKey = `${userId}|limit=${limit}|pending=${pendingOnboardingStr ? '1' : '0'}`;
-        if (lastRunKeyRef.current === runKey) {
-          console.log(`[RecommendationsLoading] Run #${currentRunId} skipping (duplicate key: ${runKey})`);
-          return;
-        }
-        lastRunKeyRef.current = runKey;
-        console.log(`[RecommendationsLoading] Run #${currentRunId} executing for key: ${runKey}`);
-
-        // Check if we can skip magic link verification (user already has onboarding in backend)
-        let canSkipMagicLink = false;
-
-        if (authUser && !hasVerifiedMagicLink) {
-          try {
-            canSkipMagicLink = await checkExistingOnboarding();
-            if (canSkipMagicLink && typeof setHasVerifiedMagicLink === 'function') {
-              setHasVerifiedMagicLink(true);
+        if (pending) {
+          const payload = normalizePendingOnboardingToPayload(JSON.parse(pending));
+          if (!userId) {
+            const items = await withTimeout(apiClient.getPreviewRecommendations(payload), 20000,
+              'Finding your books is taking longer than expected. Your answers are saved. Please try again.');
+            if (!Array.isArray(items) || items.length === 0) {
+              throw new Error('We could not find your books yet. Your answers are saved. Try again or adjust your answers.');
             }
-          } catch (e: any) {
-            const status = e?.response?.status;
-            if (status === 401) throw e;
-
-            if (
-              !e?.response ||
-              String(e?.message || '').includes('timeout') ||
-              String(e?.message || '').includes('timed out')
-            ) {
-              setError('Backend unavailable or not responding. Confirm backend is running and DATABASE_URL is set.');
-              return;
-            }
-            throw e;
+            return { kind: 'preview', items };
           }
+          // This page owns finalization. Never discard the draft on a failed save
+          // or fetch, and do not skip updated answers for an existing account.
+          await withTimeout(apiClient.saveOnboarding(payload), 20000,
+            'Saving your answers is taking longer than expected. Please try again.');
         }
-
-        // CASE 1: pending exists AND NOT authenticated => preview flow => login
-        if (pendingOnboardingStr && !authUser) {
-          try {
-            const pendingOnboarding = JSON.parse(pendingOnboardingStr);
-            const payload = normalizePendingOnboardingToPayload(pendingOnboarding);
-
-            console.log('[RecommendationsLoading] Fetching preview recommendations...');
-            const recs = await withTimeout(
-              apiClient.getPreviewRecommendations(payload),
-              20000,
-              'Fetching preview recommendations took too long. Backend may be down or stuck.'
-            );
-            if (cancelled) return;
-
-            const itemCount = Array.isArray(recs) ? recs.length : 0;
-            console.log(`[RecommendationsLoading] Received ${itemCount} preview recommendations, navigating to login`);
-
-            localStorage.setItem(PREVIEW_RECS_KEY, JSON.stringify(recs));
-            setPhase('finalizing');
-
-            await sleep(1200);
-            if (cancelled) return;
-
-            void logEvent('onboarding_signin_prompted', { has_preview: itemCount > 0 });
-            setPostAuthRedirect('/recommendations');
-            navigate('/login');
-            return;
-          } catch (e: any) {
-            if (cancelled) return;
-            console.error('[RecommendationsLoading] Error generating preview recommendations:', e);
-            setError(e?.message || 'Failed to generate preview recommendations.');
-            return;
-          }
+        const recommendations = await withTimeout(fetchRecommendations({ limit }), 20000,
+          'Finding your books is taking longer than expected. Please try again.');
+        if (!Array.isArray(recommendations?.items) || recommendations.items.length === 0) {
+          throw new Error('We could not find your books yet. Your answers are saved. Try again or adjust your answers.');
         }
-
-        // Force login when user is authenticated but not verified AND cannot skip (no existing onboarding)
-        if (pendingOnboardingStr && authUser && !hasVerifiedMagicLink && !canSkipMagicLink) {
-          setPostAuthRedirect('/recommendations');
-          navigate('/login');
-          return;
-        }
-
-        // CASE 2: authenticated AND pending exists AND (verified OR can skip) => finalize pending into backend, then fetch real recs
-        if (pendingOnboardingStr && authUser && (hasVerifiedMagicLink || canSkipMagicLink)) {
-          try {
-            const pendingOnboarding = JSON.parse(pendingOnboardingStr);
-            const payload = normalizePendingOnboardingToPayload(pendingOnboarding);
-
-            await withTimeout(
-              apiClient.saveOnboarding(payload),
-              20000,
-              'Saving onboarding took too long. Backend may be down or stuck.'
-            );
-
-            await refreshRef.current?.();
-
-            localStorage.removeItem(PENDING_ONBOARDING_KEY);
-            localStorage.removeItem(PREVIEW_RECS_KEY);
-            localStorage.setItem(HAS_ONBOARDING_KEY, '1');
-
-            console.log('[RecommendationsLoading] Fetching recommendations after onboarding save...');
-            const recs = await withTimeout(
-              fetchRecommendations({ limit }),
-              20000,
-              'Fetching recommendations took too long. Backend may be down or stuck.'
-            );
-
-            const itemCount = recs?.items?.length ?? 0;
-            console.log(`[RecommendationsLoading] Run #${currentRunId} received ${itemCount} recommendations`);
-
-            // Check if already navigated
-            if (hasNavigatedRef.current) {
-              console.log(`[RecommendationsLoading] Run #${currentRunId} - already navigated, skipping`);
-              return;
-            }
-
-            // Mark navigation intent IMMEDIATELY, before ANY state updates or checks that could trigger cleanup
-            hasNavigatedRef.current = true;
-
-            if (cancelled) {
-              console.log(`[RecommendationsLoading] Run #${currentRunId} - cancelled=true but hasNavigated=true, proceeding anyway`);
-              // Still navigate since we marked intent - don't let cancellation block us
-            }
-
-            console.log(`[RecommendationsLoading] Run #${currentRunId} calling navigate() now...`);
-
-            // Navigate immediately - no state updates, no delays, no animation
-            navigate('/onboarding/import', { state: { prefetchedRecommendations: recs }, replace: true });
-            console.log(`[RecommendationsLoading] Run #${currentRunId} navigate() succeeded`);
-            return;
-          } catch (e: any) {
-            if (cancelled) {
-              console.log('[RecommendationsLoading] Cancelled after error');
-              return;
-            }
-            console.error('[RecommendationsLoading] Error:', e);
-            if (
-              !e?.response ||
-              String(e?.message || '').includes('timeout') ||
-              String(e?.message || '').includes('timed out')
-            ) {
-              setError('Backend unavailable or not responding. Confirm backend is running and DATABASE_URL is set.');
-            } else {
-              setError(e?.message || 'Failed to finalize onboarding and fetch recommendations.');
-            }
-            return;
-          }
-        }
-
-        // If user is authenticated but not magic-link-verified AND onboarding does not exist yet, require login
-        if (!pendingOnboardingStr && authUser && !hasVerifiedMagicLink && !canSkipMagicLink) {
-          setPostAuthRedirect('/recommendations');
-          navigate('/login');
-          return;
-        }
-
-        // CASE 3: no pending => normal authenticated flow
-        try {
-          console.log('[RecommendationsLoading] Fetching recommendations (normal flow)...');
-          const recs = await withTimeout(
-            fetchRecommendations({ limit }),
-            20000,
-            'Fetching recommendations took too long. Backend may be down or stuck.'
-          );
-
-          const itemCount = recs?.items?.length ?? 0;
-          console.log(`[RecommendationsLoading] Run #${currentRunId} received ${itemCount} recommendations`);
-
-          // Check if already navigated (prevent duplicate navigations in StrictMode)
-          if (hasNavigatedRef.current) {
-            console.log(`[RecommendationsLoading] Run #${currentRunId} - already navigated, skipping`);
-            return;
-          }
-
-          // Mark navigation intent IMMEDIATELY, before ANY state updates or checks that could trigger cleanup
-          hasNavigatedRef.current = true;
-
-          if (cancelled) {
-            console.log(`[RecommendationsLoading] Run #${currentRunId} - cancelled=true but hasNavigated=true, proceeding anyway`);
-            // Still navigate since we marked intent - don't let cancellation block us
-          }
-
-          console.log(`[RecommendationsLoading] Run #${currentRunId} calling navigate() now...`);
-
-          // Navigate immediately - no state updates, no delays, no animation
-          navigate('/recommendations', { state: { prefetchedRecommendations: recs }, replace: true });
-          console.log(`[RecommendationsLoading] Run #${currentRunId} navigate() succeeded`);
-          return;
-        } catch (e: any) {
-          if (cancelled) {
-            console.log('[RecommendationsLoading] Cancelled after error');
-            return;
-          }
-          console.error('[RecommendationsLoading] Error:', e);
-          if (
-            !e?.response ||
-            String(e?.message || '').includes('timeout') ||
-            String(e?.message || '').includes('timed out')
-          ) {
-            setError('Backend unavailable or not responding. Confirm backend is running and DATABASE_URL is set.');
-          } else {
-            setError(e?.message || 'Failed to generate recommendations.');
-          }
-          return;
-        }
-      } catch (e: any) {
-        if (cancelled) return;
-        setError(e?.message || 'Failed to generate recommendations.');
+        return { kind: pending ? 'saved' : 'existing', recommendations };
+      } finally {
+        console.info('[RecommendationsLoading] Request finished', {
+          flow: userId ? 'authenticated' : 'preview', duration_ms: Math.round(performance.now() - started),
+        });
       }
     }
 
-    run();
-
-    return () => {
-      console.log(`[RecommendationsLoading] Cleanup for run #${currentRunId}, setting cancelled=true`);
-      cancelled = true;
-    };
-  }, [limit, navigate, authUser?.id, hasVerifiedMagicLink, setHasVerifiedMagicLink]);
+    if (requestRef.current?.key !== key) requestRef.current = { key, promise: request() };
+    void requestRef.current.promise.then(result => {
+      if (!active) return;
+      // Another tab or a newer onboarding conversation must not be overwritten.
+      if (localStorage.getItem(PENDING_ONBOARDING_KEY) !== pending) {
+        setAttempt(value => value + 1);
+        return;
+      }
+      setPhase('finalizing');
+      if (result.kind === 'preview') {
+        localStorage.setItem(PREVIEW_RECS_KEY, JSON.stringify(result.items));
+        void logEvent('onboarding_signin_prompted', { has_preview: true });
+        setPostAuthRedirect('/recommendations/loading');
+        navigate('/login', { replace: true });
+      } else {
+        if (result.kind === 'saved') {
+          localStorage.removeItem(PENDING_ONBOARDING_KEY);
+          localStorage.removeItem(PREVIEW_RECS_KEY);
+          localStorage.setItem(HAS_ONBOARDING_KEY, '1');
+          // A status refresh must not block delivery of already fetched books.
+          void refreshRef.current();
+        }
+        navigate(result.kind === 'saved' ? '/onboarding/import' : '/recommendations', {
+          state: { prefetchedRecommendations: result.recommendations }, replace: true,
+        });
+      }
+      console.info('[RecommendationsLoading] Handoff complete', { flow: result.kind });
+    }).catch(cause => {
+      if (!active) return;
+      console.error('[RecommendationsLoading] Handoff failed', cause);
+      const message = cause instanceof Error && /Your answers|taking longer|Saving your answers/.test(cause.message)
+        ? cause.message : "We couldn't load your books just now. Your answers are saved. Please try again.";
+      setError(message);
+    });
+    return () => { active = false; };
+  }, [authLoading, userId, limit, attempt, navigate]);
 
   if (error) {
     return (
-      <div className="readar-recommendations-page">
+      <div className="readar-recommendations-page rd-scan-bg">
         <div className="container">
+        <div style={{ textAlign: 'center', marginBottom: '2rem' }}><ReadarBrand /></div>
           <h1
             style={{
               fontSize: 'var(--rd-font-size-2xl)',
@@ -335,7 +163,7 @@ export default function RecommendationsLoadingPage() {
               onClick={() => {
                 setError(null);
                 setPhase('fetching');
-                window.location.reload();
+                setAttempt(value => value + 1);
               }}
               style={{
                 padding: '0.75rem 1.5rem',
@@ -349,7 +177,7 @@ export default function RecommendationsLoadingPage() {
                 transition: 'all 0.2s',
               }}
             >
-              Retry
+              Try again
             </button>
             <button
               onClick={() => navigate('/onboarding')}
@@ -374,8 +202,9 @@ export default function RecommendationsLoadingPage() {
   }
 
   return (
-    <div className="readar-recommendations-page">
+    <div className="readar-recommendations-page rd-scan-bg">
       <div className="container">
+        <div style={{ textAlign: 'center', marginBottom: '2rem' }}><ReadarBrand /></div>
         <div
           style={{
             display: 'flex',

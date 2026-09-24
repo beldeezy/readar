@@ -1,0 +1,16 @@
+.reading-progress { margin: 1.25rem 0; padding-top: 1rem; border-top: 1px solid var(--rd-border); }
+.reading-progress-summary { display: flex; justify-content: space-between; gap: 1rem; color: var(--rd-text); font-size: 0.95rem; }
+.reading-progress-bar { width: 100%; height: 0.55rem; margin: 0.6rem 0 0; accent-color: var(--rd-accent); }
+.reading-progress .reading-progress-goal { color: var(--rd-accent); font-size: 0.85rem; }
+.reading-progress h4 { margin: 1.25rem 0 0.75rem; color: var(--rd-text); font-size: 1rem; }
+.reading-progress-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; margin-bottom: 1rem; }
+.reading-progress label { display: flex; flex-direction: column; gap: 0.4rem; color: var(--rd-muted); font-size: 0.8rem; }
+.reading-progress input, .reading-progress select { width: 100%; min-width: 0; box-sizing: border-box; color-scheme: dark; background: var(--rd-surface); color: var(--rd-text); border: 1px solid var(--rd-border-strong); border-radius: 6px; padding: 0.6rem; font-family: inherit; font-size: 1rem; }
+.reading-progress :is(input, select, summary):focus-visible { outline: var(--rd-focus-ring); outline-offset: 3px; }
+.reading-progress .reading-progress-hint { font-size: 0.78rem; color: var(--rd-muted); margin: 0.6rem 0 1rem; }
+.reading-progress details { border-top: 1px solid var(--rd-border); padding: 0.9rem 0; margin-top: 0.9rem; }
+.reading-progress summary { cursor: pointer; color: var(--rd-text); font-size: 0.85rem; }
+.reading-progress-history ul { list-style: none; margin: 0.8rem 0 0; padding: 0; }
+.reading-progress-history li { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; padding: 0.6rem 0; font-size: 0.8rem; color: var(--rd-text); }
+.reading-progress-history small { display: block; color: var(--rd-muted); margin-top: 0.25rem; }
+@media (max-width: 380px) { .reading-progress-fields { grid-template-columns: 1fr; } }

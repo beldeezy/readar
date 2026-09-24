@@ -1,0 +1,6 @@
+.readar-choose-book { width: 100%; text-align: center; padding: .5rem 0 .75rem; }
+.readar-choose-book > .readar-button { max-width: 100%; white-space: normal; }
+.readar-book-handoff-hint { color: var(--rd-muted); font-size: .875rem; line-height: 1.5; margin: .65rem auto .25rem; max-width: 36rem; }
+.readar-owned-book { display: inline-block; min-height: 44px; background: transparent; border: 0; color: var(--rd-mint, #48efcc); text-decoration: underline; text-underline-offset: .2em; cursor: pointer; padding: .6rem; font: inherit; }
+.readar-owned-book:disabled { opacity: .5; cursor: default; }
+.readar-owned-book:focus-visible { outline: 2px solid var(--rd-mint, #48efcc); outline-offset: 3px; border-radius: .5rem; }

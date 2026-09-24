@@ -16,7 +16,7 @@ to move, "did it get better?" is unanswerable.
 
 HOW IT WORKS
 ------------
-15 personas (tests/fixtures/relevance_personas.json), each written the way a real
+17 personas (tests/fixtures/relevance_personas.json), each written the way a real
 user types — sentences, not keywords. Each is scored through the real cold-start
 entrypoint (`get_recommendations_from_payload`) against the real tagged canon.
 A persona "hits" at N if any expected title lands in the top N.
@@ -56,9 +56,11 @@ from app.services.recommendation_engine import get_recommendations_from_payload
 # Pinned a hair below measured so float noise cannot flake the build; a genuine
 # regression moves hit@3 by >=6.7pp (one persona), far outside that slack.
 # These are a floor, not a target. See "THE RATCHET" above before editing.
-BASELINE_HIT_AT_3 = 0.53
-BASELINE_HIT_AT_5 = 0.66
-BASELINE_MRR = 0.44
+# RD-11 (2026-09-21): shared concept matching improves the ORIGINAL 15 to
+# hit@3=13/15, hit@5=15/15, MRR=0.755556. New P16/P17 cannot mask regressions.
+BASELINE_HIT_AT_3 = 0.86
+BASELINE_HIT_AT_5 = 1.0
+BASELINE_MRR = 0.75
 
 # Ranks the harness reports at. TOP_N is what we ask the engine for.
 TOP_N = 10
@@ -190,11 +192,14 @@ def test_every_expected_title_exists_in_catalog(relevance_catalog):
 def test_relevance_scoreboard(db: Session, relevance_catalog):
     """The ratchet. Prints the scoreboard, then asserts no regression."""
     results = _evaluate(db)
-    n = len(results)
+    # Keep the historical denominator fixed; evaluate new cases separately.
+    original = [row for row in results if int(row["id"][1:]) <= 15]
+    assert len(original) == 15
+    n = len(original)
 
-    hit_at_3 = sum(1 for r in results if r["rank"] and r["rank"] <= 3) / n
-    hit_at_5 = sum(1 for r in results if r["rank"] and r["rank"] <= 5) / n
-    mrr = sum(1.0 / r["rank"] for r in results if r["rank"]) / n
+    hit_at_3 = sum(1 for r in original if r["rank"] and r["rank"] <= 3) / n
+    hit_at_5 = sum(1 for r in original if r["rank"] and r["rank"] <= 5) / n
+    mrr = sum(1.0 / r["rank"] for r in original if r["rank"]) / n
 
     print(f"\n{'':<5}{'persona':<46}{'rank':>6}   top-3 returned")
     print("-" * 110)
@@ -203,7 +208,7 @@ def test_relevance_scoreboard(db: Session, relevance_catalog):
         print(f"{r['id']:<5}{r['label'][:44]:<46}{rank:>6}   {', '.join(r['top3'])[:52]}")
     print("-" * 110)
     print(
-        f"catalog={len(relevance_catalog)} books | personas={n} | "
+        f"catalog={len(relevance_catalog)} books | original personas={n} | "
         f"hit@3={hit_at_3:.0%} hit@5={hit_at_5:.0%} MRR={mrr:.3f}"
     )
     print(
@@ -214,3 +219,67 @@ def test_relevance_scoreboard(db: Session, relevance_catalog):
     assert hit_at_3 >= BASELINE_HIT_AT_3, f"hit@3 regressed: {hit_at_3:.0%} < {BASELINE_HIT_AT_3:.0%}"
     assert hit_at_5 >= BASELINE_HIT_AT_5, f"hit@5 regressed: {hit_at_5:.0%} < {BASELINE_HIT_AT_5:.0%}"
     assert mrr >= BASELINE_MRR, f"MRR regressed: {mrr:.3f} < {BASELINE_MRR:.3f}"
+
+
+@pytest.mark.parametrize("persona_id", ["P16", "P17"])
+def test_cleaning_business_preview_and_saved_profile_agree(db, relevance_catalog, persona_id):
+    """The actual signed-in scorer must match preview, not a different legacy path."""
+    from app.models import User, OnboardingProfile
+    from app.services.recommendation_engine import get_personalized_recommendations, get_recommendations_for_user
+
+    persona = next(p for p in _load_personas() if p["id"] == persona_id)
+    payload = OnboardingPayload(**persona["payload"])
+    user = User(id=uuid4(), email=f"{uuid4()}@example.test")
+    db.add(user)
+    db.flush()
+    profile = OnboardingProfile(user_id=user.id, **persona["payload"])
+    db.add(profile)
+    db.commit()
+    db.expire_all()
+    assert db.query(OnboardingProfile).filter_by(user_id=user.id).one().biggest_challenge == payload.biggest_challenge
+
+    preview = get_recommendations_from_payload(db, payload, limit=5)
+    saved = get_personalized_recommendations(db, user.id, limit=5)
+    legacy = get_recommendations_for_user(user.id, db, limit=5)
+    assert [b.book_id for b in preview] == [b.book_id for b in saved] == [b.book_id for b in legacy]
+    assert _rank_of_first_expected([b.title for b in saved], persona["expected_any_of"]) == 1
+    assert "customer acquisition" in saved[0].fit.reason
+
+
+def test_cleaning_business_goodreads_receipt_changes_picks_and_is_account_private(db, relevance_catalog):
+    """Import real CSV rows, then rank with persisted history (no provider calls)."""
+    import asyncio
+    import csv
+    from io import BytesIO, StringIO
+    from fastapi import BackgroundTasks, UploadFile
+    from app.models import User, OnboardingProfile, ReadingHistoryEntry
+    from app.routers.reading_history import upload_reading_history_csv
+    from app.services.recommendation_engine import get_personalized_recommendations
+
+    persona = next(p for p in _load_personas() if p["id"] == "P16")
+    user, other = [User(id=uuid4(), email=f"{uuid4()}@example.test") for _ in range(2)]
+    db.add_all([user, other])
+    db.flush()
+    db.add_all([OnboardingProfile(user_id=u.id, **persona["payload"]) for u in (user, other)])
+    db.commit()
+    before = get_personalized_recommendations(db, user.id, limit=5)
+    first_book = relevance_catalog[_title_key(before[0].title)]
+    csv_text = StringIO()
+    writer = csv.DictWriter(csv_text, fieldnames=["Title", "Author", "My Rating", "Exclusive Shelf"])
+    writer.writeheader()
+    writer.writerow({"Title": first_book.title, "Author": first_book.author_name, "My Rating": "5", "Exclusive Shelf": "read"})
+    receipt = asyncio.run(upload_reading_history_csv(
+        BackgroundTasks(), UploadFile(filename="goodreads.csv", file=BytesIO(csv_text.getvalue().encode())), user, db,
+    ))
+    assert receipt["imported_count"] == 1
+    assert receipt["new_books_added"] == 0
+    db.expire_all()
+    history = db.query(ReadingHistoryEntry).filter_by(user_id=user.id).one()
+    assert history.catalog_book_id == first_book.id
+    assert history.shelf == "read"
+    after = get_personalized_recommendations(db, user.id, limit=5)
+    other_picks = get_personalized_recommendations(db, other.id, limit=5)
+    assert str(first_book.id) not in {item.book_id for item in after}
+    assert [b.book_id for b in after] != [b.book_id for b in before]
+    assert _rank_of_first_expected([b.title for b in after], persona["expected_any_of"]) == 1
+    assert [b.book_id for b in other_picks] == [b.book_id for b in before]

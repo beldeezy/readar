@@ -1,0 +1,4 @@
+.readar-brand { display: inline-flex; align-items: center; gap: .75rem; color: var(--rd-text); text-decoration: none; flex-shrink: 0; }
+.readar-brand img { width: 38px; height: 38px; object-fit: contain; }
+.readar-brand span { font: 700 1.55rem var(--rd-font); letter-spacing: -.035em; }
+.readar-brand:hover { color: var(--rd-accent); }

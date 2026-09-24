@@ -1,0 +1,16 @@
+.reading-return, .reading-finish { padding: 1.4rem; margin: 1.5rem 0; border: 1px solid var(--rd-border); border-radius: var(--rd-radius-lg); background: var(--rd-surface); }
+.reading-return h2, .reading-finish h3 { margin: 0 0 .75rem; }
+.reading-return p, .reading-finish p { line-height: 1.6; overflow-wrap: anywhere; }
+.reading-eyebrow { color: var(--rd-accent); font-size: .8rem; letter-spacing: .06em; text-transform: uppercase; }
+.reading-reminder-settings { margin-top: 1.2rem; font-size: .9rem; }
+.reading-reminder-settings summary { cursor: pointer; }
+.reading-finish { border-color: var(--rd-accent); }
+.reading-finish label { display: block; margin: 1.2rem 0 .5rem; font-weight: 600; }
+.reading-finish textarea, .reading-finish select { width: 100%; box-sizing: border-box; background: var(--rd-bg); color: var(--rd-text); border: 1px solid var(--rd-border); border-radius: 12px; padding: .8rem; font: inherit; }
+.reading-finish textarea { resize: vertical; line-height: 1.6; }
+.reading-finish .reading-finish-check { display: flex; gap: .7rem; align-items: flex-start; }
+.reading-finish-check input { margin-top: .25rem; }
+.reading-finish-reflection { white-space: pre-wrap; overflow-wrap: anywhere; }
+.reading-finish-saved { padding: 1.25rem; border: 1px solid var(--rd-accent); border-radius: var(--rd-radius-lg); margin: 1.5rem 0; }
+.reading-book { scroll-margin-top: 6rem; }
+@media (max-width: 640px) { .reading-return, .reading-finish { padding: 1rem; } }

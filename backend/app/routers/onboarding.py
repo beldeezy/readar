@@ -343,9 +343,15 @@ class ChatTurnResponse(BaseModel):
 @router.post("/chat", response_model=ChatTurnResponse)
 def nepq_chat(req: ChatTurnRequest):
     """One turn of the background NEPQ conversation. No auth (runs pre-login)."""
-    from app.services.nepq_conversation import next_turn
+    from app.services.nepq_conversation import next_turn, OnboardingUnavailableError
     history = [m.model_dump() for m in req.history]
-    turn = next_turn(history, req.stage_index, req.turns_in_stage)
+    try:
+        turn = next_turn(history, req.stage_index, req.turns_in_stage)
+    except OnboardingUnavailableError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="We couldn't continue just now. Your answers are still here. Please try again.",
+        ) from exc
     return ChatTurnResponse(**turn)
 
 
@@ -356,6 +362,12 @@ class ExtractRequest(BaseModel):
 @router.post("/chat/extract")
 def nepq_extract(req: ExtractRequest) -> Dict[str, Any]:
     """Scribe: infer the structured profile from the full transcript."""
-    from app.services.nepq_conversation import extract_profile
+    from app.services.nepq_conversation import extract_profile, OnboardingUnavailableError
     history = [m.model_dump() for m in req.history]
-    return extract_profile(history)
+    try:
+        return extract_profile(history)
+    except OnboardingUnavailableError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="We couldn't prepare your recommendations just now. Your answers are still here. Please try again.",
+        ) from exc

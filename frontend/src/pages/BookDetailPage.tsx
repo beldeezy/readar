@@ -5,6 +5,7 @@ import type { Book, BookPreferenceStatus } from '../api/types';
 import Button from '../components/Button';
 import Card from '../components/Card';
 import Badge from '../components/Badge';
+import ChooseBookButton from '../components/ChooseBookButton';
 import './BookDetailPage.css';
 
 export default function BookDetailPage() {
@@ -13,6 +14,8 @@ export default function BookDetailPage() {
   const [book, setBook] = useState<Book | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [savingStatus, setSavingStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -33,24 +36,22 @@ export default function BookDetailPage() {
   };
 
   const handleAction = async (status: BookPreferenceStatus) => {
-    if (!id) return;
+    if (!id || savingStatus) return;
+    setSavingStatus(status);
+    setActionError('');
     try {
-      // "currently_reading" is a transient shelf state, not a graded interaction,
-      // so it only goes to the book-status dashboard store — not the interaction
-      // enum that feeds the Knowledge Map / recommendation scoring.
+      await apiClient.setBookStatus({ book_id: id, status, source: 'book_detail' });
       if (status !== 'currently_reading') {
-        await apiClient.updateUserBook(id, status);
+        // Preference scoring is secondary to the saved shelf state.
+        void apiClient.updateUserBook(id, status).catch((err) => {
+          console.warn('Optional recommendation preference failed:', err);
+        });
       }
-      // Persist to the book-status store that powers the Profile dashboard lists
-      // (interested / currently_reading / read_* sections).
-      try {
-        await apiClient.setBookStatus({ book_id: id, status, source: 'book_detail' });
-      } catch (err) {
-        console.warn('Failed to save book status for profile dashboard:', err);
-      }
-      navigate('/recommendations');
-    } catch (err) {
-      console.error('Failed to update book status:', err);
+      navigate(status === 'currently_reading' ? '/reading' : '/shelves');
+    } catch {
+      setActionError("We couldn't save that change. Please try again.");
+    } finally {
+      setSavingStatus(null);
     }
   };
 
@@ -151,20 +152,21 @@ export default function BookDetailPage() {
             </div>
           )}
           
+          {actionError && <p role="alert" className="readar-action-error">{actionError}</p>}
           <div className="readar-book-detail-actions">
-            <Button variant="primary" onClick={() => handleAction('interested')} delayMs={140}>
+            <ChooseBookButton key={book.id} bookId={book.id} title={book.title} author={book.author_name}
+              purchaseUrl={book.purchase_url} disabled={savingStatus !== null}
+              onBusyChange={(busy) => setSavingStatus(busy ? 'reading_next' : null)} />
+            <Button variant="secondary" onClick={() => handleAction('interested')} disabled={savingStatus !== null}>
               Save as Interested
             </Button>
-            <Button variant="secondary" onClick={() => handleAction('currently_reading')} delayMs={140}>
-              I'm reading this
-            </Button>
-            <Button variant="secondary" onClick={() => handleAction('read_liked')} delayMs={140}>
+            <Button variant="secondary" onClick={() => handleAction('read_liked')} disabled={savingStatus !== null}>
               Mark as Read (Liked)
             </Button>
-            <Button variant="ghost" onClick={() => handleAction('read_disliked')} delayMs={140}>
+            <Button variant="ghost" onClick={() => handleAction('read_disliked')} disabled={savingStatus !== null}>
               Mark as Read (Disliked)
             </Button>
-            <Button variant="ghost" onClick={() => handleAction('not_interested')} delayMs={140}>
+            <Button variant="ghost" onClick={() => handleAction('not_interested')} disabled={savingStatus !== null}>
               Not for me
             </Button>
           </div>
@@ -173,4 +175,3 @@ export default function BookDetailPage() {
     </div>
   );
 }
-

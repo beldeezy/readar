@@ -14,6 +14,7 @@ from typing import Optional
 
 from app.database import get_db
 from app.core.auth import require_admin_user
+from app.core.config import settings
 from app.models import (
     User,
     Book,
@@ -31,6 +32,12 @@ router = APIRouter(tags=["admin_analytics"], dependencies=[Depends(require_admin
 
 def _rate(numerator: int, denominator: int):
     return round(numerator / denominator, 4) if denominator else None
+
+
+@router.get("/admin/email-status")
+def get_email_status():
+    """Read-only runtime pause check; never generates content or sends mail."""
+    return {"user_emails_paused": settings.USER_EMAILS_PAUSED}
 
 
 @router.post("/admin/send-recommendation-emails")

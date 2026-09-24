@@ -13,6 +13,122 @@ export interface Token {
 
 export type BookPreferenceStatus = "read_liked" | "read_disliked" | "interested" | "currently_reading" | "not_interested";
 
+export type ReadingStatus = 'reading_next' | 'waiting_for_book' | 'currently_reading';
+
+export interface BookStatusItem {
+  book_id: string;
+  catalog_book_id?: string | null;
+  status: string;
+  updated_at: string;
+  title?: string | null;
+  author_name?: string | null;
+  cover_image_url?: string | null;
+  purchase_url?: string | null;
+}
+
+export interface ReadingLog {
+  reading_date: string;
+  position: number;
+  units_read: number;
+  goal_target: number;
+  goal_met: boolean;
+  updated_at: string;
+}
+
+export interface ReadingSettings {
+  unit: 'pages' | 'chapters';
+  starting_position: number;
+  total_units: number | null;
+  daily_goal: number;
+  expected_revision: number;
+}
+
+export interface ReadingProgress {
+  book_id: string;
+  unit: 'pages' | 'chapters';
+  starting_position: number;
+  total_units: number | null;
+  daily_goal: number;
+  revision: number;
+  current_position: number;
+  percent_complete: number | null;
+  today: string;
+  today_units: number;
+  today_goal: number;
+  goal_met: boolean;
+  logs: ReadingLog[];
+}
+
+export interface ReadingRewards {
+  today: string;
+  timezone: string;
+  points_per_day: number;
+  total_points: number;
+  qualifying_days: number;
+  current_streak: number;
+  best_streak: number;
+  today_qualified: boolean;
+  last_qualified_date: string | null;
+  state: 'new' | 'active' | 'continue' | 'restart';
+  recent_days: { reading_date: string; qualified: boolean }[];
+}
+
+export interface ReadingTakeawayText {
+  takeaway: string;
+  action_text: string;
+  goal_context: string;
+}
+
+export interface ReadingTakeaway extends ReadingTakeawayText {
+  id: string;
+  book_id: string;
+  book_title: string;
+  book_author: string;
+  action_status: 'idea' | 'pending' | 'completed';
+  next_step: string;
+  reflection_count: number;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReadingTakeawayList {
+  items: ReadingTakeaway[];
+  suggested_goal: string;
+  next_cursor: string | null;
+}
+
+export type TakeawayFilter = 'all' | 'idea' | 'pending' | 'completed';
+export type ReflectionOutcome = 'helped' | 'mixed' | 'did_not_help' | 'too_soon';
+
+export interface ReflectionText {
+  attempted_on: string;
+  outcome: ReflectionOutcome;
+  result: string;
+  next_step: string;
+  completed: boolean;
+}
+
+export interface ReadingReflection extends ReflectionText {
+  id: string;
+  sequence: number;
+  action_snapshot: string;
+  goal_snapshot: string;
+  takeaway_snapshot: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReflectionList {
+  items: ReadingReflection[];
+  next_before: number | null;
+}
+
+export interface ReflectionSaved {
+  takeaway: ReadingTakeaway;
+  reflection: ReadingReflection;
+}
+
 export type BookPreference = {
   book_id: string;
   status: BookPreferenceStatus;
@@ -108,6 +224,7 @@ export interface AdminAnalytics {
 export interface Book {
   id: string;
   title: string;
+  purchase_url?: string | null;
   subtitle?: string;
   author_name: string;
   description: string;
@@ -128,6 +245,15 @@ export interface Book {
   outcomes?: string[];
   created_at?: string;
   updated_at?: string;
+}
+
+export interface RecommendationFit {
+  priority?: string | null;
+  priority_label: string;
+  reason: string;
+  evidence?: string | null;
+  reading_focus: string;
+  match_type: 'challenge' | 'goal' | 'stage' | 'general';
 }
 
 export interface RecommendationItem {
@@ -156,6 +282,7 @@ export interface RecommendationItem {
   best_for?: string;
   outcomes?: string[];
   why_this_book: string; // Always present, single compelling paragraph explaining why recommended
+  fit?: RecommendationFit | null;
   why_recommended?: string[]; // Deprecated: use why_this_book instead
   why_signals?: Array<{ type: string; label: string }>;
   explanation?: {
@@ -216,3 +343,91 @@ export interface InsightReviewItem {
   total_score: number;
 }
 
+export interface SharedReader {
+  reading_name: string;
+  book_title: string;
+  book_author: string;
+}
+
+export interface FriendlyPairing {
+  status: 'inactive' | 'waiting' | 'paired' | 'ended';
+  progress_sharing: boolean;
+  revision: number;
+  you: SharedReader | null;
+  selected_book_id: string | null;
+  queued_at: string | null;
+  pairing_id: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  ended_by_you: boolean | null;
+  partner: SharedReader | null;
+}
+
+export interface PairingCommand {
+  request_id: string;
+  expected_revision: number;
+}
+
+export interface JoinPairing extends PairingCommand {
+  reading_name: string;
+  book_id: string;
+  share_with_partner: boolean;
+}
+
+
+export interface CompetitionScore { days: number; progress_percent: number; points: number; }
+export interface CompetitionRound {
+  starts_on: string;
+  ends_on: string;
+  status: 'scheduled' | 'active' | 'finished' | 'ended';
+  you: CompetitionScore;
+  partner: CompetitionScore | null;
+  result: 'pending' | 'ahead' | 'behind' | 'even' | 'win' | 'loss' | 'shared_win' | 'quiet' | 'ended';
+}
+export interface WeeklyCompetitionSummary {
+  state: 'unavailable' | 'not_joined' | 'waiting' | 'scheduled' | 'active';
+  revision: number;
+  timezone: string | null;
+  reading_revision: number | null;
+  consented: boolean;
+  partner_consented: boolean;
+  eligibility_error: string | null;
+  rule: { unit: 'pages' | 'chapters'; daily_target: number; total_units: number } | null;
+  current: CompetitionRound | null;
+  history: CompetitionRound[];
+  all_time_points: number;
+  wins: number;
+  shared_wins: number;
+}
+export interface CompetitionConsent extends PairingCommand {
+  timezone: string;
+  share_progress: boolean;
+  expected_reading_revision: number;
+}
+
+export interface ReadingCompletion {
+  book_id: string;
+  title: string;
+  completed_on: string;
+  rating: number | null;
+  reflection: string;
+  challenge_before: string;
+  challenge_after: string;
+}
+
+export interface ReadingJourney {
+  today: string;
+  show_next_action: boolean;
+  snoozed_until: string | null;
+  challenge: string;
+  next_action: { kind: string; title: string; detail: string; href: string; label: string } | null;
+  completions: ReadingCompletion[];
+}
+
+export interface FinishBookRequest {
+  request_id: string;
+  rating: number | null;
+  reflection: string;
+  next_challenge: string | null;
+  expected_challenge: string | null;
+}

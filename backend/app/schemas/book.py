@@ -13,6 +13,7 @@ class BookResponse(BaseModel):
     description: str
     thumbnail_url: Optional[str]
     cover_image_url: Optional[str]
+    purchase_url: Optional[str] = None
     page_count: Optional[int]
     published_year: Optional[int]
     categories: Optional[list[str]]
@@ -48,4 +49,3 @@ class BookCreate(BaseModel):
     functional_tags: Optional[list[str]] = None
     theme_tags: Optional[list[str]] = None
     difficulty: Optional[BookDifficulty] = None
-

@@ -379,7 +379,7 @@ class RecommendationEvent(Base):
 class UserBookStatusModel(Base):
     """
     Latest book status for each user-book pair.
-    This table stores the current status (interested, read_liked, read_disliked, not_for_me)
+    This table stores shelf status plus reading_next, waiting_for_book and currently_reading.
     and powers the Profile dashboard lists.
     """
     __tablename__ = "user_book_status"
@@ -387,12 +387,143 @@ class UserBookStatusModel(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
     book_id = Column(String, nullable=False, index=True)  # Using String to match book IDs (may be UUID or string)
-    status = Column(String, nullable=False)  # one of: interested | read_liked | read_disliked | not_for_me
+    status = Column(String, nullable=False)  # Shelf and reading journey states; validated by API.
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     
     __table_args__ = (
         UniqueConstraint('user_id', 'book_id', name='uq_user_book_status_user_book'),
+    )
+
+
+class ReadingJourneyPreference(Base):
+    __tablename__ = "reading_journey_preferences"
+
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    show_next_action = Column(Boolean, nullable=False, default=True, server_default=sa.true())
+    snoozed_until = Column(Date, nullable=True)
+
+
+class ReadingCompletion(Base):
+    __tablename__ = "reading_completions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    book_id = Column(UUID(as_uuid=True), ForeignKey("books.id", ondelete="RESTRICT"), nullable=False)
+    request_id = Column(UUID(as_uuid=True), nullable=False)
+    completed_on = Column(Date, nullable=False)
+    rating = Column(Integer, nullable=True)
+    reflection = Column(Text, nullable=False, default="", server_default="")
+    challenge_before = Column(Text, nullable=False, default="", server_default="")
+    challenge_after = Column(Text, nullable=False, default="", server_default="")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=sa.func.now())
+    __table_args__ = (
+        UniqueConstraint("user_id", "book_id", name="uq_reading_completion_user_book"),
+        UniqueConstraint("user_id", "request_id", name="uq_reading_completion_user_request"),
+        sa.CheckConstraint("rating IS NULL OR rating BETWEEN 1 AND 5", name="ck_reading_completion_rating"),
+        sa.CheckConstraint("char_length(reflection) <= 2000", name="ck_reading_completion_reflection"),
+    )
+
+
+class ReadingProgress(Base):
+    __tablename__ = "reading_progress"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    book_id = Column(UUID(as_uuid=True), ForeignKey("books.id", ondelete="CASCADE"), nullable=False)
+    unit = Column(String, nullable=False, default="pages", server_default="pages")
+    starting_position = Column(Integer, nullable=False, default=0, server_default="0")
+    total_units = Column(Integer, nullable=True)
+    daily_goal = Column(Integer, nullable=False, default=10, server_default="10")
+    revision = Column(Integer, nullable=False, default=0, server_default="0")
+    __table_args__ = (
+        UniqueConstraint("user_id", "book_id", name="uq_reading_progress_user_book"),
+        sa.CheckConstraint("unit IN ('pages', 'chapters')", name="ck_reading_progress_unit"),
+        sa.CheckConstraint("starting_position >= 0 AND starting_position <= 100000", name="ck_reading_progress_start"),
+        sa.CheckConstraint("daily_goal >= 1 AND daily_goal <= 1000", name="ck_reading_progress_goal"),
+        sa.CheckConstraint("total_units IS NULL OR (total_units >= 1 AND total_units <= 100000 AND total_units >= starting_position)", name="ck_reading_progress_total"),
+    )
+
+
+class ReadingLog(Base):
+    __tablename__ = "reading_logs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    book_id = Column(UUID(as_uuid=True), ForeignKey("books.id", ondelete="CASCADE"), nullable=False)
+    reading_date = Column(Date, nullable=False)
+    position = Column(Integer, nullable=False)
+    goal_target = Column(Integer, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=sa.func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now(), nullable=False)
+    __table_args__ = (
+        UniqueConstraint("user_id", "book_id", "reading_date", name="uq_reading_log_user_book_date"),
+        sa.CheckConstraint("position >= 0 AND position <= 100000", name="ck_reading_log_position"),
+        sa.CheckConstraint("goal_target >= 1 AND goal_target <= 1000", name="ck_reading_log_goal_target"),
+    )
+
+
+class ReadingTakeaway(Base):
+    __tablename__ = "reading_takeaways"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    book_id = Column(UUID(as_uuid=True), ForeignKey("books.id", ondelete="RESTRICT"), nullable=False)
+    client_id = Column(UUID(as_uuid=True), nullable=False)
+    book_title = Column(Text, nullable=False)
+    book_author = Column(Text, nullable=False)
+    takeaway = Column(Text, nullable=False)
+    action_text = Column(Text, nullable=False, default="", server_default="")
+    goal_context = Column(Text, nullable=False)
+    action_completed = Column(Boolean, nullable=False, default=False, server_default=sa.false())
+    next_step = Column(Text, nullable=False, default="", server_default="")
+    action_generation = Column(Integer, nullable=False, default=1, server_default="1")
+    reflection_count = Column(Integer, nullable=False, default=0, server_default="0")
+    revision = Column(Integer, nullable=False, default=1, server_default="1")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=sa.func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=sa.func.now())
+    __table_args__ = (
+        UniqueConstraint("user_id", "client_id", name="uq_reading_takeaway_user_client"),
+        sa.Index("ix_reading_takeaway_user_created", "user_id", "created_at", "id"),
+        sa.CheckConstraint("char_length(trim(takeaway)) BETWEEN 1 AND 4000", name="ck_reading_takeaway_text"),
+        sa.CheckConstraint("char_length(trim(goal_context)) BETWEEN 1 AND 2000", name="ck_reading_takeaway_goal"),
+        sa.CheckConstraint("char_length(action_text) <= 2000", name="ck_reading_takeaway_action"),
+        sa.CheckConstraint("revision >= 1", name="ck_reading_takeaway_revision"),
+        sa.CheckConstraint("char_length(next_step) <= 2000", name="ck_reading_takeaway_next_step"),
+        sa.CheckConstraint("action_generation >= 1 AND reflection_count >= 0", name="ck_reading_takeaway_reflection_counters"),
+        sa.CheckConstraint("action_text <> '' OR (NOT action_completed AND next_step = '')", name="ck_reading_takeaway_action_state"),
+    )
+
+    @property
+    def action_status(self):
+        return "idea" if not self.action_text else "completed" if self.action_completed else "pending"
+
+
+class ReadingReflection(Base):
+    __tablename__ = "reading_reflections"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    takeaway_id = Column(UUID(as_uuid=True), ForeignKey("reading_takeaways.id", ondelete="CASCADE"), nullable=False)
+    client_id = Column(UUID(as_uuid=True), nullable=False)
+    sequence = Column(Integer, nullable=False)
+    action_generation = Column(Integer, nullable=False)
+    attempted_on = Column(Date, nullable=False)
+    outcome = Column(String, nullable=False)
+    result = Column(Text, nullable=False)
+    next_step = Column(Text, nullable=False, default="", server_default="")
+    completed = Column(Boolean, nullable=False, default=False, server_default=sa.false())
+    action_snapshot = Column(Text, nullable=False)
+    goal_snapshot = Column(Text, nullable=False)
+    takeaway_snapshot = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=sa.func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=sa.func.now())
+    __table_args__ = (
+        UniqueConstraint("takeaway_id", "client_id", name="uq_reading_reflection_client"),
+        UniqueConstraint("takeaway_id", "sequence", name="uq_reading_reflection_sequence"),
+        sa.CheckConstraint("sequence >= 1 AND action_generation >= 1", name="ck_reading_reflection_counters"),
+        sa.CheckConstraint("outcome IN ('helped', 'mixed', 'did_not_help', 'too_soon')", name="ck_reading_reflection_outcome"),
+        sa.CheckConstraint("char_length(trim(result)) BETWEEN 1 AND 4000", name="ck_reading_reflection_result"),
+        sa.CheckConstraint("char_length(next_step) <= 2000 AND (completed OR char_length(trim(next_step)) >= 1)", name="ck_reading_reflection_next_step"),
     )
 
 
@@ -539,3 +670,75 @@ def normalize_subscription_status_before_db(mapper, connection, target):
             )
             target.subscription_status = SubscriptionStatus.FREE
 
+
+class FriendlyPair(Base):
+    """Pair lifecycle is retained; only current partners can see shared details."""
+    __tablename__ = "friendly_pairs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    first_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    second_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    started_at = Column(DateTime(timezone=True), nullable=False, server_default=sa.func.now())
+    ended_at = Column(DateTime(timezone=True), nullable=True)
+    ended_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    competition_timezone = Column(String(64), nullable=True)
+    competition_starts_on = Column(Date, nullable=True)
+    __table_args__ = (
+        sa.CheckConstraint("first_user_id <> second_user_id", name="ck_friendly_pair_distinct"),
+        sa.CheckConstraint("(ended_at IS NULL AND ended_by IS NULL) OR (ended_at IS NOT NULL AND ended_by IS NOT NULL AND ended_by IN (first_user_id, second_user_id))", name="ck_friendly_pair_ended"),
+    )
+
+
+class FriendlyParticipation(Base):
+    """One current participation per reader; all transitions use the pairing lock."""
+    __tablename__ = "friendly_participations"
+
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True)
+    status = Column(String, nullable=False, default="inactive", server_default="inactive")
+    revision = Column(Integer, nullable=False, default=0, server_default="0")
+    reading_name = Column(String(32), nullable=False, default="", server_default="")
+    book_id = Column(UUID(as_uuid=True), ForeignKey("books.id"), nullable=True)
+    book_title = Column(Text, nullable=False, default="", server_default="")
+    book_author = Column(Text, nullable=False, default="", server_default="")
+    queued_at = Column(DateTime(timezone=True), nullable=True)
+    pairing_id = Column(UUID(as_uuid=True), ForeignKey("friendly_pairs.id"), nullable=True)
+    consented_at = Column(DateTime(timezone=True), nullable=True)
+    competition_consented_at = Column(DateTime(timezone=True), nullable=True)
+    competition_unit = Column(String, nullable=True)
+    competition_total = Column(Integer, nullable=True)
+    competition_starting_position = Column(Integer, nullable=True)
+    competition_goal = Column(Integer, nullable=True)
+    competition_baseline_position = Column(Integer, nullable=True)
+    last_request_id = Column(UUID(as_uuid=True), nullable=True)
+    last_request_hash = Column(String(64), nullable=True)
+    __table_args__ = (
+        sa.CheckConstraint("status IN ('inactive', 'waiting', 'paired', 'ended')", name="ck_friendly_participation_status"),
+        sa.CheckConstraint("revision >= 0", name="ck_friendly_participation_revision"),
+        sa.CheckConstraint("status NOT IN ('waiting', 'paired') OR (char_length(trim(reading_name)) BETWEEN 1 AND 32 AND book_id IS NOT NULL AND consented_at IS NOT NULL)", name="ck_friendly_participation_consent"),
+        sa.CheckConstraint("(status = 'waiting' AND queued_at IS NOT NULL AND pairing_id IS NULL) OR (status IN ('paired', 'ended') AND queued_at IS NULL AND pairing_id IS NOT NULL) OR (status = 'inactive' AND queued_at IS NULL AND pairing_id IS NULL)", name="ck_friendly_participation_state"),
+        sa.Index("ix_friendly_waiting", "queued_at", "user_id", postgresql_where=sa.text("status = 'waiting'")),
+    )
+
+
+class FriendlyRound(Base):
+    __tablename__ = "friendly_rounds"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    pairing_id = Column(UUID(as_uuid=True), ForeignKey("friendly_pairs.id"), nullable=False)
+    starts_on = Column(Date, nullable=False)
+    ends_before = Column(Date, nullable=False)
+    status = Column(String, nullable=False, default="active", server_default="active")
+    first_days = Column(Integer, nullable=False, default=0, server_default="0")
+    second_days = Column(Integer, nullable=False, default=0, server_default="0")
+    first_progress_bps = Column(Integer, nullable=False, default=0, server_default="0")
+    second_progress_bps = Column(Integer, nullable=False, default=0, server_default="0")
+    first_score = Column(Integer, nullable=False, default=0, server_default="0")
+    second_score = Column(Integer, nullable=False, default=0, server_default="0")
+    closed_at = Column(DateTime(timezone=True), nullable=True)
+    __table_args__ = (
+        UniqueConstraint("pairing_id", "starts_on", name="uq_friendly_round_pair_start"),
+        sa.CheckConstraint("ends_before = starts_on + 7", name="ck_friendly_round_week"),
+        sa.CheckConstraint("status IN ('active', 'finished', 'ended') AND ((status = 'active' AND closed_at IS NULL) OR (status <> 'active' AND closed_at IS NOT NULL))", name="ck_friendly_round_status"),
+        sa.CheckConstraint("first_days BETWEEN 0 AND 7 AND second_days BETWEEN 0 AND 7 AND first_progress_bps BETWEEN 0 AND 10000 AND second_progress_bps BETWEEN 0 AND 10000", name="ck_friendly_round_progress"),
+        sa.CheckConstraint("first_score = first_days * 1000 + first_progress_bps / 20 AND second_score = second_days * 1000 + second_progress_bps / 20", name="ck_friendly_round_score"),
+    )

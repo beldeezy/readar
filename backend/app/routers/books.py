@@ -110,6 +110,7 @@ def get_books(
                     "description": book.description,
                     "thumbnail_url": book.thumbnail_url,
                     "cover_image_url": book.cover_image_url,
+                    "purchase_url": book.purchase_url,
                     "page_count": book.page_count,
                     "published_year": book.published_year,
                     "categories": book.categories,
@@ -180,6 +181,7 @@ def get_book(book_id: str, db: Session = Depends(get_db)):
             "description": book.description,
             "thumbnail_url": book.thumbnail_url,
             "cover_image_url": book.cover_image_url,
+            "purchase_url": book.purchase_url,
             "page_count": book.page_count,
             "published_year": book.published_year,
             "categories": book.categories,
@@ -244,4 +246,3 @@ def seed_books_debug(db: Session = Depends(get_db)):
     
     db.commit()
     return {"message": f"Seeded {created_count} new books"}
-

@@ -23,6 +23,8 @@ from app.models import (
 )
 from app.schemas.recommendation import RecommendationItem
 from app.services import founder_knowledge as fk
+from app.services import challenge_matching as cm
+from app.services.recommendation_explanations import build_book_fit, fit_summary
 
 logger = logging.getLogger(__name__)
 
@@ -165,9 +167,7 @@ def score_promise_match(book: Book, profile: OnboardingProfile) -> float:
     """Score match between book promise and user's biggest challenge."""
     if not book.promise or not profile.biggest_challenge:
         return 0.0
-    if profile.biggest_challenge.lower() in book.promise.lower():
-        return 1.0
-    return 0.0
+    return cm.text_match(profile.biggest_challenge, book.promise)
 
 
 def score_framework_match(book: Book, profile: OnboardingProfile) -> float:
@@ -185,7 +185,7 @@ def score_outcome_match(book: Book, profile: OnboardingProfile) -> float:
         return 0.0
     if not isinstance(book.outcomes, list):
         return 0.0
-    return 1.0 if any(str(goal).lower() in profile.vision_6_12_months.lower() for goal in book.outcomes) else 0.0
+    return cm.text_match(profile.vision_6_12_months, " ".join(str(goal) for goal in book.outcomes))
 
 
 class NotEnoughSignalError(Exception):
@@ -261,78 +261,8 @@ def _generate_explanation_blurb(
     onboarding: Optional[OnboardingProfile],
     signals: Dict[str, Any],
 ) -> str:
-    """
-    Generate a user-facing 2-3 sentence blurb explaining why the book was recommended.
-
-    Template:
-    - Sentence 1: Tie to user situation (stage/challenge)
-    - Sentence 2: What the book helps them do
-    - Sentence 3 (optional): How to use it / what to look for
-
-    Returns a deterministic 2-3 sentence string (no LLMs).
-    """
-    sentences: List[str] = []
-
-    # Extract user context
-    business_stage = user_ctx.get("business_stage", "")
-    biggest_challenge = user_ctx.get("biggest_challenge", "")
-    business_model = user_ctx.get("business_model", "")
-
-    # Sentence 1: Tie to user situation
-    situation_parts = []
-    if signals.get("stage_match") and business_stage:
-        stage_label = business_stage.replace("_", " ").replace("-", " ")
-        situation_parts.append(f"at the {stage_label} stage")
-
-    if signals.get("challenge_match") and biggest_challenge:
-        # Summarize challenge without pasting full text
-        challenge_clean = biggest_challenge.replace("Struggling with:", "").strip()
-        # Take first clause or truncate if too long
-        if len(challenge_clean) > 60:
-            challenge_clean = challenge_clean[:57] + "..."
-        situation_parts.append(f"working through {challenge_clean}")
-
-    if situation_parts:
-        situation = " and ".join(situation_parts)
-        sentences.append(f"Given you're {situation}, this book is especially relevant.")
-    elif business_model:
-        model_clean = business_model.replace("_", " ").replace("-", " ")
-        sentences.append(f"This book is tailored for {model_clean} founders.")
-
-    # Sentence 2: What the book helps them do
-    help_text = None
-    if hasattr(book, 'promise') and book.promise:
-        help_text = book.promise.strip()
-        if not help_text.endswith('.'):
-            help_text += "."
-        sentences.append(help_text)
-    elif hasattr(book, 'outcomes') and book.outcomes:
-        outcome = book.outcomes[0]
-        sentences.append(f"This book will help you {outcome.lower()}.")
-    elif hasattr(book, 'core_frameworks') and book.core_frameworks:
-        framework = book.core_frameworks[0]
-        sentences.append(f"It introduces the {framework} framework to sharpen your execution.")
-
-    # Sentence 3 (optional): How to use it / what to look for
-    if signals.get("functional_overlap"):
-        overlap_areas = signals["functional_overlap"]
-        if overlap_areas:
-            area_text = ", ".join(overlap_areas[:2])
-            sentences.append(f"Pay special attention to the {area_text} insights.")
-    elif hasattr(book, 'core_frameworks') and book.core_frameworks and not help_text:
-        # Only add if we didn't already mention frameworks
-        framework = book.core_frameworks[0]
-        sentences.append(f"Read it with the goal of applying the {framework} framework to your work.")
-
-    # Fallback if no sentences generated
-    if not sentences:
-        sentences.append("This book is recommended based on your profile and reading history.")
-        if hasattr(book, 'promise') and book.promise:
-            sentences.append(book.promise.strip())
-
-    # Join and limit to 3 sentences max
-    blurb = " ".join(sentences[:3])
-    return blurb
+    """Explain only supported profile/catalog connections; keep the legacy API."""
+    return fit_summary(build_book_fit(user_ctx, book))
 
 
 def build_recommendation_explanation(
@@ -577,7 +507,8 @@ def get_generic_recommendations(
         why_signals = _build_why_signals(None, book)
         
         # Build why_this_book for generic recs (no onboarding, so use empty factors)
-        why_this_book_text = build_why_this_book_v2(None, book, None, None)
+        fit_data = build_book_fit(None, book)
+        why_this_book_text = fit_summary(fit_data)
         
         relevancy_score = 0.0  # generic recs, no personalized score
         recommendations.append(
@@ -603,6 +534,7 @@ def get_generic_recommendations(
                 business_stage_tags=book.business_stage_tags,
                 purchase_url=purchase_url,
                 why_this_book=why_this_book_text,
+                fit=fit_data,
                 why_recommended=None,  # Deprecated
                 why_signals=why_signals if why_signals else None,
             )
@@ -645,13 +577,9 @@ def _get_book_insight_tags(book: Book) -> Set[str]:
                 normalized = _normalize_tag_value(tag)
                 insight_tags.add(f"focus_area:{normalized}")
     
-    # theme_tags → "bottleneck:*"
-    if book.theme_tags:
-        for tag in book.theme_tags:
-            if tag:
-                normalized = _normalize_tag_value(tag)
-                insight_tags.add(f"bottleneck:{normalized}")
-    
+    # Shared concept keys work for both sentences and normalized catalog tags.
+    insight_tags.update(f"bottleneck:{key}" for key in cm.book_concepts(book))
+
     return insight_tags
 
 
@@ -738,7 +666,12 @@ def _apply_diversity_penalty(
     - Debug info dict mapping book_id to diversity info
     """
     # Sort by score descending
-    sorted_items = sorted(scored_items, key=lambda x: x[1], reverse=True)
+    def sort_key(item):
+        book = (books_by_id or {}).get(item[0])
+        return (-item[1], (getattr(book, "title", "") or "").casefold(),
+                (getattr(book, "author_name", "") or "").casefold(), str(item[0]))
+
+    sorted_items = sorted(scored_items, key=sort_key)
 
     seen_insight_counts: Dict[str, int] = {}
     seen_author_counts: Dict[str, int] = {}
@@ -800,7 +733,7 @@ def _build_user_insights(onboarding: Optional[OnboardingProfile]) -> List[Insigh
     - business_stage → weight 1.2, key: "business_stage:{value}"
     - business_model → weight 1.0, key: "business_model:{normalized_value}"
     - areas_of_business (array) → each weight 0.8, key: "focus_area:{value}"
-    - biggest_challenge → weight 1.1, key: "bottleneck:{normalized_value}"
+    - biggest_challenge → total weight 1.1 across shared bottleneck concept keys
     
     Returns empty list if onboarding is None or all fields are empty.
     This function must NEVER throw.
@@ -848,16 +781,15 @@ def _build_user_insights(onboarding: Optional[OnboardingProfile]) -> List[Insigh
                             "reason": f"focused on {area.replace('_', ' ').title()}"
                         })
         
-        # biggest_challenge → weight 1.1
-        if onboarding.biggest_challenge:
-            normalized = _normalize_tag_value(onboarding.biggest_challenge)
-            if normalized:
-                insights.append({
-                    "key": f"bottleneck:{normalized}",
-                    "weight": 1.1,
-                    "reason": f"facing {onboarding.biggest_challenge}"
-                })
-    
+        # One bounded budget across the stated challenge's concepts.
+        challenge_keys = cm.concepts(onboarding.biggest_challenge)
+        for key in sorted(challenge_keys):
+            insights.append({
+                "key": f"bottleneck:{key}",
+                "weight": 1.1 / len(challenge_keys),
+                "reason": f"a topic connection to {cm.CONCEPTS[key][0]}",
+            })
+
     except Exception as e:
         # This function must NEVER throw - log and return empty list
         logger.warning(f"Error building user insights: {e}", exc_info=True)
@@ -1193,297 +1125,8 @@ def build_why_this_book_v2(
     matched_insights: Optional[List[Insight]] = None,
     dominant_insight: Optional[str] = None,
 ) -> str:
-    """
-    Build a concise, personal "Why this book?" explanation.
-    
-    Requirements:
-    - Limit to 1-2 sentences
-    - Explicitly reference: the user's stated challenge OR business stage OR what the book helps them stop doing
-    - Remove generic phrases and tag lists
-    - Keep all logic deterministic. No new data sources.
-    
-    Priority order:
-    1. If matched_insights exist: use top insight + book promise (personalized to user challenge/stage)
-    2. Else if user_ctx has biggest_challenge: reference challenge + book promise
-    3. Else if user_ctx has business_stage: reference stage + book promise
-    4. Else: simple fallback with book promise
-    
-    Returns 1-2 sentences, max 240 chars. Never shows raw tags.
-    
-    Args:
-        user_ctx: User context dict (from _build_user_context) or None
-        book: Book model instance
-        matched_insights: List of matched insights (from scoring)
-        dominant_insight: Dominant insight key (from _get_dominant_insight) or None
-    """
-    parts: List[str] = []
-    
-    # Helper: Normalize stage display
-    def normalize_stage(stage_value: str) -> str:
-        """Convert stage value to display format."""
-        stage_map = {
-            "idea": "Idea",
-            "pre-revenue": "Pre-revenue",
-            "pre_revenue": "Pre-revenue",
-            "early-revenue": "Early revenue",
-            "early_revenue": "Early revenue",
-            "scaling": "Scaling",
-        }
-        normalized = stage_value.lower().replace("_", "-")
-        return stage_map.get(normalized, stage_value.replace("-", " ").title())
-    
-    # Helper: Extract value from insight key
-    def extract_insight_value(insight_key: str) -> str:
-        """Extract the value part from an insight key like 'business_stage:pre-revenue'."""
-        if ":" in insight_key:
-            return insight_key.split(":", 1)[1]
-        return insight_key
-    
-    # Helper: Convert insight to plain English phrase
-    def insight_to_phrase(insight: Insight) -> str:
-        """Convert an insight to a human-readable phrase."""
-        key = insight["key"]
-        reason = insight.get("reason", "")
-        
-        # If reason exists, convert it to the right format based on insight type
-        if reason:
-            if key.startswith("business_stage:"):
-                # Reason is like "at the Pre Revenue stage" -> "You're in the Pre-revenue stage"
-                if reason.startswith("at the "):
-                    stage_part = reason[7:]  # "Pre Revenue stage"
-                    # Normalize the stage part
-                    stage_value = extract_insight_value(key)
-                    stage_display = normalize_stage(stage_value)
-                    return f"You're in the {stage_display} stage"
-                return f"You're in the {reason}."
-            elif key.startswith("business_model:"):
-                # Reason is like "building a saas business" -> "This fits a SaaS-style business"
-                if reason.startswith("building a "):
-                    model_part = reason[10:]  # "saas business"
-                    model_display = model_part.replace(" business", "").title()
-                    return f"This fits a {model_display}-style business"
-                return f"This fits a {reason}."
-            elif key.startswith("focus_area:"):
-                # Reason is like "focused on Marketing" -> "It strengthens your Marketing"
-                if reason.startswith("focused on "):
-                    area_part = reason[11:]  # "Marketing"
-                    return f"It strengthens your {area_part}"
-                return f"It strengthens your {reason}."
-            elif key.startswith("bottleneck:"):
-                # Reason is like "facing pricing challenges" -> "It helps with Pricing Challenges"
-                if reason.startswith("facing "):
-                    bottleneck_part = reason[7:]  # "pricing challenges"
-                    # Clean up: title case, trim to ~6 words
-                    words = bottleneck_part.split()[:6]
-                    bottleneck_display = " ".join(words).title()
-                    return f"It helps with {bottleneck_display}"
-                return f"It helps with {reason}."
-            # If reason doesn't match expected patterns, use it as-is
-            return reason
-        
-        # Fallback: parse from key if no reason
-        if key.startswith("business_stage:"):
-            value = extract_insight_value(key)
-            stage_display = normalize_stage(value)
-            return f"You're in the {stage_display} stage"
-        elif key.startswith("business_model:"):
-            value = extract_insight_value(key)
-            model_display = value.replace("-", " ").replace("_", " ").title()
-            return f"This fits a {model_display}-style business"
-        elif key.startswith("focus_area:"):
-            value = extract_insight_value(key)
-            area_display = value.replace("-", " ").replace("_", " ").title()
-            return f"It strengthens your {area_display}"
-        elif key.startswith("bottleneck:"):
-            value = extract_insight_value(key)
-            # Clean up bottleneck: remove punctuation, trim to ~6 words
-            words = value.replace("-", " ").replace("_", " ").split()[:6]
-            bottleneck_display = " ".join(words).title()
-            return f"It helps with {bottleneck_display}"
-        return ""
-    
-    # Helper: Get book promise clause
-    def get_book_promise() -> Optional[str]:
-        """Get a single book promise clause if available."""
-        if book.promise and book.promise.strip():
-            promise = book.promise.strip()
-            # Remove trailing period if present, we'll add it later
-            if promise.endswith("."):
-                promise = promise[:-1]
-            return promise
-        return None
-    
-    # Helper: Get book category/functional tag for fallback
-    def get_book_category_fallback() -> Optional[str]:
-        """Get a single category or functional tag for fallback."""
-        if book.categories and len(book.categories) > 0:
-            return book.categories[0]
-        if book.functional_tags and len(book.functional_tags) > 0:
-            return book.functional_tags[0]
-        return None
-    
-    # PRIORITY A: If matched_insights exist
-    if matched_insights and len(matched_insights) > 0:
-        # Sort by weight (descending) and take top 1
-        sorted_insights = sorted(matched_insights, key=lambda x: x.get("weight", 0.0), reverse=True)
-        top_insight = sorted_insights[0]
-        
-        # Get user context for personalization
-        biggest_challenge = user_ctx.get("biggest_challenge") if user_ctx else None
-        business_stage = user_ctx.get("business_stage") if user_ctx else None
-        
-        # Build personalized opening based on insight type
-        insight_key = top_insight.get("key", "")
-        if insight_key.startswith("bottleneck:") and biggest_challenge:
-            # Reference the user's stated challenge directly
-            challenge_text = biggest_challenge.strip()
-            # Capitalize first letter
-            if challenge_text:
-                challenge_text = challenge_text[0].upper() + challenge_text[1:] if len(challenge_text) > 1 else challenge_text.upper()
-            parts.append(f"Since you're facing {challenge_text.lower()}, this book")
-        elif insight_key.startswith("business_stage:") and business_stage:
-            # Reference the user's business stage
-            stage_display = normalize_stage(business_stage)
-            parts.append(f"As you're in the {stage_display} stage, this book")
-        else:
-            # Use insight phrase as opening
-            phrase = insight_to_phrase(top_insight)
-            if phrase:
-                # Make it more personal - convert "You're" to "Since you're" or similar
-                if phrase.startswith("You're "):
-                    phrase = "Since " + phrase.lower()
-                elif phrase.startswith("This "):
-                    phrase = "This book " + phrase[5:].lower()
-                parts.append(phrase)
-        
-        # Add book promise - make it actionable
-        promise = get_book_promise()
-        if promise:
-            # Ensure promise references what it helps them stop doing or achieve
-            promise_lower = promise.lower()
-            if "help" not in promise_lower and "stop" not in promise_lower and "avoid" not in promise_lower:
-                # Add a connector if promise doesn't already have action words
-                if parts:
-                    parts[-1] = parts[-1].rstrip(".") + " helps you " + promise.lower()
-                else:
-                    parts.append(f"This book helps you {promise.lower()}")
-            else:
-                if parts:
-                    parts[-1] = parts[-1].rstrip(".") + ", " + promise.lower()
-                else:
-                    parts.append(promise)
-        else:
-            # Fallback if no promise
-            if not parts:
-                parts.append("This book directly addresses your current needs.")
-        
-        # Build result - limit to 1-2 sentences
-        result = " ".join(parts).strip()
-        if result:
-            # Enforce length limit (1-2 sentences, ~240 chars max)
-            if len(result) > 240:
-                # Truncate at last sentence boundary before 240 chars
-                sentences = result.split(". ")
-                if len(sentences) > 1:
-                    # Take first sentence if it's reasonable length
-                    first_sentence = sentences[0] + "."
-                    if len(first_sentence) <= 240:
-                        result = first_sentence
-                    else:
-                        # Truncate first sentence
-                        truncated = first_sentence[:237]
-                        last_space = truncated.rfind(" ")
-                        if last_space > 180:
-                            result = truncated[:last_space] + "..."
-                        else:
-                            result = truncated + "..."
-                else:
-                    # Single sentence - truncate at word boundary
-                    truncated = result[:237]
-                    last_space = truncated.rfind(" ")
-                    if last_space > 180:
-                        result = truncated[:last_space] + "..."
-                    else:
-                        result = truncated + "..."
-            # Clean up: remove double spaces, ensure ends with period
-            result = " ".join(result.split())
-            if not result.endswith("."):
-                result += "."
-            return result
-    
-    # PRIORITY B: Reference user's biggest challenge directly
-    if user_ctx:
-        biggest_challenge = user_ctx.get("biggest_challenge")
-        if biggest_challenge:
-            challenge_text = biggest_challenge.strip()
-            # Capitalize first letter
-            if challenge_text:
-                challenge_text = challenge_text[0].upper() + challenge_text[1:] if len(challenge_text) > 1 else challenge_text.upper()
-            parts.append(f"Since you're facing {challenge_text.lower()}, this book")
-            
-            # Add book promise
-            promise = get_book_promise()
-            if promise:
-                promise_lower = promise.lower()
-                if "help" not in promise_lower and "stop" not in promise_lower:
-                    parts[-1] = parts[-1].rstrip(".") + " helps you " + promise.lower()
-                else:
-                    parts[-1] = parts[-1].rstrip(".") + ", " + promise.lower()
-            else:
-                parts[-1] = parts[-1] + " directly addresses this challenge."
-            
-            result = " ".join(parts).strip()
-            if result and len(result) <= 240:
-                if not result.endswith("."):
-                    result += "."
-                return result
-    
-    # PRIORITY C: Reference business stage
-    if user_ctx:
-        business_stage = user_ctx.get("business_stage")
-        if business_stage:
-            stage_display = normalize_stage(business_stage)
-            parts.append(f"As you're in the {stage_display} stage, this book")
-            
-            # Add book promise
-            promise = get_book_promise()
-            if promise:
-                promise_lower = promise.lower()
-                if "help" not in promise_lower and "stop" not in promise_lower:
-                    parts[-1] = parts[-1].rstrip(".") + " helps you " + promise.lower()
-                else:
-                    parts[-1] = parts[-1].rstrip(".") + ", " + promise.lower()
-            else:
-                parts[-1] = parts[-1] + " is tailored to your current needs."
-            
-            result = " ".join(parts).strip()
-            if result:
-                if len(result) > 240:
-                    truncated = result[:237]
-                    last_space = truncated.rfind(" ")
-                    if last_space > 180:
-                        result = truncated[:last_space] + "..."
-                    else:
-                        result = truncated + "..."
-                result = " ".join(result.split())
-                if not result.endswith("."):
-                    result += "."
-                return result
-    
-    # Ultimate fallback
-    promise = get_book_promise()
-    if promise:
-        result = promise + "."
-        if len(result) > 240:
-            truncated = result[:237]
-            last_space = truncated.rfind(" ")
-            if last_space > 180:
-                result = truncated[:last_space] + "..."
-            else:
-                result = truncated + "..."
-        return result
-    
-    return "This is a solid foundational pick to build clarity and execution momentum."
+    """Explain only supported profile/catalog connections; keep the legacy API."""
+    return fit_summary(build_book_fit(user_ctx, book))
 
 
 def _build_why_signals(
@@ -1756,34 +1399,23 @@ def _build_why_this_book(
 
 
 # ── Problem-fit: the PRIMARY recommendation driver ────────────────────────────
-# Books whose knowledge domains overlap the domains of the user's *stated*
-# problem/goal score highest — so recommendations reflect what the user actually
-# said, not just their stage bucket. Reuses the six-domain mapping from the
-# Founder Knowledge Map. Weight is set so one domain match (+3.0) rivals an exact
-# stage match and multi-domain matches dominate.
+# Concrete challenge concepts are primary. Six-domain matching is retained as
+# a fallback for language outside the more specific vocabulary (RD-11).
 PROBLEM_DOMAIN_WEIGHT = 3.0
 
 
 def _user_problem_domains(user_ctx: Dict[str, Any]) -> Set[str]:
     """Map the user's own problem/goal language to knowledge domains."""
-    text = " ".join(
-        filter(
-            None,
-            [
-                user_ctx.get("biggest_challenge") or "",
-                " ".join(user_ctx.get("areas_of_business") or []),
-                user_ctx.get("vision") or "",
-                user_ctx.get("ideal_book") or "",
-            ],
-        )
-    ).lower()
-    if not text.strip():
-        return set()
-    return {
-        domain
-        for domain, needles in fk.CHALLENGE_KEYWORDS.items()
-        if any(n in text for n in needles)
-    }
+    # Keep the current problem separate from aspirational goals/selected areas.
+    # Fall back to those only if the current challenge has no recognized signal.
+    challenge = user_ctx.get("biggest_challenge") or ""
+    matched = cm.domains(challenge)
+    if matched or cm.concepts(challenge):
+        return matched
+    return cm.domains(" ".join(filter(None, [
+        user_ctx.get("vision") or "", user_ctx.get("ideal_book") or "",
+        " ".join(user_ctx.get("areas_of_business") or []),
+    ])))
 
 
 def _book_domains(book: Book) -> Set[str]:
@@ -1802,11 +1434,11 @@ def _book_domains(book: Book) -> Set[str]:
     return doms
 
 
-def _score_from_problem(problem_domains: Set[str], book: Book) -> float:
-    """Primary driver: reward books whose domains overlap the user's problem."""
-    if not problem_domains:
-        return 0.0
-    overlap = problem_domains & _book_domains(book)
+def _score_from_problem(user_ctx: Dict[str, Any], book: Book) -> float:
+    """Prefer specific problem evidence; broad domains are a smaller fallback."""
+    overlap = (user_ctx.get("problem_domains") or set()) & _book_domains(book)
+    if cm.priority_concepts(user_ctx):
+        return cm.specific_score(user_ctx, book) + (0.75 if overlap else 0.0)
     return PROBLEM_DOMAIN_WEIGHT * len(overlap)
 
 
@@ -1946,14 +1578,12 @@ def _score_from_stage_fit(
                 score += area_score
                 factors.areas_fit += area_score
 
-    # Very simple challenge-based boost
+    # Shared bounded concept matching replaces full-sentence-versus-tag checks.
     if biggest_challenge:
-        for tag in theme_tags:
-            if biggest_challenge in tag:
-                challenge_score = 1.5
-                score += challenge_score
-                factors.challenge_fit = challenge_score
-                break
+        matches = cm.matched_concepts(user_ctx, book)
+        if matches:
+            factors.challenge_fit = 1.5
+            score += factors.challenge_fit
 
     all_tags = theme_tags + functional_tags
 
@@ -2533,7 +2163,7 @@ def get_personalized_recommendations(
         book_score_factors[book.id] = score_factors
 
         # Problem-fit — primary driver: reward books matching the user's stated problem.
-        total_scores[book.id] += _score_from_problem(user_ctx.get("problem_domains") or set(), book)
+        total_scores[book.id] += _score_from_problem(user_ctx, book)
 
         # Store base score before insight and status adjustments
         base_scores[book.id] = total_scores[book.id]
@@ -2741,7 +2371,8 @@ def get_personalized_recommendations(
         score_factors = book_score_factors.get(book_id, ScoreFactors())
         matched_insights = book_matched_insights.get(book_id, [])
         dominant_insight = book_dominant_insights.get(book_id)
-        why_this_book_text = build_why_this_book_v2(user_ctx, book, matched_insights, dominant_insight)
+        fit_data = build_book_fit(user_ctx, book)
+        why_this_book_text = fit_summary(fit_data)
         
         # Build why_signals (reason chips)
         why_signals = _build_why_signals(onboarding, book)
@@ -2775,6 +2406,7 @@ def get_personalized_recommendations(
                 "outcome_match": score_factors.outcome_match,
                 "score_factors": {
                     "challenge_fit": score_factors.challenge_fit,
+                    "problem_fit": _score_from_problem(user_ctx, book),
                     "stage_fit": score_factors.stage_fit,
                     "business_model_fit": score_factors.business_model_fit,
                     "areas_fit": score_factors.areas_fit,
@@ -2842,6 +2474,7 @@ def get_personalized_recommendations(
                 business_stage_tags=book.business_stage_tags,
                 purchase_url=purchase_url,
                 why_this_book=why_this_book_text,
+                fit=fit_data,
                 why_recommended=None,  # Deprecated
                 why_signals=why_signals if why_signals else None,
                 explanation=explanation_data,
@@ -2899,6 +2532,7 @@ def get_recommendations_from_payload(
             self.areas_of_business = payload.areas_of_business
             self.current_gross_revenue = payload.current_gross_revenue
             self.vision_6_12_months = payload.vision_6_12_months
+            self.ideal_book_description = payload.ideal_book_description
             self.blockers = payload.blockers
     
     # Create mock onboarding profile from payload
@@ -2949,7 +2583,7 @@ def get_recommendations_from_payload(
         book_score_factors[book.id] = score_factors
 
         # Problem-fit — primary driver: reward books matching the user's stated problem.
-        total_scores[book.id] += _score_from_problem(user_ctx.get("problem_domains") or set(), book)
+        total_scores[book.id] += _score_from_problem(user_ctx, book)
 
         # Store base score before insight adjustments
         base_scores[book.id] = total_scores[book.id]
@@ -3091,7 +2725,8 @@ def get_recommendations_from_payload(
         score_factors = book_score_factors.get(book_id, ScoreFactors())
         matched_insights = book_matched_insights.get(book_id, [])
         dominant_insight = book_dominant_insights.get(book_id)
-        why_this_book_text = build_why_this_book_v2(user_ctx, book, matched_insights, dominant_insight)
+        fit_data = build_book_fit(user_ctx, book)
+        why_this_book_text = fit_summary(fit_data)
         
         # Build why_signals (reason chips)
         why_signals = _build_why_signals(onboarding, book)
@@ -3116,6 +2751,7 @@ def get_recommendations_from_payload(
                 "outcome_match": score_factors.outcome_match,
                 "score_factors": {
                     "challenge_fit": score_factors.challenge_fit,
+                    "problem_fit": _score_from_problem(user_ctx, book),
                     "stage_fit": score_factors.stage_fit,
                     "business_model_fit": score_factors.business_model_fit,
                     "areas_fit": score_factors.areas_fit,
@@ -3162,6 +2798,7 @@ def get_recommendations_from_payload(
                 business_stage_tags=book.business_stage_tags,
                 purchase_url=purchase_url,
                 why_this_book=why_this_book_text,
+                fit=fit_data,
                 why_recommended=None,  # Deprecated
                 why_signals=why_signals if why_signals else None,
                 dominant_insight=book_diversity_info.get("dominant_insight"),
@@ -3184,272 +2821,7 @@ def get_recommendations_for_user(
     db: Session,
     limit: int = 10,
 ) -> List[RecommendationItem]:
-    """
-    Generate personalized book recommendations for a user using Rec Engine v1.5 scoring.
-    
-    Scoring structure:
-    total_score = preference_score + history_score + stage_fit_score + category_boost
-    
-    Uses:
-    - Onboarding profile (business_stage, business_model, biggest_challenge, areas_of_business)
-    - Book interactions (4-state: READ_LIKED, READ_DISLIKED, INTERESTED, NOT_INTERESTED)
-    - Reading history (Goodreads CSV: shelf, my_rating, date_read)
-    
-    Returns ranked list with explanations.
-    """
-    # Load user signals
-    user = db.query(User).filter(User.id == user_id).one_or_none()
-    if not user:
-        logger.warning("User %s not found in recommendation engine, falling back to generic recommendations", user_id)
+    """Compatibility entrypoint: email and web share ranking and exclusions."""
+    if _get_user(db, user_id) is None:
         return get_generic_recommendations(db=db, limit=limit)
-    
-    onboarding = (
-        db.query(OnboardingProfile)
-        .filter(OnboardingProfile.user_id == user_id)
-        .one_or_none()
-    )
-    
-    # Load book interactions
-    interactions = (
-        db.query(UserBookInteraction)
-        .filter(UserBookInteraction.user_id == user_id)
-        .all()
-    )
-    
-    liked_book_ids: Set[UUID] = {
-        i.book_id for i in interactions if i.status == UserBookStatus.READ_LIKED
-    }
-    
-    disliked_book_ids: Set[UUID] = {
-        i.book_id for i in interactions if i.status == UserBookStatus.READ_DISLIKED
-    }
-    
-    interested_book_ids: Set[UUID] = {
-        i.book_id for i in interactions if i.status == UserBookStatus.INTERESTED
-    }
-    
-    not_interested_book_ids: Set[UUID] = {
-        i.book_id for i in interactions if i.status == UserBookStatus.NOT_INTERESTED
-    }
-    
-    # Load reading history
-    history_entries = (
-        db.query(ReadingHistoryEntry)
-        .filter(ReadingHistoryEntry.user_id == user_id)
-        .all()
-    )
-    
-    history_titles: Set[str] = {h.title.lower().strip() for h in history_entries}
-    
-    # Load all candidate books
-    books = candidate_books_query(db).all()
-    
-    if not books:
-        return []
-    
-    # Compute score for each book
-    def compute_total_score(book: Book) -> Tuple[float, str, bool, ScoreFactors]:
-        """
-        Compute total score for a book.
-        
-        Returns: (total_score, why_recommended, should_filter_out, score_factors)
-        """
-        # FILTERING: Check for hard filters first
-        # 1. NOT_INTERESTED - hard filter
-        if book.id in not_interested_book_ids:
-            return 0.0, "You marked this as not interested.", True, ScoreFactors()
-        
-        # 2. Already read (unless we want to allow re-reads)
-        is_already_read = (
-            book.id in liked_book_ids
-            or book.id in disliked_book_ids
-            or book.title.lower().strip() in history_titles
-        )
-        if is_already_read:
-            # Filter out already-read books (can be changed to allow re-reads)
-            return 0.0, "You've already read this book.", True, ScoreFactors()
-        
-        # 3. READ_DISLIKED with high similarity to other disliked books
-        if book.id in disliked_book_ids:
-            # Check similarity to other disliked books
-            other_disliked = [b for b in books if b.id in disliked_book_ids and b.id != book.id]
-            similar_count = sum(1 for db in other_disliked if _books_share_tags(book, db))
-            if similar_count >= 2:  # Very similar to multiple disliked books
-                return 0.0, "Very similar to books you disliked.", True, ScoreFactors()
-        
-        # SCORING: Calculate additive components
-        preference_score, pref_reasons = _calculate_preference_score(
-            book, interactions, books, liked_book_ids, disliked_book_ids
-        )
-        
-        history_score, hist_reasons = _calculate_history_score(
-            book, history_entries, books
-        )
-        
-        stage_fit_score, stage_reasons, score_factors = _calculate_stage_fit_score(
-            book, onboarding, interaction_count=len(interactions)
-        )
-        
-        category_boost, cat_reasons = _calculate_category_boost(
-            book, history_entries, books
-        )
-        
-        # Total score (additive)
-        total_score = (
-            preference_score
-            + history_score
-            + stage_fit_score
-            + category_boost
-        )
-        
-        # Combine reasons
-        all_reasons = pref_reasons + hist_reasons + stage_reasons + cat_reasons
-        if not all_reasons:
-            all_reasons = ["Good fit based on your profile and reading history."]
-        
-        why = " ".join(all_reasons[:3])  # Limit to top 3 reasons
-        
-        return total_score, why, False, score_factors
-    
-    # Score all books
-    candidates: List[Tuple[Book, float, str, ScoreFactors]] = []
-    for book in books:
-        score, why, should_filter, factors = compute_total_score(book)
-        if should_filter or score <= -5.0:  # Filter out negative scores below threshold
-            continue
-        candidates.append((book, score, why, factors))
-    
-    # Check if user has a service-like or SaaS-like business model
-    is_service_like = False
-    is_saas_like = False
-    if onboarding:
-        business_model = (onboarding.business_model or "").strip().lower()
-        is_service_like = business_model in SERVICE_LIKE_BUSINESS_MODELS
-        is_saas_like = business_model in SAAS_LIKE_BUSINESS_MODELS
-    
-    # Sort by score descending
-    candidates.sort(key=lambda x: x[1], reverse=True)
-    
-    # For service-like or SaaS-like users, apply 70/30 split (niche canon / general)
-    if (is_service_like or is_saas_like) and candidates:
-        services_candidates: List[Tuple[Book, float, str, ScoreFactors]] = []
-        saas_candidates: List[Tuple[Book, float, str, ScoreFactors]] = []
-        general_candidates: List[Tuple[Book, float, str, ScoreFactors]] = []
-        
-        for book, score, why, factors in candidates:
-            if is_services_canon(book):
-                services_candidates.append((book, score, why, factors))
-            elif is_saas_canon(book):
-                saas_candidates.append((book, score, why, factors))
-            else:
-                general_candidates.append((book, score, why, factors))
-        
-        target_niche = int(limit * 0.7)
-        
-        if is_service_like:
-            niche_candidates = services_candidates
-        else:  # is_saas_like
-            niche_candidates = saas_candidates
-        
-        primary = niche_candidates[:target_niche]
-        remaining_slots = limit - len(primary)
-        secondary = general_candidates[:max(0, remaining_slots)]
-        
-        candidates = primary + secondary
-        
-        # If catalog is small, fill any remaining slots with leftover books
-        if len(candidates) < limit:
-            remaining = [
-                item
-                for item in (services_candidates + saas_candidates + general_candidates)
-                if item not in candidates
-            ]
-            remaining.sort(key=lambda x: x[1], reverse=True)
-            candidates.extend(remaining[:limit - len(candidates)])
-    
-    # Calculate total signal count
-    total_signal = len(interactions) + len(history_entries)
-    
-    # Handle "not enough signal" vs "logic bug" cases
-    if not candidates:
-        if total_signal >= SIGNAL_THRESHOLD:
-            # User has enough signal but no results - this is a logic bug
-            logger.warning(
-                "User %s has %d signals (>= %d threshold) but no recommendations. "
-                "This may indicate a logic bug in filtering/scoring.",
-                user_id, total_signal, SIGNAL_THRESHOLD
-            )
-            return []  # Return empty - this is a bug case
-        elif total_signal == 0 and not onboarding:
-            # Truly zero signal: no interactions, no history, no onboarding
-            raise NotEnoughSignalError(
-                f"User {user_id} has no interactions, reading history, or onboarding data."
-            )
-        else:
-            # User is very new / imported nothing - use curated fallback
-            business_stage = onboarding.business_stage if onboarding else None
-            business_model = onboarding.business_model if onboarding else None
-            
-            logger.info(
-                "User %s has only %d signals (< %d threshold). "
-                "Falling back to curated recommendations for stage=%s, model=%s",
-                user_id, total_signal, SIGNAL_THRESHOLD, business_stage, business_model
-            )
-            
-            return get_generic_recommendations(
-                db=db,
-                limit=limit,
-                business_stage=business_stage,
-                business_model=business_model,
-            )
-    
-    # Take top N
-    top = candidates[:limit]
-    
-    # Build RecommendationItem objects
-    items: List[RecommendationItem] = []
-    # Build user_ctx for v2 function
-    user_ctx = _build_user_context(onboarding)
-    for book, score, why, factors in top:
-        # Build why_this_book paragraph from score factors
-        why_this_book_text = build_why_this_book_v2(user_ctx, book, None, None)
-        
-        # Build why_signals (reason chips)
-        why_signals = _build_why_signals(onboarding, book)
-        
-        # Build purchase URL
-        purchase_url = _build_purchase_url(book)
-        
-        relevancy_score = round(score, 2)
-        items.append(
-            RecommendationItem(
-                book_id=str(book.id),
-                title=book.title,
-                subtitle=book.subtitle,
-                author_name=book.author_name,
-                score=relevancy_score,
-                relevancy_score=relevancy_score,
-                thumbnail_url=book.thumbnail_url,
-                cover_image_url=book.cover_image_url,
-                page_count=book.page_count,
-                published_year=book.published_year,
-                categories=book.categories,
-                language=getattr(book, "language", None),
-                isbn_10=getattr(book, "isbn_10", None),
-                isbn_13=getattr(book, "isbn_13", None),
-                average_rating=getattr(book, "average_rating", None),
-                ratings_count=getattr(book, "ratings_count", None),
-                theme_tags=book.theme_tags,
-                functional_tags=book.functional_tags,
-                business_stage_tags=book.business_stage_tags,
-                purchase_url=purchase_url,
-                why_this_book=why_this_book_text,
-                why_recommended=None,  # Deprecated
-                why_signals=why_signals if why_signals else None,
-            )
-        )
-    
-    # Ensure items are sorted by relevancy_score descending
-    items.sort(key=lambda x: x.relevancy_score, reverse=True)
-    
-    return items
+    return get_personalized_recommendations(db=db, user_id=user_id, limit=limit)
