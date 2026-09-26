@@ -16,6 +16,22 @@ SUMMARY = (
     "Does that fit, or did I miss something?"
 )
 
+# Wording observed in the September 26 public onboarding review. It was shown
+# as an ordinary question, so agreement continued discovery and eventually 503ed.
+LIVE_SUMMARY = (
+    "That makes sense — you want a book that'll help you evaluate channels and "
+    "pick the right one for a cleaning company your size, then show you how to "
+    "build it. I've got what I need. Here's what I'm hearing: you run an 8-person "
+    "residential cleaning operation doing $50k/month mostly through referrals. "
+    "Lead inconsistency is costing you your best cleaners and forcing you into "
+    "shift work. You want a practical marketing system you can start yourself "
+    "and hand to your office manager — no theory, just examples you can run "
+    "with. You read about 15 minutes a day, and you're open on which channel "
+    "to focus on as long as the book helps you decide and execute. "
+    "Does that land right, or should I adjust anything?"
+)
+LIVE_AGREEMENT = "Yes, that accurately describes my situation and goal."
+
 
 def response(message, ui=None, complete=False):
     return SimpleNamespace(content=[SimpleNamespace(text=json.dumps({
@@ -137,6 +153,87 @@ class SummaryConfirmationTests(unittest.TestCase):
         with self.assertRaises(OnboardingUnavailableError):
             next_turn(history, 5)
         self.assertEqual(history, original)
+
+    def test_live_wording_at_summary_boundary_gets_confirmation_controls(self):
+        for ui in (None, "confirm"):
+            with self.subTest(ui=ui):
+                self.provider.reset_mock()
+                self.provider.messages.create.return_value = response(
+                    LIVE_SUMMARY, ui=ui, complete=True)
+                result = next_turn(self.history, 3)
+                self.assertEqual(result["stage_index"], 6)
+                self.assertEqual(result["ui"], "confirm")
+                self.assertTrue(result["message"].endswith(SUMMARY_QUESTION))
+                self.assertFalse(result["done"])
+                self.provider.messages.create.assert_called_once()
+
+    def test_live_summary_and_agreement_resume_without_a_provider_call(self):
+        history = self.history + [
+            {"role": "assistant", "content": LIVE_SUMMARY},
+            {"role": "user", "content": LIVE_AGREEMENT},
+        ]
+        original = copy.deepcopy(history)
+        for stage in (4, 5, 6):
+            with self.subTest(stage=stage):
+                self.provider.messages.create.side_effect = [
+                    response("Great, let me find your books."), response("I've got what I need."),
+                ]
+                result = next_turn(history, stage)
+                self.assertTrue(result["done"])
+                self.assertEqual(result["message"], HANDOFF_MESSAGE)
+                self.assertEqual(history, original)
+        self.provider.messages.create.assert_not_called()
+
+    def test_natural_agreement_to_controlled_summary_does_not_need_ai(self):
+        self.provider.messages.create.side_effect = RuntimeError("Confirmed summary must not call AI")
+        for answer in (LIVE_AGREEMENT, "That accurately describes my situation and goal.",
+                       "Yes, that sums it up.", "That's an accurate summary."):
+            with self.subTest(answer=answer):
+                history = self.history + [
+                    {"role": "assistant", "content": "You want practical marketing steps. " + SUMMARY_QUESTION},
+                    {"role": "user", "content": answer},
+                ]
+                result = next_turn(history, 6)
+                self.assertTrue(result["done"])
+                self.assertEqual(result["message"], HANDOFF_MESSAGE)
+        self.provider.messages.create.assert_not_called()
+
+    def test_natural_agreement_with_a_correction_still_requires_review(self):
+        for answer in (
+            "Yes, that accurately describes my situation and goal, but cash flow matters more.",
+            "That accurately describes my situation and goal, except I have no office manager.",
+            "Yes, that sums it up, although I'm not sure about the goal.",
+            "That's an accurate summary, but change the reading time to 30 minutes.",
+        ):
+            with self.subTest(answer=answer):
+                self.provider.messages.create.return_value = response(SUMMARY, "confirm")
+                history = self.history + [{"role": "assistant", "content": LIVE_SUMMARY},
+                                          {"role": "user", "content": answer}]
+                result = next_turn(history, 5)
+                self.assertFalse(result["done"])
+                self.assertEqual(result["ui"], "confirm")
+                self.assertIn(history[-1], self.provider.messages.create.call_args.kwargs["messages"])
+
+    def test_generated_book_suggestions_are_repaired_before_display(self):
+        suggestion = (
+            "Here are three books that fit what you're after: The Referral Engine, "
+            "DotCom Secrets and Traction. My pick for you is The Referral Engine. "
+            "Which of these sounds closest to what you're looking for?"
+        )
+        self.provider.messages.create.side_effect = [
+            response(suggestion), response(SUMMARY, "confirm"),
+        ]
+        result = next_turn(self.history, 4)
+        self.assertEqual(result["ui"], "confirm")
+        self.assertNotIn("The Referral Engine", result["message"])
+        self.assertEqual(self.provider.messages.create.call_count, 2)
+
+    def test_reading_history_discussion_is_not_a_generated_suggestion(self):
+        message = "You've already read The Referral Engine. Which part was useful to you?"
+        self.provider.messages.create.return_value = response(message)
+        result = next_turn(self.history, 2)
+        self.assertEqual(result["message"], message)
+        self.provider.messages.create.assert_called_once()
 
 
 if __name__ == "__main__":

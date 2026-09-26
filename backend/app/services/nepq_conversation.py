@@ -47,6 +47,8 @@ CORE RULES:
 - If the current objective is complete (or its budget is reached), briefly acknowledge the answer and ASK the next useful question from the NEXT OBJECTIVE in the SAME response. Never stop between objectives or claim you are already fetching books.
 - If the next objective is a summary, summarize the reader's context, priority and reading preference, then ask them to confirm or correct it. Use ui="confirm" only for this summary. Do not invent missing facts or treat a correction as agreement.
 - If you already have enough context and reading preferences near the end of discovery, you may move directly to that summary. Always mark it ui="confirm"; never hide a final summary inside an ordinary question turn.
+- This conversation gathers reader intent; the catalog engine supplies book matches after the confirmed handoff. Never recommend or rank titles, invent details about their chapters/templates, or promise results here. If the reader asks for recommendations, use the answers already supplied to reach a factual summary and confirmation, not a second book-selection conversation.
+- Do not say "one last thing" or "I have everything I need" before another discovery question. Reserve completion language for the final summary and handoff.
 - Use ui="yes_no" occasionally only when Yes and No both answer the question naturally. For open questions and menus such as examples vs. exercises vs. stories, use ui=null so the reader can type their preference.
 - Gentle by default: to offer a perspective, reflect first, ASK PERMISSION, and never tell them they're wrong.
 - Never say "what made you…" — use "what caused you to…".
@@ -149,10 +151,17 @@ def _next_objective_block(stage_index: int) -> str:
 FINAL_STAGE = len(NEPQ_STAGES) - 1
 SUMMARY_READY_STAGE = STAGE_KEYS.index("solution_awareness_2")
 SUMMARY_CONFIRMATION = re.compile(
-    r"\b(?:does that (?:fit|sound (?:right|accurate)|capture (?:it|what .+))|"
+    r"\b(?:does that (?:fit|land right|sound (?:right|accurate)|capture (?:it|what .+))|"
     r"is that (?:about )?(?:right|correct|accurate)|have I got that right)"
     r"(?:,? (?:or|and) (?:did I miss something|am I missing (?:something|anything)|"
-    r"would you change anything))?\?\s*$", re.I,
+    r"would you change anything|should I (?:adjust|change) anything))?\?\s*$", re.I,
+)
+
+BOOK_SUGGESTION = re.compile(
+    r"\bhere (?:are|is) (?:\d+|one|two|three|four|five|some|a few) "
+    r"(?:\w+ ){0,2}books?\b|"
+    r"\bmy (?:top )?(?:pick|recommendation)(?: for you)? is\b",
+    re.I,
 )
 
 
@@ -169,7 +178,8 @@ def _reviewable_summary(message: str) -> bool:
         return False
     has_summary_intro = re.search(
         r"\b(?:let me (?:make sure|check|summarize|recap)|"
-        r"to (?:recap|sum up)|here['’]s (?:what I (?:heard|understand)|my understanding))\b",
+        r"to (?:recap|sum up)|here['’]s (?:what I (?:heard|understand)|"
+        r"what I(?:['’]m| am) hearing|my understanding))\b",
         message, re.I,
     )
     confirmation = SUMMARY_CONFIRMATION.search(message)
@@ -185,7 +195,10 @@ def _reply_to_summary(history: List[Dict[str, str]]) -> bool:
 def _response_stage(data: Optional[dict], stage_index: int, proposed_stage: int) -> int:
     # Align visible summary + buttons + hidden stage in one response, even if
     # the model summarizes before the optional final discovery objective.
-    if stage_index >= SUMMARY_READY_STAGE and isinstance(data, dict):
+    # A summary may arrive in the turn that completes reading preferences.
+    # Check the resulting stage too, before ordinary-question handling drops
+    # the confirmation controls. Early discovery still cannot be skipped.
+    if max(stage_index, proposed_stage) >= SUMMARY_READY_STAGE and isinstance(data, dict):
         message = data.get("message")
         if isinstance(message, str) and (data.get("ui") == "confirm" or _reviewable_summary(message)):
             return FINAL_STAGE
@@ -203,11 +216,22 @@ def _confirmed_summary(history: List[Dict[str, str]]) -> bool:
     reply = history[-1]
     answer = reply.get("content", "").strip().lower().replace("’", "'")
     answer = re.sub(r"[.!]+$", "", answer).strip()
-    return answer in {
+    if answer in {
         "yes", "yes, that's right", "yes that's right", "that's right", "that is right",
         "yes, that's correct", "yes that's correct", "that's correct", "correct",
         "yes, exactly", "exactly", "looks right", "looks good", "sounds right", "sounds good",
-    }
+    }:
+        return True
+    # Accept a bounded set of complete, natural affirmations. Full matching is
+    # intentional: "yes ... but/except/although ..." must retain the correction
+    # and ask the reader to review a revised summary, not silently finish.
+    return bool(re.fullmatch(
+        r"(?:yes[,\s]+)?(?:"
+        r"that (?:(?:accurately|correctly) )?(?:describes|captures|reflects) "
+        r"my (?:situation|goals?|context)(?: and (?:goals?|preferences))?|"
+        r"that sums it up|that(?:'s| is) an accurate summary)",
+        answer,
+    ))
 
 
 def _question_issue(message: str, history: List[Dict[str, str]]) -> Optional[str]:
@@ -228,6 +252,12 @@ def _prepare_message(data: Optional[dict], stage_index: int, history: List[Dict[
     if not data or not isinstance(data.get("message"), str) or not data["message"].strip():
         return None, "Return valid JSON with a nonempty message."
     message = data["message"].strip()
+    if BOOK_SUGGESTION.search(message):
+        return None, (
+            "Do not suggest books in discovery. The catalog engine supplies matches "
+            "after confirmation. Summarize the reader's stated context, priority and "
+            "reading preferences with ui=confirm when ready, or ask the next missing detail."
+        )
     if stage_index == len(NEPQ_STAGES) - 1:
         # The final question and confirmation action are product-controlled.
         # Retain the model's contextual summary, but never accept it on the user's behalf.
