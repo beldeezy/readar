@@ -1,5 +1,14 @@
 # Catalog Ingestion Scripts
 
+## Development catalog baseline (RD-28)
+
+Before evaluating recommendation quality against a local database, follow
+[the catalog refresh procedure](../../docs/rd28-development-catalog-refresh.md).
+`catalog_baseline.py snapshot` records read-only catalog counts, schema and
+fingerprints; `compare` rejects stale or incomplete copies. It requires an
+explicit `READAR_BASELINE_DATABASE_URL` and never uses the app's `DATABASE_URL`.
+Snapshots and catalog dumps belong in the ignored `.local/` directory.
+
 ## ingest_catalog_from_seed.py
 
 Ingests books from a seed CSV file, enriches them via Google Books API, and upserts into the database with source tracking and match confidence auditing.
