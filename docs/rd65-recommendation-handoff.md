@@ -1,5 +1,7 @@
 # RD-65: reliable delivery of RD-51 onboarding recommendations
 
+September 26 follow-up: [confirmed-summary handoff regression and live acceptance](rd65-summary-handoff-2026-09-26.md).
+
 This follow-up is based on `codex/rd59-weekly-competition` at `2116d7a6` and includes the full RD-51–RD-59 preview stack. It does not merge the earlier drafts or change production.
 
 ## Confirmed cause
