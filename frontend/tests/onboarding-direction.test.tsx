@@ -113,3 +113,53 @@ it('retains confirmed answers if profile extraction fails and allows retry', asy
   expect(mocks.extract.mock.calls).toEqual([[history], [history]]);
   expect(screen.getByText('Preparing your books')).toBeTruthy();
 });
+
+it.each(['keyboard', 'button'])('keeps the desktop composer active after %s submission without sending a draft twice', async mode => {
+  page(); await settle();
+  const textbox = screen.getByRole('textbox', { name: 'Your reply' }) as HTMLTextAreaElement;
+  textbox.focus();
+  fireEvent.change(textbox, { target: { value: 'Please focus on margins.' } });
+  let resolve!: (value: ReturnType<typeof turn>) => void;
+  mocks.chat.mockReturnValueOnce(new Promise(r => { resolve = r; }));
+  if (mode === 'keyboard') fireEvent.keyDown(textbox, { key: 'Enter' });
+  else {
+    const send = screen.getByRole('button', { name: 'Send' });
+    send.focus(); // fireEvent.click alone does not simulate browser focus movement.
+    fireEvent.click(send);
+  }
+  expect(textbox.disabled).toBe(false);
+  expect(document.activeElement).toBe(textbox);
+  fireEvent.change(textbox, { target: { value: 'My next thought' } });
+  fireEvent.keyDown(textbox, { key: 'Enter' });
+  expect(mocks.chat).toHaveBeenCalledTimes(2);
+  await act(async () => resolve(turn()));
+  expect(document.activeElement).toBe(textbox);
+  expect(textbox.value).toBe('My next thought');
+  expect((screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled).toBe(false);
+});
+
+it('does not steal focus when a reply arrives and preserves the next draft on failure/retry', async () => {
+  page(); await settle();
+  const textbox = screen.getByRole('textbox', { name: 'Your reply' }) as HTMLTextAreaElement;
+  let reject!: (error: Error) => void;
+  mocks.chat.mockReturnValueOnce(new Promise((_, r) => { reject = r; }));
+  reply('Focus on margins.');
+  fireEvent.change(textbox, { target: { value: 'Draft to send next' } });
+  await act(async () => reject(new Error('Temporary failure')));
+  expect(textbox.value).toBe('Draft to send next');
+  const retry = screen.getByRole('button', { name: 'Try again' });
+  retry.focus();
+  fireEvent.click(retry); await settle();
+  expect(textbox.value).toBe('Draft to send next');
+  expect(document.activeElement).not.toBe(textbox);
+});
+
+it('does not programmatically reopen a touch keyboard after clicking Send', async () => {
+  vi.mocked(window.matchMedia).mockImplementation(query => ({ matches: query.includes('prefers-reduced-motion'), addEventListener: vi.fn(), removeEventListener: vi.fn() }) as any);
+  page(); await settle();
+  const textbox = screen.getByRole('textbox', { name: 'Your reply' });
+  fireEvent.change(textbox, { target: { value: 'Focus on margins.' } });
+  const send = screen.getByRole('button', { name: 'Send' });
+  send.focus(); fireEvent.click(send); await settle();
+  expect(document.activeElement).not.toBe(textbox);
+});

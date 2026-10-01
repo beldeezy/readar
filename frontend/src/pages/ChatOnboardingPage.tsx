@@ -229,7 +229,7 @@ const ChatOnboardingPage: React.FC = () => {
     }
   }
 
-  const send = (text: string) => {
+  const send = (text: string, keepComposerFocus = false) => {
     const value = text.trim();
     if (!value || requestPendingRef.current || loading || completing || error || done) return;
     followLatest.current = true;
@@ -238,6 +238,12 @@ const ChatOnboardingPage: React.FC = () => {
     addUser(value);
     setInput('');
     resetTextareaHeight();
+    // Restore focus during the submit gesture, never when the response arrives:
+    // readers can draft immediately and deliberately move elsewhere while waiting.
+    // Touch devices keep their native keyboard/focus behavior.
+    if (keepComposerFocus && window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+      textareaRef.current?.focus({ preventScroll: true });
+    }
     const nextHist = [...history, { role: 'user' as const, content: value }];
     setHistory(nextHist);
     void runTurn(nextHist, stageIndex, turnsInStage);
@@ -367,7 +373,8 @@ const ChatOnboardingPage: React.FC = () => {
               className={`nepq-textarea${stt.recording ? ' nepq-textarea--recording' : ''}`}
               value={input}
               readOnly={stt.recording}
-              disabled={disabled && !stt.recording}
+              disabled={completing && !stt.recording}
+              aria-busy={loading}
               placeholder={
                 stt.recording
                   ? 'Listening… speak your answer'
@@ -385,7 +392,7 @@ const ChatOnboardingPage: React.FC = () => {
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                   e.preventDefault();
-                  send(input);
+                  send(input, true);
                 }
               }}
             />
@@ -401,7 +408,7 @@ const ChatOnboardingPage: React.FC = () => {
               </button>
             )}
             {!stt.recording && (
-              <button className="nepq-send" disabled={disabled || !input.trim()} onClick={() => send(input)}>
+              <button className="nepq-send" disabled={disabled || !input.trim()} onClick={() => send(input, true)}>
                 Send
               </button>
             )}

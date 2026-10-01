@@ -103,6 +103,9 @@ export default function ReadingPage() {
     if (!beginSave(book.id, 'choose')) return;
     try {
       const saved = await apiClient.selectBookForReading({ book_id: book.id });
+      if (!saved?.ok || !READING_STATES.has(saved.status)) {
+        throw new Error('Selection was not confirmed');
+      }
       setItems((current) => [{
         book_id: book.id, status: saved.status, updated_at: new Date().toISOString(),
         title: book.title, author_name: book.author_name,
@@ -120,7 +123,8 @@ export default function ReadingPage() {
   const changeStatus = async (item: BookStatusItem, status: ReadingStatus) => {
     if (!beginSave(item.book_id, status)) return;
     try {
-      await apiClient.setBookStatus({ book_id: item.book_id, status, source: 'reading_page' });
+      const saved = await apiClient.setBookStatus({ book_id: item.book_id, status, source: 'reading_page' });
+      if (!saved?.ok) throw new Error('Status change was not confirmed');
       setItems((current) => current.map((book) => book.book_id === item.book_id ? { ...book, status } : book));
       setJourneyRefresh(value => value + 1);
       const label = item.title || 'Your book';
@@ -135,7 +139,8 @@ export default function ReadingPage() {
   const remove = async (item: BookStatusItem) => {
     if (!beginSave(item.book_id, 'remove')) return;
     try {
-      await apiClient.deleteBookStatus(item.book_id);
+      const saved = await apiClient.deleteBookStatus(item.book_id);
+      if (!saved?.ok) throw new Error('Removal was not confirmed');
       setItems((current) => current.filter((book) => book.book_id !== item.book_id));
       setJourneyRefresh(value => value + 1);
       setNotice(`${item.title || 'The book'} was removed from your reading list.`);

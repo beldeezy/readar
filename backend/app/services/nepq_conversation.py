@@ -7,13 +7,15 @@ Two responsibilities:
   - extract_profile(): a one-pass "scribe" that reads the full transcript and
     infers the structured signals the recommendation engine needs.
 
-Both run on Claude Haiku. The stage framework lives in app.config.nepq and is
-never surfaced to the user.
+Both use Claude Haiku. If generated chat text is unusable, controlled questions
+and a review of the reader's own words keep discovery moving. The stage
+framework lives in app.config.nepq and is never surfaced to the user.
 """
 import json
 import os
 import re
 import logging
+import time
 from typing import Dict, List, Any, Optional
 
 import anthropic
@@ -47,6 +49,8 @@ CORE RULES:
 - If the current objective is complete (or its budget is reached), briefly acknowledge the answer and ASK the next useful question from the NEXT OBJECTIVE in the SAME response. Never stop between objectives or claim you are already fetching books.
 - If the next objective is a summary, summarize the reader's context, priority and reading preference, then ask them to confirm or correct it. Use ui="confirm" only for this summary. Do not invent missing facts or treat a correction as agreement.
 - If you already have enough context and reading preferences near the end of discovery, you may move directly to that summary. Always mark it ui="confirm"; never hide a final summary inside an ordinary question turn.
+- This conversation gathers reader intent; the catalog engine supplies book matches after the confirmed handoff. Never recommend or rank titles, invent details about their chapters/templates, or promise results here. If the reader asks for recommendations, use the answers already supplied to reach a factual summary and confirmation, not a second book-selection conversation.
+- Do not say "one last thing" or "I have everything I need" before another discovery question. Reserve completion language for the final summary and handoff.
 - Use ui="yes_no" occasionally only when Yes and No both answer the question naturally. For open questions and menus such as examples vs. exercises vs. stories, use ui=null so the reader can type their preference.
 - Gentle by default: to offer a perspective, reflect first, ASK PERMISSION, and never tell them they're wrong.
 - Never say "what made you…" — use "what caused you to…".
@@ -63,7 +67,7 @@ Respond with ONLY a JSON object, no markdown:
 def _client() -> anthropic.Anthropic:
     if not ANTHROPIC_API_KEY:
         raise RuntimeError("Missing ANTHROPIC_API_KEY")
-    # One bounded repair is managed below; SDK retries would multiply the wait.
+    # Repair/transient retry share one two-call budget below; never multiply it.
     return anthropic.Anthropic(api_key=ANTHROPIC_API_KEY, max_retries=0)
 
 
@@ -149,10 +153,17 @@ def _next_objective_block(stage_index: int) -> str:
 FINAL_STAGE = len(NEPQ_STAGES) - 1
 SUMMARY_READY_STAGE = STAGE_KEYS.index("solution_awareness_2")
 SUMMARY_CONFIRMATION = re.compile(
-    r"\b(?:does that (?:fit|sound (?:right|accurate)|capture (?:it|what .+))|"
+    r"\b(?:does that (?:fit|land right|sound (?:right|accurate)|capture (?:it|what .+))|"
     r"is that (?:about )?(?:right|correct|accurate)|have I got that right)"
     r"(?:,? (?:or|and) (?:did I miss something|am I missing (?:something|anything)|"
-    r"would you change anything))?\?\s*$", re.I,
+    r"would you change anything|should I (?:adjust|change) anything))?\?\s*$", re.I,
+)
+
+BOOK_SUGGESTION = re.compile(
+    r"\bhere (?:are|is) (?:\d+|one|two|three|four|five|some|a few) "
+    r"(?:\w+ ){0,2}books?\b|"
+    r"\bmy (?:top )?(?:pick|recommendation)(?: for you)? is\b",
+    re.I,
 )
 
 
@@ -168,8 +179,9 @@ def _reviewable_summary(message: str) -> bool:
     if message.count("?") != 1 or not message.endswith("?"):
         return False
     has_summary_intro = re.search(
-        r"\b(?:let me (?:make sure|check|summarize|recap)|"
-        r"to (?:recap|sum up)|here['’]s (?:what I (?:heard|understand)|my understanding))\b",
+        r"\b(?:let me (?:make sure|check|summarize|recap|pull together what I['’]m hearing)|"
+        r"to (?:recap|sum up)|here['’]s (?:what I (?:heard|understand)|"
+        r"what I(?:['’]m| am) hearing|my understanding))\b",
         message, re.I,
     )
     confirmation = SUMMARY_CONFIRMATION.search(message)
@@ -185,7 +197,10 @@ def _reply_to_summary(history: List[Dict[str, str]]) -> bool:
 def _response_stage(data: Optional[dict], stage_index: int, proposed_stage: int) -> int:
     # Align visible summary + buttons + hidden stage in one response, even if
     # the model summarizes before the optional final discovery objective.
-    if stage_index >= SUMMARY_READY_STAGE and isinstance(data, dict):
+    # A summary may arrive in the turn that completes reading preferences.
+    # Check the resulting stage too, before ordinary-question handling drops
+    # the confirmation controls. Early discovery still cannot be skipped.
+    if max(stage_index, proposed_stage) >= SUMMARY_READY_STAGE and isinstance(data, dict):
         message = data.get("message")
         if isinstance(message, str) and (data.get("ui") == "confirm" or _reviewable_summary(message)):
             return FINAL_STAGE
@@ -203,11 +218,23 @@ def _confirmed_summary(history: List[Dict[str, str]]) -> bool:
     reply = history[-1]
     answer = reply.get("content", "").strip().lower().replace("’", "'")
     answer = re.sub(r"[.!]+$", "", answer).strip()
-    return answer in {
+    if answer in {
         "yes", "yes, that's right", "yes that's right", "that's right", "that is right",
         "yes, that's correct", "yes that's correct", "that's correct", "correct",
         "yes, exactly", "exactly", "looks right", "looks good", "sounds right", "sounds good",
-    }
+        "that's perfect", "that is perfect", "yes, that's perfect", "yes that's perfect", "perfect",
+    }:
+        return True
+    # Accept a bounded set of complete, natural affirmations. Full matching is
+    # intentional: "yes ... but/except/although ..." must retain the correction
+    # and ask the reader to review a revised summary, not silently finish.
+    return bool(re.fullmatch(
+        r"(?:yes[,\s]+)?(?:"
+        r"that (?:(?:accurately|correctly) )?(?:describes|captures|reflects) "
+        r"my (?:situation|goals?|context)(?: and (?:goals?|preferences))?|"
+        r"that sums it up|that(?:'s| is) an accurate summary)",
+        answer,
+    ))
 
 
 def _question_issue(message: str, history: List[Dict[str, str]]) -> Optional[str]:
@@ -228,6 +255,12 @@ def _prepare_message(data: Optional[dict], stage_index: int, history: List[Dict[
     if not data or not isinstance(data.get("message"), str) or not data["message"].strip():
         return None, "Return valid JSON with a nonempty message."
     message = data["message"].strip()
+    if BOOK_SUGGESTION.search(message):
+        return None, (
+            "Do not suggest books in discovery. The catalog engine supplies matches "
+            "after confirmation. Summarize the reader's stated context, priority and "
+            "reading preferences with ui=confirm when ready, or ask the next missing detail."
+        )
     if stage_index == len(NEPQ_STAGES) - 1:
         # The final question and confirmation action are product-controlled.
         # Retain the model's contextual summary, but never accept it on the user's behalf.
@@ -256,7 +289,9 @@ def _request_turn(client, system: str, history: List[Dict[str, str]]) -> Optiona
         model=MODEL, max_tokens=500, timeout=20.0, system=system,
         messages=_to_anthropic_messages(history) + [{"role": "assistant", "content": "{"}],
     )
-    text = resp.content[0].text
+    # Empty/non-text provider output is a validation failure, eligible for the
+    # same bounded repair as malformed JSON, not an accidental IndexError/503.
+    text = "".join(block.text for block in resp.content if isinstance(getattr(block, "text", None), str))
     # Accept either a complete JSON response or the continuation of the brace prefill.
     return _extract_first_json(text) or _extract_first_json("{" + text)
 
@@ -273,6 +308,58 @@ def _to_anthropic_messages(history: List[Dict[str, str]]) -> List[Dict[str, str]
         if content:
             msgs.append({"role": role, "content": content})
     return msgs
+
+
+def _transient_provider_error(error: Exception) -> bool:
+    if isinstance(error, (anthropic.APIConnectionError, TimeoutError, ConnectionError)):
+        return True
+    return isinstance(error, anthropic.APIStatusError) and (
+        error.status_code in {408, 409, 429} or error.status_code >= 500
+    )
+
+
+GUIDED_QUESTIONS = {
+    1: "What are you building or exploring at the moment?",
+    2: "Which obstacle or topic would you most like your next book to help you understand?",
+    3: "What kind of reading helps you most: practical examples, exercises, stories, or a mix?",
+    4: "What would you like to be able to do or understand after reading?",
+    5: "Is there anything else you'd like me to consider when choosing your book?",
+}
+
+
+def _guided_turn(history: List[Dict[str, str]], stage_index: int) -> Dict[str, Any]:
+    """Continue after unusable generated output using controlled product copy.
+
+    The submitted answer stays in the transcript. Never use the rejected model
+    text or its stage flag, fabricate a summary, or claim the reader confirmed.
+    The final fallback quotes the reader so they can review/correct exact words.
+    """
+    next_stage = min(stage_index + 1, FINAL_STAGE)
+    previous = {m.get("content", "").strip() for m in history if m.get("role") == "assistant"}
+    while next_stage < FINAL_STAGE and GUIDED_QUESTIONS[next_stage] in previous:
+        next_stage += 1
+    ui = None
+    if next_stage < FINAL_STAGE:
+        message = GUIDED_QUESTIONS[next_stage]
+    elif _reply_to_summary(history) and history[-1].get("content", "").strip().lower().rstrip(".!?") in {
+        "no", "not quite", "i'm not sure", "i’m not sure", "i'd like to change something", "i’d like to change something",
+    }:
+        message = "What would you like to change or add to that summary?"
+    else:
+        answers = [m.get("content", "").strip() for m in history
+                   if m.get("role") == "user" and m.get("content", "").strip()]
+        if not answers:
+            # A damaged/empty saved transcript cannot become a confirmed profile.
+            return dict(message=OPENING_MESSAGE, stage_index=0, stage_key=STAGE_KEYS[0],
+                        turns_in_stage=1, done=False, ui=None)
+        quoted = "\n\n".join(f"“{answer}”" for answer in answers)
+        message = (
+            "Here’s what you’ve shared, in your own words. Your latest corrections take priority:"
+            f"\n\n{quoted}\n\n{SUMMARY_QUESTION}"
+        )
+        ui = "confirm"
+    return dict(message=message, stage_index=next_stage, stage_key=STAGE_KEYS[next_stage],
+                turns_in_stage=0, done=False, ui=ui)
 
 
 def next_turn(
@@ -311,34 +398,43 @@ def next_turn(
     system = f"{NEPQ_SYSTEM}\n\n{_stage_block(stage_index, turns_in_stage)}\n\n{_next_objective_block(stage_index)}"
     try:
         client = _client()
-        data = _request_turn(client, system, history)
-        cap = STAGE_SOFT_CAPS.get(STAGE_KEYS[stage_index], 4)
-        # Advance only within the discovery objectives. The final summary is
-        # never finished by a model flag or a turn budget.
-        advance = stage_index < len(NEPQ_STAGES) - 1 and data is not None and (
-            data.get("stage_complete") is True or turns_in_stage + 1 >= cap
-        )
-        next_stage = stage_index + 1 if advance else stage_index
-        next_stage = _response_stage(data, stage_index, next_stage)
-        prepared, issue = _prepare_message(data, next_stage, history)
-        if issue:
-            # Rewrite against the resulting objective, without another stage
-            # advance or exposing the rejected draft in the saved transcript.
-            repair_system = (
-                f"{NEPQ_SYSTEM}\n\n{_stage_block(next_stage, 0 if advance else turns_in_stage)}\n\n"
+        next_stage = stage_index
+        repairing = False
+        prepared = None
+        for attempt in range(2):
+            try:
+                data = _request_turn(client, system, history)
+            except Exception as error:
+                if attempt == 0 and _transient_provider_error(error):
+                    logger.warning("NEPQ transient provider failure; retrying once (%s)", type(error).__name__)
+                    time.sleep(0.3)
+                    continue
+                raise
+            cap = STAGE_SOFT_CAPS.get(STAGE_KEYS[stage_index], 4)
+            # The repair cannot advance again; agreement is handled before AI.
+            if not repairing:
+                advance = stage_index < FINAL_STAGE and data is not None and (
+                    data.get("stage_complete") is True or turns_in_stage + 1 >= cap
+                )
+                next_stage = stage_index + 1 if advance else stage_index
+            next_stage = _response_stage(data, stage_index, next_stage)
+            prepared, issue = _prepare_message(data, next_stage, history)
+            if prepared:
+                break
+            repairing = True
+            system = (
+                f"{NEPQ_SYSTEM}\n\n{_stage_block(next_stage, 0 if next_stage != stage_index else turns_in_stage)}\n\n"
                 f"REWRITE REQUIRED: {issue}\n"
                 "Stay on this objective. Read the full conversation and use answers already supplied. "
                 "Return the next useful question (or factual summary with ui=confirm for the final objective). "
                 "Do not mention this rewrite. Set stage_complete=false."
             )
-            data = _request_turn(client, repair_system, history)
-            next_stage = _response_stage(data, stage_index, next_stage)
-            prepared, issue = _prepare_message(data, next_stage, history)
         if not prepared:
-            raise ValueError(f"No actionable onboarding question after one rewrite: {issue}")
+            logger.warning("NEPQ guided recovery after invalid output (stage=%s): %s", stage_index, issue)
+            return _guided_turn(history, stage_index)
         message, ui = prepared
     except Exception as e:
-        logger.warning("NEPQ next_turn failed: %s", e)
+        logger.warning("NEPQ next_turn unavailable (stage=%s, error=%s)", stage_index, type(e).__name__)
         # A provider failure is not a new conversation turn. Keep the reader at
         # the same stage and let the client retry their already-submitted answer.
         raise OnboardingUnavailableError("Could not continue onboarding") from e

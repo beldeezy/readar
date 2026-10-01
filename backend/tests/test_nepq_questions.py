@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from app.config.nepq import HANDOFF_MESSAGE, SUMMARY_QUESTION, NEPQ_STAGES
-from app.services.nepq_conversation import next_turn, OnboardingUnavailableError
+from app.services.nepq_conversation import next_turn
 
 
 def response(message, complete=False, ui=None):
@@ -70,11 +70,13 @@ class ClearQuestionTests(unittest.TestCase):
                 self.assertEqual(result["message"], "What have you tried to generate steady cleaning leads?")
                 self.assertFalse(result["done"])
 
-    def test_repair_is_bounded_and_remains_retryable_without_changing_history(self):
+    def test_repair_is_bounded_and_uses_guided_question_without_changing_history(self):
         original = copy.deepcopy(self.history)
         self.replies(response("I have what I need."), response("Great."))
-        with self.assertRaises(OnboardingUnavailableError):
-            next_turn(self.history, 2)
+        result = next_turn(self.history, 2)
+        self.assertTrue(result["message"].endswith("?"))
+        self.assertFalse(result["done"])
+        self.assertNotIn("Great.", result["message"])
         self.assertEqual(self.provider.messages.create.call_count, 2)
         self.assertEqual(self.history, original)
 

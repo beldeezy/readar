@@ -26,7 +26,8 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, animate = false }) =
     if (!animate || reduced || revealed) return;
     const length = Array.from(message.content).length;
     let elapsed = 0;
-    const duration = Math.min(2500, Math.max(400, length * 18));
+    // September 24: 25% fewer characters per second, including short/long replies.
+    const duration = Math.min(2500, Math.max(400, length * 18)) / 0.75;
     const timer = window.setInterval(() => {
       elapsed += 30;
       setVisible(Math.ceil(length * elapsed / duration));
