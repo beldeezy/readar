@@ -105,8 +105,12 @@ class SummaryConfirmationTests(unittest.TestCase):
 
     def test_final_stage_does_not_turn_acknowledgements_into_fake_summaries(self):
         self.provider.messages.create.side_effect = [response("Great."), response("Let me get your books.")]
-        with self.assertRaises(OnboardingUnavailableError):
-            next_turn(self.history, 6)
+        result = next_turn(self.history, 6)
+        self.assertFalse(result["done"])
+        self.assertEqual(result["ui"], "confirm")
+        self.assertIn(self.history[0]["content"], result["message"])
+        self.assertIn(self.history[-1]["content"], result["message"])
+        self.assertNotIn("Let me get your books.", result["message"])
         self.assertEqual(self.provider.messages.create.call_count, 2)
 
     def test_canonical_summary_with_an_older_stage_can_resume(self):
