@@ -52,6 +52,11 @@ The branch must be `dev` and include the PR #20 merge (`462481b`) or a later des
 
 With the existing working test credentials in `backend/.env` and `frontend/.env.local`:
 
+For recommendation acceptance, first use the
+[RD-28 catalog refresh procedure](rd28-development-catalog-refresh.md) and record
+the tested code SHAs and catalog fingerprints. Seed fixtures or an older local
+database do not establish current production recommendation quality.
+
 Terminal 1:
 
 ```bash

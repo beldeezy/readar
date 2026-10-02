@@ -71,3 +71,6 @@ dist/
 build/
 *.tsbuildinfo
 .claude/
+
+# Local catalog snapshots and review evidence (RD-28)
+.local/

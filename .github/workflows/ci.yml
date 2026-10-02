@@ -74,3 +74,28 @@ jobs:
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/test_readar
           TEST_DATABASE_URL: postgresql://ci:ci@localhost:5432/test_readar
+      # Verify the documented refresh against two disposable CI databases.
+      # This also catches migration-from-empty failures hidden by create_all.
+      - name: Verify catalog refresh from an empty database
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: ci
+          PGPASSWORD: ci
+          PGDATABASE: postgres
+        run: |
+          createdb readar_refresh_source
+          createdb readar_refresh_copy
+          DATABASE_URL=postgresql://ci:ci@localhost:5432/readar_refresh_source python -m alembic upgrade head
+          DATABASE_URL=postgresql://ci:ci@localhost:5432/readar_refresh_copy python -m alembic upgrade head
+          psql --dbname=readar_refresh_source -X -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO books (id, title, author_name, description, knowledge_level, functional_tags, core_frameworks)
+          VALUES ('00000000-0000-0000-0000-000000000028', 'Synthetic refresh fixture', 'Fixture Author', 'Not a production catalog', 2, ARRAY['marketing'], '["Referral system"]');
+          INSERT INTO book_sources (id, book_id, source_name, source_year, source_rank, source_category, created_at, updated_at)
+          VALUES ('00000000-0000-0000-0000-000000000029', '00000000-0000-0000-0000-000000000028', 'synthetic', 2026, 1, 'business', NOW(), NOW());
+          SQL
+          READAR_BASELINE_DATABASE_URL=postgresql://ci:ci@localhost:5432/readar_refresh_source python scripts/catalog_baseline.py snapshot --label ci-source --output /tmp/readar-source.json
+          PGOPTIONS='-c default_transaction_read_only=on' pg_dump --dbname=readar_refresh_source --format=custom --data-only --no-owner --no-acl --table=public.books --table=public.book_sources --file=/tmp/readar-catalog.dump
+          pg_restore --dbname=readar_refresh_copy --data-only --no-owner --no-acl --single-transaction --exit-on-error /tmp/readar-catalog.dump
+          READAR_BASELINE_DATABASE_URL=postgresql://ci:ci@localhost:5432/readar_refresh_copy python scripts/catalog_baseline.py snapshot --label ci-copy --output /tmp/readar-copy.json
+          python scripts/catalog_baseline.py compare /tmp/readar-source.json /tmp/readar-copy.json
