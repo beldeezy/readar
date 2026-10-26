@@ -129,14 +129,13 @@ export default function FriendlyCompetition({ books, booksReady, refreshKey, dis
   };
 
   return <section id="friendly-competition" className="friendly-competition" aria-labelledby={`${id}-heading`} aria-busy={loading || !!busy}>
-    <div className="friendly-heading"><div><h2 id={`${id}-heading`} ref={heading} tabIndex={-1}>A little company. A little momentum.</h2><p>Friendly Competition · read alongside another reader.</p></div>
-      {data && <span className="friendly-badge">{labels[data.status]}</span>}
+    <div className="friendly-heading"><div><h2 id={`${id}-heading`} ref={heading} tabIndex={-1}>Friendly Competition</h2><p>Stay motivated with a reading partner, even if you’re reading different books.</p></div>
+      {data && data.status !== 'inactive' && <span className="friendly-badge">{labels[data.status]}</span>}
     </div>
     {loading && <p role="status">Loading Friendly Competition…</p>}
     {notice && <p role="status" className="reading-notice">{notice}</p>}
     {loadError && <p role="alert" className="readar-action-error">{loadError}</p>}
     {data && !draft && <>
-      {data.status === 'inactive' && <><h3>Keep your own book. Find a reading partner.</h3><p>Opt in when you want some shared momentum. We’ll pair you with another reader who has opted in, even if you’re reading different books.</p></>}
       {data.status === 'waiting' && <div className="friendly-state"><h3>You’re in. Your next page is waiting, too.</h3><p>We’ll pair you when another reader joins. You can leave this page and keep reading; your search stays active until you stop it.</p><p className="reading-muted">No match yet. Check back here for your partner. While this page is visible, status updates every 30 seconds.</p><a href="#now-reading-heading">Back to my reading ↓</a></div>}
       {data.status === 'paired' && data.partner && !loadError && <div className="friendly-state">
         <h3>Meet {data.partner.reading_name}</h3><p>They’re reading <strong>{data.partner.book_title}</strong>{data.partner.book_author && <> by {data.partner.book_author}</>}.</p>
@@ -146,7 +145,8 @@ export default function FriendlyCompetition({ books, booksReady, refreshKey, dis
       {(data.status === 'waiting' || data.status === 'paired') && data.you && <div className="friendly-sharing"><h3>{data.status === 'paired' ? 'What your partner can see' : 'What you’ve chosen to share'}</h3><p><strong>{data.you.reading_name}</strong> · {data.you.book_title}{data.you.book_author && <> by {data.you.book_author}</>}</p><p className="reading-muted">This book stays selected for the pairing. To change these details, leave and choose again.</p>{data.progress_sharing && <p className="reading-muted">You also opted into sharing weekly reading summaries once both readers join the rounds.</p>}</div>}
       {(data.status === 'inactive' || data.status === 'ended') && <div className="friendly-actions">
         {booksReady && choices.size > 0 ? <Button disabled={locked || !!loadError || conflict} onClick={open}>Find a reading partner</Button>
-          : <p className="reading-muted">{booksReady ? 'Start a book in Now reading, then come back to find a partner.' : 'Your reading list needs to finish loading before you choose a book to share.'}</p>}
+          : booksReady ? <div><p className="reading-muted">Choose a book and start reading to get started.</p><Button disabled={locked} onClick={() => { document.getElementById('reading-search')?.focus(); document.getElementById('reading-search')?.scrollIntoView({ block: 'center' }); }}>Choose a book</Button></div>
+          : <p className="reading-muted">Your reading list needs to finish loading before you choose a book to share.</p>}
       </div>}
       {(data.status === 'waiting' || data.status === 'paired') && <Button variant="ghost" disabled={locked || !!loadError || conflict} onClick={() => void mutate('leave')}>
         {busy === 'leave' ? 'Leaving…' : data.status === 'waiting' ? 'Stop searching' : 'Leave pairing'}
@@ -163,7 +163,7 @@ export default function FriendlyCompetition({ books, booksReady, refreshKey, dis
         </select>
       </label>
       {!choices.has(draft.book_id) && <p role="status">That book is no longer in Now reading. Choose another started book before joining.</p>}
-      <p>We’ll match you with any available reader who has opted in. You don’t need to read the same book.</p>
+      <p>Your partner sees your reading name and book. Sharing weekly progress is optional.</p>
       <label className="friendly-consent"><input type="checkbox" required checked={draft.share_with_partner} disabled={locked} onChange={(event) => change({ share_with_partner: event.target.checked })} /><span>I want a partner and agree to share my reading name and this book’s title and author with them.</span></label>
       <p className="friendly-privacy">Your email, onboarding answers, notes and reflections stay private. You can stop searching or leave the pairing at any time.</p>
       <div className="friendly-actions"><Button type="submit" disabled={locked || conflict || !booksReady || !choices.has(draft.book_id) || !draft.share_with_partner || !draft.reading_name.trim()}>{busy === 'join' ? 'Finding a partner…' : 'Join Friendly Competition'}</Button>
@@ -171,8 +171,8 @@ export default function FriendlyCompetition({ books, booksReady, refreshKey, dis
       </div>
     </form>}
     {error && <p role="alert" className="readar-action-error">{error}</p>}
-    {(!draft || conflict || error) && <div className="friendly-actions"><Button variant="secondary" size="sm" disabled={locked} onClick={() => void refresh(true)}>{checking ? 'Checking…' : 'Check status'}</Button></div>}
-    {!draft && <p className="friendly-privacy">{data?.progress_sharing ? 'Your partner can also see weekly reading summaries once both of you join rounds.' : 'Your chosen reading name and selected book title/author are shared with your current partner. Weekly progress needs a separate opt-in below.'} Your email, notes, takeaways, reflections and onboarding answers stay private.</p>}
+    {((!draft && (data?.status === 'waiting' || data?.status === 'paired' || !!loadError)) || conflict || error) && <div className="friendly-actions"><Button variant="secondary" size="sm" disabled={locked} onClick={() => void refresh(true)}>{checking ? 'Checking…' : 'Check status'}</Button></div>}
+    {!draft && <details className="friendly-privacy"><summary>What’s shared?</summary><p>{data?.progress_sharing ? 'Your partner can also see weekly reading summaries once both of you join rounds.' : 'Your chosen reading name and selected book title/author are shared with your current partner. Weekly progress needs a separate opt-in below.'} Your email, notes, takeaways, reflections and onboarding answers stay private.</p></details>}
     {data && !draft && <WeeklyCompetition pairing={data} refreshKey={refreshKey} disabled={locked} onBusyChange={onBusyChange} onConsentSaved={() => void refresh(true)} />}
   </section>;
 }

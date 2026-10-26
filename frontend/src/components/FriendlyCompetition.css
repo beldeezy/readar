@@ -1,4 +1,4 @@
-.friendly-competition { max-width: 640px; margin: 2.25rem auto; padding: 1.4rem; border: 1px solid var(--rd-border); border-radius: var(--rd-radius-md); background: var(--rd-surface); color: var(--rd-text); scroll-margin-top: 6rem; }
+.friendly-competition { max-width: 640px; margin: 1.5rem auto; padding: 1.2rem; border: 1px solid var(--rd-border); border-radius: var(--rd-radius-md); background: var(--rd-surface); color: var(--rd-text); scroll-margin-top: 6rem; }
 .friendly-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
 .friendly-competition h2 { margin: 0; font-size: 1.2rem; line-height: 1.4; }
 .friendly-competition h3 { font-size: 1rem; overflow-wrap: anywhere; margin: 1.2rem 0 0.5rem; }
@@ -14,6 +14,9 @@
 .friendly-form input:not([type="checkbox"]), .friendly-form select { display: block; width: 100%; box-sizing: border-box; min-width: 0; margin-top: 0.4rem; padding: 0.65rem; font: inherit; font-size: 1rem; color: var(--rd-text); background: var(--readar-bg); border: 1px solid var(--rd-border-strong); border-radius: 6px; color-scheme: dark; }
 .friendly-form .friendly-consent { display: flex; align-items: flex-start; gap: 0.7rem; line-height: 1.6; }
 .friendly-consent input { flex-shrink: 0; width: 1.1rem; height: 1.1rem; margin-top: 0.15rem; accent-color: var(--rd-accent); }
-.friendly-competition :is(input, select, a):focus-visible { outline: var(--rd-focus-ring); outline-offset: 3px; }
+.friendly-competition :is(input, select, a, summary):focus-visible { outline: var(--rd-focus-ring); outline-offset: 3px; }
 .friendly-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0.85rem 0; }
 @media (max-width: 480px) { .friendly-competition { padding: 1rem; } .friendly-form .friendly-actions > button { width: 100%; } }
+
+.friendly-privacy summary { cursor: pointer; width: fit-content; color: var(--rd-muted); }
+.friendly-privacy p { font-size: inherit; margin-bottom: 0; }
